@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { UsersSubgraphModule } from './users/users-subgraph.module';
-import { UsersResolverResolver } from './resolver/users-resolver.resolver';
+import { UsersResolver } from './users/resolver/users.resolver';
 
 @Module({
   imports: [UsersSubgraphModule],
   controllers: [],
-  providers: [UsersResolverResolver],
+  providers: [UsersResolver],
 })
 export class AppModule {}

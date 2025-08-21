@@ -1,9 +1,9 @@
 import { Args, ID, Query, Resolver, ResolveReference } from '@nestjs/graphql';
-import { User } from '../users/models/user.model';
-import { UsersSubgraphService } from '../users/users-subgraph.service';
+import { User } from '../models/user.model';
+import { UsersSubgraphService } from '../service/users-subgraph.service';
 
 @Resolver((of) => User)
-export class UsersResolverResolver {
+export class UsersResolver {
     constructor(private usersService: UsersSubgraphService) { }
 
     @Query((returns) => User)

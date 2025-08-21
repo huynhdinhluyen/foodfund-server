@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
-import { UsersSubgraphService } from './users-subgraph.service';
-import { UsersResolverResolver } from '../resolver/users-resolver.resolver';
+import { UsersSubgraphService } from './service/users-subgraph.service';
+import { UsersResolver } from './resolver/users.resolver';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloFederationDriver, ApolloFederationDriverConfig } from '@nestjs/apollo';
 import { ApolloServerPluginInlineTrace } from '@apollo/server/plugin/inlineTrace';
 
 
 @Module({
-  providers: [UsersResolverResolver, UsersSubgraphService],
+  providers: [UsersResolver, UsersSubgraphService],
   imports: [
     GraphQLModule.forRoot<ApolloFederationDriverConfig>({
       driver: ApolloFederationDriver,
