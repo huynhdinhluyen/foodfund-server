@@ -98,9 +98,11 @@ export interface EnvironmentConfig {
     [key in Container]?: ContainerConfig;
   };
   
-  // Database configurations
+  // Database configurations per service
   databases: {
-    postgresql?: DatabaseConfig;
+    users?: DatabaseConfig;
+    campaigns?: DatabaseConfig;
+    // auth service uses Firebase (no database needed)
     redis?: {
       [key in RedisType]?: RedisConfig;
     };

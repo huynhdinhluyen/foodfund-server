@@ -1,16 +1,35 @@
 version: '3.8'
 services:
-  db:
+  # Users Service Database
+  users-db:
     image: postgres:17.5-alpine3.22
-    container_name: postgres-db
+    container_name: users-postgres-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: foodfund_db
+      POSTGRES_DB: users_db
       POSTGRES_USER: root
       POSTGRES_PASSWORD: foodfund
     ports:
       - "5433:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - users_pgdata:/var/lib/postgresql/data
+
+  # Campaigns Service Database
+  campaigns-db:
+    image: postgres:17.5-alpine3.22
+    container_name: campaigns-postgres-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: campaigns_db
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: foodfund
+    ports:
+      - "5434:5432"
+    volumes:
+      - campaigns_pgdata:/var/lib/postgresql/data
+
+  # Auth Service now uses Firebase Authentication (no database needed)
+
 volumes:
-  pgdata:
+  users_pgdata:
+  campaigns_pgdata:

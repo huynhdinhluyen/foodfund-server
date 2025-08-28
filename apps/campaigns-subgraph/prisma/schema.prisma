@@ -1,0 +1,65 @@
+// Campaigns Service Database Schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("CAMPAIGNS_DATABASE_URL")
+}
+
+// Campaign model for fundraising campaigns
+model Campaign {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  goal        Float
+  raised      Float    @default(0)
+  imageUrl    String?
+  isActive    Boolean  @default(true)
+  startDate   DateTime @default(now())
+  endDate     DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Foreign key reference to User in users-service
+  creatorId String
+  
+  // Relations within campaigns service
+  donations Donation[]
+  comments  Comment[]
+
+  @@map("campaigns")
+}
+
+// Donation model for tracking donations
+model Donation {
+  id        String   @id @default(cuid())
+  amount    Float
+  message   String?
+  isPrivate Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Foreign key references
+  donorId    String   // Reference to User in users-service
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("donations")
+}
+
+// Comment model for campaign comments
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Foreign key references
+  authorId   String   // Reference to User in users-service
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}

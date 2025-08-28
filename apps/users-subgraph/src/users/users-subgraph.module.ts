@@ -2,11 +2,11 @@ import { Module } from '@nestjs/common';
 import { UsersSubgraphService } from './service/users-subgraph.service';
 import { UsersResolver } from './resolver/users.resolver';
 import { GraphQLSubgraphModule } from 'libs/graphql/subgraph';
-import { 
-  PrismaModule, 
-  UserRepository, 
-  CampaignRepository, 
-  DonationRepository 
+import {
+  PrismaModule,
+  UserRepository,
+  CampaignRepository,
+  DonationRepository,
 } from 'libs/databases';
 
 @Module({
@@ -16,7 +16,7 @@ import {
     PrismaModule.forFeature([
       UserRepository,
       CampaignRepository,
-      DonationRepository
+      DonationRepository,
     ]),
     GraphQLSubgraphModule.forRoot(),
   ],

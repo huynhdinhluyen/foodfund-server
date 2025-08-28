@@ -10,6 +10,24 @@
   "monorepo": true,
   "root": "apps/graphql-gateway",
   "projects": {
+    "auth": {
+      "type": "application",
+      "root": "apps/auth",
+      "entryFile": "main",
+      "sourceRoot": "apps/auth/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/auth/tsconfig.app.json"
+      }
+    },
+    "campaigns-subgraph": {
+      "type": "application",
+      "root": "apps/campaigns-subgraph",
+      "entryFile": "main",
+      "sourceRoot": "apps/campaigns-subgraph/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/campaigns-subgraph/tsconfig.app.json"
+      }
+    },
     "graphql-gateway": {
       "type": "application",
       "root": "apps/graphql-gateway",
@@ -20,30 +38,12 @@
       }
     },
     "users-subgraph": {
-      "type": "application", 
+      "type": "application",
       "root": "apps/users-subgraph",
       "entryFile": "main",
       "sourceRoot": "apps/users-subgraph/src",
       "compilerOptions": {
         "tsConfigPath": "apps/users-subgraph/tsconfig.app.json"
-      }
-    },
-    "auth": {
-      "type": "application",
-      "root": "apps/auth",
-      "entryFile": "main",
-      "sourceRoot": "apps/auth/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/auth/tsconfig.app.json"
-      }
-    },
-    "databases": {
-      "type": "library",
-      "root": "libs/databases",
-      "entryFile": "index",
-      "sourceRoot": "libs/databases",
-      "compilerOptions": {
-        "tsConfigPath": "libs/databases/tsconfig.lib.json"
       }
     }
   }

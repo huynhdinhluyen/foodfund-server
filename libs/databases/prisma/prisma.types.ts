@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 export enum DatabaseName {
   Main = 'main',
   Analytics = 'analytics',
-  Logging = 'logging'
+  Logging = 'logging',
 }
 
 export interface DatabaseConfig {

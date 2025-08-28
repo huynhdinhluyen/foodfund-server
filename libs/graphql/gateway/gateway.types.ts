@@ -1,8 +1,8 @@
 export interface GraphqlGatewayOptions {
-    subgraphs: Array<SubgraphUrl>
+  subgraphs: Array<SubgraphUrl>;
 }
 
 export interface SubgraphUrl {
-    name: string
-    url: string
+  name: string;
+  url: string;
 }

@@ -12,10 +12,8 @@ import {
   DEFAULT_PORT,
   DEFAULT_REDIS_PORT,
   LOCALHOST,
-  DEFAULT_DATABASE_URL,
-  DEFAULT_JWT_SECRET,
-  DEFAULT_JWT_ACCESS_TOKEN_EXPIRATION,
-  DEFAULT_JWT_REFRESH_TOKEN_EXPIRATION
+  DEFAULT_JWT_REFRESH_TOKEN_EXPIRATION,
+  DEFAULT_JWT_ACCESS_TOKEN_EXPIRATION
 } from './env.constants';
 
 export const envConfig = (): EnvironmentConfig => ({
@@ -105,18 +103,27 @@ export const envConfig = (): EnvironmentConfig => ({
     }
   },
   
-  // Database configurations
+  // Database configurations per service
   databases: {
-    postgresql: {
-      host: process.env.DATABASE_HOST ?? LOCALHOST,
-      port: process.env.DATABASE_PORT
-        ? Number.parseInt(process.env.DATABASE_PORT)
-        : 5432,
-      username: process.env.DATABASE_USERNAME,
-      password: process.env.DATABASE_PASSWORD,
-      databaseName: process.env.DATABASE_NAME ?? 'foodfund',
-      url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL
+    users: {
+      host: process.env.USERS_DATABASE_HOST ?? LOCALHOST,
+      port: process.env.USERS_DATABASE_PORT
+        ? Number.parseInt(process.env.USERS_DATABASE_PORT)
+        : 5433,
+      username: process.env.USERS_DATABASE_USERNAME ,
+      password: process.env.USERS_DATABASE_PASSWORD ,
+      databaseName: process.env.USERS_DATABASE_NAME ,
     },
+    campaigns: {
+      host: process.env.CAMPAIGNS_DATABASE_HOST ?? LOCALHOST,
+      port: process.env.CAMPAIGNS_DATABASE_PORT
+        ? Number.parseInt(process.env.CAMPAIGNS_DATABASE_PORT)
+        : 5434,
+      username: process.env.CAMPAIGNS_DATABASE_USERNAME,
+      password: process.env.CAMPAIGNS_DATABASE_PASSWORD,
+      databaseName: process.env.CAMPAIGNS_DATABASE_NAME,
+    },
+    // Auth service now uses Firebase Authentication (no database needed)
     redis: {
       [RedisType.Cache]: {
         host: process.env.CACHE_REDIS_HOST ?? LOCALHOST,
@@ -174,11 +181,10 @@ export const envConfig = (): EnvironmentConfig => ({
   
   // Authentication & Security
   jwt: {
-    secret: process.env.JWT_SECRET ?? DEFAULT_JWT_SECRET,
+    secret: process.env.JWT_SECRET ?? 'dev-jwt-secret',
     accessTokenExpiration: process.env.JWT_ACCESS_TOKEN_EXPIRATION ?? DEFAULT_JWT_ACCESS_TOKEN_EXPIRATION,
     refreshTokenExpiration: process.env.JWT_REFRESH_TOKEN_EXPIRATION ?? DEFAULT_JWT_REFRESH_TOKEN_EXPIRATION
   },
-  
   session: {
     secret: process.env.SESSION_SECRET ?? 'dev-session-secret'
   },

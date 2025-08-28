@@ -24,9 +24,11 @@ export class EnvModule {
       exports: [ENV_CONFIG],
     };
 
-    return isGlobal ? {
-      ...moduleDefinition,
-      global: true,
-    } : moduleDefinition;
+    return isGlobal
+      ? {
+          ...moduleDefinition,
+          global: true,
+        }
+      : moduleDefinition;
   }
 }
