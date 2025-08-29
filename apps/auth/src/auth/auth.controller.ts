@@ -8,8 +8,8 @@ import {
   HttpCode,
   HttpStatus 
 } from '@nestjs/common';
-import { AuthService, FirebaseUser, AuthResponse } from './auth.service';
-import { FirebaseAuthGuard } from '../guards';
+import { AuthService } from './auth.service';
+import { FirebaseUser, AuthResponse, FirebaseAuthGuard } from '../../../../libs/firebase-auth';
 
 interface VerifyTokenDto {
   idToken: string;
