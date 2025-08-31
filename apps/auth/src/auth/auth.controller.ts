@@ -1,15 +1,19 @@
-import { 
-  Controller, 
-  Post, 
-  Get, 
-  Body, 
-  UseGuards, 
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  UseGuards,
   Request,
   HttpCode,
-  HttpStatus 
+  HttpStatus,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { FirebaseUser, AuthResponse, FirebaseAuthGuard } from '../../../../libs/firebase-auth';
+import {
+  FirebaseUser,
+  AuthResponse,
+  FirebaseAuthGuard,
+} from '../../../../libs/firebase-auth';
 
 interface VerifyTokenDto {
   idToken: string;
@@ -32,7 +36,9 @@ export class AuthController {
    */
   @Post('verify')
   @HttpCode(HttpStatus.OK)
-  async verifyToken(@Body() { idToken }: VerifyTokenDto): Promise<AuthResponse> {
+  async verifyToken(
+    @Body() { idToken }: VerifyTokenDto,
+  ): Promise<AuthResponse> {
     const user = await this.authService.verifyToken(idToken);
     return this.authService.validateUser(user);
   }
@@ -63,7 +69,7 @@ export class AuthController {
   getProtected(@Request() req): { message: string; user: FirebaseUser } {
     return {
       message: 'This is a protected route',
-      user: req.user
+      user: req.user,
     };
   }
 }

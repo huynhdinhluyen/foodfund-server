@@ -1,6 +1,9 @@
-import { DynamicModule, Module } from "@nestjs/common"
-import { ConfigurableModuleClass, OPTIONS_TYPE } from "./firebase-admin.module-definition"
-import { FirebaseAdminService } from "./firebase-admin.service"
+import { DynamicModule, Module } from '@nestjs/common';
+import {
+  ConfigurableModuleClass,
+  OPTIONS_TYPE,
+} from './firebase-admin.module-definition';
+import { FirebaseAdminService } from './firebase-admin.service';
 
 // Define types locally
 type NestProvider = any;
@@ -8,23 +11,21 @@ type NestExport = any;
 
 @Module({})
 export class FirebaseAdminModule extends ConfigurableModuleClass {
-    static register(options: typeof OPTIONS_TYPE): DynamicModule {
-        const dynamicModule = super.register(options)
-        
-        const providers: Array<NestProvider> = []
-        const exports: Array<NestExport> = []
+  static register(options: typeof OPTIONS_TYPE): DynamicModule {
+    const dynamicModule = super.register(options);
 
-        const services = [
-            FirebaseAdminService
-        ]
+    const providers: Array<NestProvider> = [];
+    const exports: Array<NestExport> = [];
 
-        providers.push(...services)
-        exports.push(...services)
+    const services = [FirebaseAdminService];
 
-        return {
-            ...dynamicModule,
-            providers,
-            exports
-        }
-    }
+    providers.push(...services);
+    exports.push(...services);
+
+    return {
+      ...dynamicModule,
+      providers,
+      exports,
+    };
+  }
 }

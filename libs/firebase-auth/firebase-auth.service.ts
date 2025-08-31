@@ -11,8 +11,11 @@ export class FirebaseAuthService {
    */
   async verifyToken(idToken: string): Promise<FirebaseUser> {
     try {
-      const decodedToken = await this.firebaseAdminService.validateToken(idToken);
-      const firebaseUser = await this.firebaseAdminService.getUser(decodedToken.uid);
+      const decodedToken =
+        await this.firebaseAdminService.validateToken(idToken);
+      const firebaseUser = await this.firebaseAdminService.getUser(
+        decodedToken.uid,
+      );
 
       return {
         uid: decodedToken.uid,
@@ -29,8 +32,8 @@ export class FirebaseAuthService {
           photoURL: firebaseUser.photoURL,
           disabled: firebaseUser.disabled,
           metadata: firebaseUser.metadata,
-          customClaims: firebaseUser.customClaims
-        }
+          customClaims: firebaseUser.customClaims,
+        },
       };
     } catch (error) {
       throw new UnauthorizedException('Invalid or expired Firebase token');
@@ -54,10 +57,10 @@ export class FirebaseAuthService {
   async validateUser(user: FirebaseUser): Promise<AuthResponse> {
     // Additional business logic can be added here
     // e.g., check if user is active, has required permissions, etc.
-    
+
     return {
       user,
-      message: 'Authentication successful'
+      message: 'Authentication successful',
     };
   }
 }

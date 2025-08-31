@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { FirebaseAuthService, FirebaseUser, AuthResponse } from '../../../../libs/firebase-auth';
+import {
+  FirebaseAuthService,
+  FirebaseUser,
+  AuthResponse,
+} from '../../../../libs/firebase-auth';
 
 @Injectable()
 export class AuthService {
@@ -33,7 +37,7 @@ export class AuthService {
     return {
       status: 'healthy',
       service: 'Firebase Auth Service',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 }

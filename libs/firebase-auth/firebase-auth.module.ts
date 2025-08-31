@@ -6,17 +6,8 @@ import { FirebaseAuthStrategy } from './strategies';
 import { ConfigurableModuleClass } from './firebase-auth.module-definition';
 
 @Module({
-  imports: [
-    PassportModule,
-    FirebaseAdminModule,
-  ],
-  providers: [
-    FirebaseAuthService,
-    FirebaseAuthStrategy,
-  ],
-  exports: [
-    FirebaseAuthService,
-    FirebaseAuthStrategy,
-  ],
+  imports: [PassportModule, FirebaseAdminModule],
+  providers: [FirebaseAuthService, FirebaseAuthStrategy],
+  exports: [FirebaseAuthService, FirebaseAuthStrategy],
 })
 export class FirebaseAuthModule extends ConfigurableModuleClass {}

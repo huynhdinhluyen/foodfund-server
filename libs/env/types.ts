@@ -2,7 +2,7 @@
 export enum NodeEnv {
   Development = 'development',
   Production = 'production',
-  Test = 'test'
+  Test = 'test',
 }
 
 export enum Container {
@@ -10,22 +10,22 @@ export enum Container {
   GraphQLGateway = 'graphql-gateway',
   UsersSubgraph = 'users-subgraph',
   CampaignsSubgraph = 'campaigns-subgraph',
-  DonationsSubgraph = 'donations-subgraph'
+  DonationsSubgraph = 'donations-subgraph',
 }
 
 export enum RedisType {
   Cache = 'cache',
   Session = 'session',
-  Job = 'job'
+  Job = 'job',
 }
 
 export enum Brokers {
-  Kafka = 'kafka'
+  Kafka = 'kafka',
 }
 
 export enum DatabaseType {
   PostgreSQL = 'postgresql',
-  MongoDB = 'mongodb'
+  MongoDB = 'mongodb',
 }
 
 // Container configuration interfaces
@@ -82,22 +82,22 @@ export interface CacheConfig {
 // Main environment configuration interface
 export interface EnvironmentConfig {
   nodeEnv: NodeEnv;
-  
+
   // Cache configurations
   cache: {
     [key: string]: CacheConfig;
   };
-  
+
   // CORS configurations
   cors: {
     [key: string]: CorsConfig;
   };
-  
+
   // Container configurations
   containers: {
     [key in Container]?: ContainerConfig;
   };
-  
+
   // Database configurations per service
   databases: {
     users?: DatabaseConfig;
@@ -107,12 +107,12 @@ export interface EnvironmentConfig {
       [key in RedisType]?: RedisConfig;
     };
   };
-  
+
   // Message broker configurations
   brokers: {
     [key in Brokers]?: KafkaConfig;
   };
-  
+
   // Authentication & Security
   jwt: JwtConfig;
   session?: {
@@ -126,7 +126,7 @@ export interface EnvironmentConfig {
       salt: string;
     };
   };
-  
+
   // External services (optional for future expansion)
   s3?: any;
   firebase?: any;
@@ -134,7 +134,7 @@ export interface EnvironmentConfig {
   backup?: {
     dir: string;
   };
-  
+
   // Development & debugging
   productionUrl?: string;
   e2eEnabled?: boolean;

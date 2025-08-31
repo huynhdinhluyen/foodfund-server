@@ -5,7 +5,10 @@ import { Strategy } from 'passport-firebase-jwt';
 import { FirebaseUser } from '../firebase-auth.types';
 
 @Injectable()
-export class FirebaseAuthStrategy extends PassportStrategy(Strategy, 'firebase-auth') {
+export class FirebaseAuthStrategy extends PassportStrategy(
+  Strategy,
+  'firebase-auth',
+) {
   constructor(private readonly firebaseAdminService: FirebaseAdminService) {
     super({
       jwtFromRequest: (req: any) => {
@@ -15,7 +18,7 @@ export class FirebaseAuthStrategy extends PassportStrategy(Strategy, 'firebase-a
           return authHeader.substring(7);
         }
         return null;
-      }
+      },
     });
   }
 
@@ -23,10 +26,12 @@ export class FirebaseAuthStrategy extends PassportStrategy(Strategy, 'firebase-a
     try {
       // Verify Firebase ID token
       const decodedToken = await this.firebaseAdminService.validateToken(token);
-      
+
       // Get user details from Firebase
-      const firebaseUser = await this.firebaseAdminService.getUser(decodedToken.uid);
-      
+      const firebaseUser = await this.firebaseAdminService.getUser(
+        decodedToken.uid,
+      );
+
       // Return user object that will be attached to request
       return {
         uid: decodedToken.uid,
@@ -43,8 +48,8 @@ export class FirebaseAuthStrategy extends PassportStrategy(Strategy, 'firebase-a
           photoURL: firebaseUser.photoURL,
           disabled: firebaseUser.disabled,
           metadata: firebaseUser.metadata,
-          customClaims: firebaseUser.customClaims
-        }
+          customClaims: firebaseUser.customClaims,
+        },
       };
     } catch (error) {
       throw new UnauthorizedException('Invalid Firebase token');

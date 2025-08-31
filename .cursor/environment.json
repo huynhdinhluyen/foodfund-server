@@ -1,0 +1,8 @@
+{
+  "build": {
+    "context": ".",
+    "dockerfile": "Dockerfile"
+  },
+  "install": "npm install",
+  "start": "npm run start:dev"
+}

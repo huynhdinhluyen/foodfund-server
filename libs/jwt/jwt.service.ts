@@ -9,9 +9,7 @@ import { envConfig } from '../env';
 export class JwtService {
   private readonly logger = new Logger(JwtService.name);
 
-  constructor(
-    private readonly jwtService: NestJwtService,
-  ) {}
+  constructor(private readonly jwtService: NestJwtService) {}
 
   public async generateAuthCredentials(
     payload: UserLike,
@@ -37,7 +35,7 @@ export class JwtService {
       const payload = await this.jwtService.verifyAsync(token, {
         secret: envConfig().jwt.secret,
       });
-      
+
       if (payload && typeof payload === 'object' && payload.id) {
         return payload as UserLike;
       }
@@ -50,7 +48,7 @@ export class JwtService {
 
   public async decodeToken(token: string): Promise<UserLike | null> {
     try {
-      const decoded = this.jwtService.decode(token) as any;
+      const decoded = this.jwtService.decode(token);
       if (decoded && typeof decoded === 'object' && decoded.id) {
         return decoded as UserLike;
       }
