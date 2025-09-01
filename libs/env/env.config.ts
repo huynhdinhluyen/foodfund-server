@@ -214,6 +214,19 @@ export const envConfig = (): EnvironmentConfig => ({
     secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
   },
 
+  // AWS Cognito configuration
+  aws: {
+    region: process.env.AWS_REGION || 'us-east-1',
+    cognito: {
+      region: process.env.AWS_COGNITO_REGION || process.env.AWS_REGION || 'us-east-1',
+      userPoolId: process.env.AWS_COGNITO_USER_POOL_ID!,
+      clientId: process.env.AWS_COGNITO_CLIENT_ID!,
+      userPoolDomain: process.env.AWS_COGNITO_USER_POOL_DOMAIN,
+    },
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+
   firebase: {
     credential: {
       type: process.env.FIREBASE_CREDENTIAL_TYPE,

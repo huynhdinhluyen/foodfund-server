@@ -79,6 +79,21 @@ export interface CacheConfig {
   timeoutMs: number;
 }
 
+// AWS Cognito configuration interfaces
+export interface AwsCognitoConfig {
+  region: string;
+  userPoolId: string;
+  clientId: string;
+  userPoolDomain?: string;
+}
+
+export interface AwsConfig {
+  region: string;
+  cognito: AwsCognitoConfig;
+  accessKeyId?: string;
+  secretAccessKey?: string;
+}
+
 // Main environment configuration interface
 export interface EnvironmentConfig {
   nodeEnv: NodeEnv;
@@ -130,6 +145,7 @@ export interface EnvironmentConfig {
   // External services (optional for future expansion)
   s3?: any;
   firebase?: any;
+  aws?: AwsConfig;
   googleCloud?: any;
   backup?: {
     dir: string;

@@ -10,13 +10,13 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import {
-  FirebaseUser,
+  CognitoUser,
   AuthResponse,
-  FirebaseAuthGuard,
-} from '../../../../libs/firebase-auth';
+  CognitoAuthGuard,
+} from '../../../../libs/aws-cognito';
 
 interface VerifyTokenDto {
-  idToken: string;
+  accessToken: string;
 }
 
 @Controller('auth')
@@ -32,14 +32,14 @@ export class AuthController {
   }
 
   /**
-   * Verify Firebase ID token
+   * Verify AWS Cognito access token
    */
   @Post('verify')
   @HttpCode(HttpStatus.OK)
   async verifyToken(
-    @Body() { idToken }: VerifyTokenDto,
+    @Body() { accessToken }: VerifyTokenDto,
   ): Promise<AuthResponse> {
-    const user = await this.authService.verifyToken(idToken);
+    const user = await this.authService.verifyToken(accessToken);
     return this.authService.validateUser(user);
   }
 
@@ -47,26 +47,26 @@ export class AuthController {
    * Get current user profile (protected route)
    */
   @Get('profile')
-  @UseGuards(FirebaseAuthGuard)
-  async getProfile(@Request() req): Promise<{ user: FirebaseUser }> {
+  @UseGuards(CognitoAuthGuard)
+  async getProfile(@Request() req): Promise<{ user: CognitoUser }> {
     return { user: req.user };
   }
 
   /**
-   * Get user by UID (protected route)
+   * Get user by sub (protected route)
    */
   @Post('user')
-  @UseGuards(FirebaseAuthGuard)
-  async getUserByUid(@Body() { uid }: { uid: string }) {
-    return this.authService.getUserByUid(uid);
+  @UseGuards(CognitoAuthGuard)
+  async getUserBySub(@Body() { username }: { username: string }) {
+    return this.authService.getUserBySub(username);
   }
 
   /**
    * Protected test endpoint
    */
   @Get('protected')
-  @UseGuards(FirebaseAuthGuard)
-  getProtected(@Request() req): { message: string; user: FirebaseUser } {
+  @UseGuards(CognitoAuthGuard)
+  getProtected(@Request() req): { message: string; user: CognitoUser } {
     return {
       message: 'This is a protected route',
       user: req.user,

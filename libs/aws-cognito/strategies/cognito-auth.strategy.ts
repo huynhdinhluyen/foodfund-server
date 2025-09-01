@@ -1,0 +1,63 @@
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { Strategy } from 'passport-custom';
+import { AwsCognitoService } from '../aws-cognito.service';
+import { CognitoUser, CognitoJwtPayload } from '../aws-cognito.types';
+
+@Injectable()
+export class CognitoAuthStrategy extends PassportStrategy(
+  Strategy,
+  'cognito-auth',
+) {
+  constructor(private readonly cognitoService: AwsCognitoService) {
+    super();
+  }
+
+  async validate(req: any): Promise<CognitoUser> {
+    try {
+      // Extract token from Authorization header
+      const authHeader = req.headers?.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw new UnauthorizedException('No valid authorization header found');
+      }
+
+      const token = authHeader.substring(7);
+      
+      // Verify token with Cognito
+      const decodedToken = await this.cognitoService.validateToken(token) as CognitoJwtPayload;
+      
+      // Get user details from Cognito
+      const cognitoUserResponse = await this.cognitoService.getUser(token);
+
+      // Map Cognito response to our user interface
+      const user: CognitoUser = {
+        sub: decodedToken.sub,
+        email: decodedToken.email || 
+               this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'email') || '',
+        emailVerified: decodedToken.email_verified || false,
+        username: decodedToken['cognito:username'] || cognitoUserResponse.Username,
+        name: decodedToken.name || 
+              this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'name'),
+        givenName: decodedToken.given_name || 
+                   this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'given_name'),
+        familyName: decodedToken.family_name || 
+                    this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'family_name'),
+        picture: decodedToken.picture || 
+                 this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'picture'),
+        phoneNumber: decodedToken.phone_number || 
+                     this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'phone_number'),
+        phoneNumberVerified: decodedToken.phone_number_verified || false,
+        groups: decodedToken['cognito:groups'] || [],
+        customAttributes: this.cognitoService.extractCustomAttributes(cognitoUserResponse.UserAttributes || []),
+        cognitoUser: cognitoUserResponse,
+        provider: 'cognito',
+        createdAt: cognitoUserResponse.UserCreateDate,
+        updatedAt: cognitoUserResponse.UserLastModifiedDate,
+      };
+
+      return user;
+    } catch (error) {
+      throw new UnauthorizedException('Invalid Cognito token or user not found');
+    }
+  }
+}
