@@ -18,23 +18,51 @@ export class AuthService {
 
     return {
       sub: decodedToken.sub,
-      email: decodedToken.email || 
-             this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'email') || '',
+      email:
+        decodedToken.email ||
+        this.cognitoService.getAttributeValue(
+          cognitoUserResponse.UserAttributes,
+          'email',
+        ) ||
+        '',
       emailVerified: decodedToken.email_verified || false,
-      username: decodedToken['cognito:username'] || cognitoUserResponse.Username,
-      name: decodedToken.name || 
-            this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'name'),
-      givenName: decodedToken.given_name || 
-                 this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'given_name'),
-      familyName: decodedToken.family_name || 
-                  this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'family_name'),
-      picture: decodedToken.picture || 
-               this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'picture'),
-      phoneNumber: decodedToken.phone_number || 
-                   this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'phone_number'),
+      username:
+        decodedToken['cognito:username'] || cognitoUserResponse.Username,
+      name:
+        decodedToken.name ||
+        this.cognitoService.getAttributeValue(
+          cognitoUserResponse.UserAttributes,
+          'name',
+        ),
+      givenName:
+        decodedToken.given_name ||
+        this.cognitoService.getAttributeValue(
+          cognitoUserResponse.UserAttributes,
+          'given_name',
+        ),
+      familyName:
+        decodedToken.family_name ||
+        this.cognitoService.getAttributeValue(
+          cognitoUserResponse.UserAttributes,
+          'family_name',
+        ),
+      picture:
+        decodedToken.picture ||
+        this.cognitoService.getAttributeValue(
+          cognitoUserResponse.UserAttributes,
+          'picture',
+        ),
+      phoneNumber:
+        decodedToken.phone_number ||
+        this.cognitoService.getAttributeValue(
+          cognitoUserResponse.UserAttributes,
+          'phone_number',
+        ),
       phoneNumberVerified: decodedToken.phone_number_verified || false,
       groups: decodedToken['cognito:groups'] || [],
-      customAttributes: this.cognitoService.extractCustomAttributes(cognitoUserResponse.UserAttributes || []),
+      customAttributes: this.cognitoService.extractCustomAttributes(
+        cognitoUserResponse.UserAttributes || [],
+      ),
       cognitoUser: cognitoUserResponse,
       provider: 'cognito',
       createdAt: cognitoUserResponse.UserCreateDate,

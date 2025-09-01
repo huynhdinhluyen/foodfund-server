@@ -1,9 +1,9 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { 
-  CognitoIdentityProviderClient, 
+import {
+  CognitoIdentityProviderClient,
   GetUserCommand,
   AdminGetUserCommand,
-  ListUsersCommand 
+  ListUsersCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import { envConfig } from '../env';
@@ -17,19 +17,22 @@ export class AwsCognitoService {
 
   constructor() {
     const config = envConfig().aws;
-    
+
     if (!config) {
       throw new Error('AWS configuration not found in environment');
     }
 
     this.userPoolId = config.cognito.userPoolId;
-    
+
     this.cognitoClient = new CognitoIdentityProviderClient({
       region: config.cognito.region,
-      credentials: config.accessKeyId && config.secretAccessKey ? {
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
-      } : undefined, // Use default credentials if not provided
+      credentials:
+        config.accessKeyId && config.secretAccessKey
+          ? {
+              accessKeyId: config.accessKeyId,
+              secretAccessKey: config.secretAccessKey,
+            }
+          : undefined, // Use default credentials if not provided
     });
 
     // Create JWT verifier for access tokens
@@ -39,7 +42,9 @@ export class AwsCognitoService {
       clientId: config.cognito.clientId,
     });
 
-    this.logger.log(`AWS Cognito Service initialized for region: ${config.cognito.region}`);
+    this.logger.log(
+      `AWS Cognito Service initialized for region: ${config.cognito.region}`,
+    );
   }
 
   /**
@@ -64,7 +69,7 @@ export class AwsCognitoService {
       const command = new GetUserCommand({
         AccessToken: accessToken,
       });
-      
+
       const response = await this.cognitoClient.send(command);
       this.logger.debug(`User retrieved: ${response.Username}`);
       return response;
@@ -83,7 +88,7 @@ export class AwsCognitoService {
         UserPoolId: this.userPoolId,
         Username: username,
       });
-      
+
       const response = await this.cognitoClient.send(command);
       this.logger.debug(`Admin user retrieved: ${username}`);
       return response;
@@ -98,7 +103,7 @@ export class AwsCognitoService {
    */
   extractCustomAttributes(attributes: any[]): Record<string, any> {
     const customAttrs: Record<string, any> = {};
-    attributes?.forEach(attr => {
+    attributes?.forEach((attr) => {
       if (attr.Name.startsWith('custom:')) {
         customAttrs[attr.Name.replace('custom:', '')] = attr.Value;
       }
@@ -109,7 +114,10 @@ export class AwsCognitoService {
   /**
    * Get attribute value by name
    */
-  getAttributeValue(attributes: any[], attributeName: string): string | undefined {
-    return attributes?.find(attr => attr.Name === attributeName)?.Value;
+  getAttributeValue(
+    attributes: any[],
+    attributeName: string,
+  ): string | undefined {
+    return attributes?.find((attr) => attr.Name === attributeName)?.Value;
   }
 }

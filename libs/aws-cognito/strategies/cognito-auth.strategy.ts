@@ -22,33 +22,63 @@ export class CognitoAuthStrategy extends PassportStrategy(
       }
 
       const token = authHeader.substring(7);
-      
+
       // Verify token with Cognito
-      const decodedToken = await this.cognitoService.validateToken(token) as CognitoJwtPayload;
-      
+      const decodedToken = (await this.cognitoService.validateToken(
+        token,
+      )) as CognitoJwtPayload;
+
       // Get user details from Cognito
       const cognitoUserResponse = await this.cognitoService.getUser(token);
 
       // Map Cognito response to our user interface
       const user: CognitoUser = {
         sub: decodedToken.sub,
-        email: decodedToken.email || 
-               this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'email') || '',
+        email:
+          decodedToken.email ||
+          this.cognitoService.getAttributeValue(
+            cognitoUserResponse.UserAttributes,
+            'email',
+          ) ||
+          '',
         emailVerified: decodedToken.email_verified || false,
-        username: decodedToken['cognito:username'] || cognitoUserResponse.Username,
-        name: decodedToken.name || 
-              this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'name'),
-        givenName: decodedToken.given_name || 
-                   this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'given_name'),
-        familyName: decodedToken.family_name || 
-                    this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'family_name'),
-        picture: decodedToken.picture || 
-                 this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'picture'),
-        phoneNumber: decodedToken.phone_number || 
-                     this.cognitoService.getAttributeValue(cognitoUserResponse.UserAttributes, 'phone_number'),
+        username:
+          decodedToken['cognito:username'] || cognitoUserResponse.Username,
+        name:
+          decodedToken.name ||
+          this.cognitoService.getAttributeValue(
+            cognitoUserResponse.UserAttributes,
+            'name',
+          ),
+        givenName:
+          decodedToken.given_name ||
+          this.cognitoService.getAttributeValue(
+            cognitoUserResponse.UserAttributes,
+            'given_name',
+          ),
+        familyName:
+          decodedToken.family_name ||
+          this.cognitoService.getAttributeValue(
+            cognitoUserResponse.UserAttributes,
+            'family_name',
+          ),
+        picture:
+          decodedToken.picture ||
+          this.cognitoService.getAttributeValue(
+            cognitoUserResponse.UserAttributes,
+            'picture',
+          ),
+        phoneNumber:
+          decodedToken.phone_number ||
+          this.cognitoService.getAttributeValue(
+            cognitoUserResponse.UserAttributes,
+            'phone_number',
+          ),
         phoneNumberVerified: decodedToken.phone_number_verified || false,
         groups: decodedToken['cognito:groups'] || [],
-        customAttributes: this.cognitoService.extractCustomAttributes(cognitoUserResponse.UserAttributes || []),
+        customAttributes: this.cognitoService.extractCustomAttributes(
+          cognitoUserResponse.UserAttributes || [],
+        ),
         cognitoUser: cognitoUserResponse,
         provider: 'cognito',
         createdAt: cognitoUserResponse.UserCreateDate,
@@ -57,7 +87,9 @@ export class CognitoAuthStrategy extends PassportStrategy(
 
       return user;
     } catch (error) {
-      throw new UnauthorizedException('Invalid Cognito token or user not found');
+      throw new UnauthorizedException(
+        'Invalid Cognito token or user not found',
+      );
     }
   }
 }

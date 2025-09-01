@@ -218,7 +218,8 @@ export const envConfig = (): EnvironmentConfig => ({
   aws: {
     region: process.env.AWS_REGION || 'us-east-1',
     cognito: {
-      region: process.env.AWS_COGNITO_REGION || process.env.AWS_REGION || 'us-east-1',
+      region:
+        process.env.AWS_COGNITO_REGION || process.env.AWS_REGION || 'us-east-1',
       userPoolId: process.env.AWS_COGNITO_USER_POOL_ID!,
       clientId: process.env.AWS_COGNITO_CLIENT_ID!,
       userPoolDomain: process.env.AWS_COGNITO_USER_POOL_DOMAIN,
