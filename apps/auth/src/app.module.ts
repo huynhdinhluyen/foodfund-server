@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
-import { AuthModule } from './auth/auth.module';
+import { AuthSubgraphModule } from './auth/auth-subgraph.module';
+import { EnvModule } from 'libs/env';
 
 @Module({
-  imports: [AuthModule],
+  imports: [EnvModule.forRoot(), AuthSubgraphModule],
   controllers: [],
   providers: [],
 })

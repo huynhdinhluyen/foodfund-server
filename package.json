@@ -31,6 +31,7 @@
     "@aws-sdk/credential-providers": "^3.454.0",
     "@nestjs/apollo": "^13.1.0",
     "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
     "@nestjs/graphql": "^13.1.0",
     "@nestjs/jwt": "^11.0.0",
@@ -40,8 +41,10 @@
     "aws-jwt-verify": "^4.0.1",
     "graphql": "^16.8.1",
     "passport-custom": "^1.1.1",
+    "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

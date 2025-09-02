@@ -10,8 +10,8 @@ import { GraphQLGatewayModule } from 'libs/graphql/gateway';
     GraphQLGatewayModule.forRoot({
       subgraphs: [
         {
-          name: 'users',
-          url: 'http://localhost:8001/graphql',
+          name: 'auth',
+          url: 'http://localhost:8002/graphql',
         },
       ],
     }),

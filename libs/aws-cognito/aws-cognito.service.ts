@@ -1,31 +1,89 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  UnauthorizedException,
+  Inject,
+} from '@nestjs/common';
 import {
   CognitoIdentityProviderClient,
   GetUserCommand,
   AdminGetUserCommand,
   ListUsersCommand,
+  SignUpCommand,
+  ConfirmSignUpCommand,
+  InitiateAuthCommand,
+  AdminInitiateAuthCommand,
+  ResendConfirmationCodeCommand,
+  ForgotPasswordCommand,
+  ConfirmForgotPasswordCommand,
+  AuthFlowType,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
+import { createHmac } from 'crypto';
 import { envConfig } from '../env';
+import { MODULE_OPTIONS_TOKEN } from './aws-cognito.module-definition';
+import { AwsCognitoModuleOptions } from './aws-cognito.types';
 
 @Injectable()
 export class AwsCognitoService {
   private readonly logger = new Logger(AwsCognitoService.name);
   private readonly cognitoClient: CognitoIdentityProviderClient;
-  private readonly jwtVerifier: CognitoJwtVerifier;
+  private readonly jwtVerifier: CognitoJwtVerifier<any, any, any>;
   private readonly userPoolId: string;
+  private readonly clientId: string;
+  private readonly clientSecret?: string;
 
-  constructor() {
+  constructor(
+    @Inject(MODULE_OPTIONS_TOKEN)
+    private readonly options: AwsCognitoModuleOptions,
+  ) {
     const config = envConfig().aws;
+
+    console.log(config);
+
+    // Check if mock mode is enabled
+    if (this.options.mockMode) {
+      this.logger.warn(
+        'AWS Cognito Service running in MOCK MODE - for development only!',
+      );
+      // Set dummy values for mock mode
+      this.userPoolId = 'mock-user-pool-id';
+      this.clientId = 'mock-client-id';
+      this.clientSecret = 'mock-client-secret';
+      return;
+    }
 
     if (!config) {
       throw new Error('AWS configuration not found in environment');
     }
 
-    this.userPoolId = config.cognito.userPoolId;
+    // Use options if provided, otherwise fall back to env config
+    this.userPoolId = this.options.userPoolId || config.cognito.userPoolId;
+    this.clientId = this.options.clientId || config.cognito.clientId;
+    this.clientSecret =
+      this.options.clientSecret || config.cognito.clientSecret;
+    const region = this.options.region || config.cognito.region;
+
+    if (!this.userPoolId) {
+      throw new Error(
+        'AWS Cognito User Pool ID is required. Please set AWS_COGNITO_USER_POOL_ID environment variable or provide it in module options.',
+      );
+    }
+
+    if (!this.clientId) {
+      throw new Error(
+        'AWS Cognito Client ID is required. Please set AWS_COGNITO_CLIENT_ID environment variable or provide it in module options.',
+      );
+    }
+
+    if (!region) {
+      throw new Error(
+        'AWS Region is required. Please set AWS_REGION environment variable or provide it in module options.',
+      );
+    }
 
     this.cognitoClient = new CognitoIdentityProviderClient({
-      region: config.cognito.region,
+      region: region,
       credentials:
         config.accessKeyId && config.secretAccessKey
           ? {
@@ -39,12 +97,248 @@ export class AwsCognitoService {
     this.jwtVerifier = CognitoJwtVerifier.create({
       userPoolId: this.userPoolId,
       tokenUse: 'access',
-      clientId: config.cognito.clientId,
+      clientId: this.clientId,
     });
 
     this.logger.log(
-      `AWS Cognito Service initialized for region: ${config.cognito.region}`,
+      `AWS Cognito Service initialized for region: ${region}, User Pool: ${this.userPoolId}`,
     );
+  }
+
+  /**
+   * Calculate SECRET_HASH for Cognito operations
+   */
+  private calculateSecretHash(username: string): string | undefined {
+    if (!this.clientSecret) {
+      return undefined;
+    }
+
+    const message = username + this.clientId;
+    return createHmac('sha256', this.clientSecret)
+      .update(message)
+      .digest('base64');
+  }
+
+  async signUp(
+    email: string,
+    password: string,
+    attributes?: Record<string, string>,
+  ) {
+    try {
+      const userAttributes = [
+        { Name: 'email', Value: email },
+        ...(attributes
+          ? Object.entries(attributes).map(([key, value]) => ({
+              Name: key,
+              Value: value,
+            }))
+          : []),
+      ];
+
+      const secretHash = this.calculateSecretHash(email);
+      const command = new SignUpCommand({
+        ClientId: this.clientId,
+        Username: email,
+        Password: password,
+        UserAttributes: userAttributes,
+        ...(secretHash && { SecretHash: secretHash }),
+      });
+
+      const response = await this.cognitoClient.send(command);
+      this.logger.log(`User signed up: ${email}`);
+
+      return {
+        userSub: response.UserSub,
+        codeDeliveryDetails: response.CodeDeliveryDetails,
+        userConfirmed: response.UserConfirmed,
+      };
+    } catch (error) {
+      this.logger.error(`Sign up failed: ${error.message}`);
+      throw new UnauthorizedException(`Sign up failed: ${error.message}`);
+    }
+  }
+
+  async confirmSignUp(email: string, confirmationCode: string) {
+    try {
+      const secretHash = this.calculateSecretHash(email);
+      const command = new ConfirmSignUpCommand({
+        ClientId: this.clientId,
+        Username: email,
+        ConfirmationCode: confirmationCode,
+        ...(secretHash && { SecretHash: secretHash }),
+      });
+
+      await this.cognitoClient.send(command);
+      this.logger.log(`User confirmed: ${email}`);
+
+      return { confirmed: true };
+    } catch (error) {
+      this.logger.error(`Confirmation failed: ${error.message}`);
+      throw new UnauthorizedException(`Confirmation failed: ${error.message}`);
+    }
+  }
+
+  async signIn(email: string, password: string) {
+    try {
+      if (this.options.mockMode) {
+        this.logger.warn(`Mock sign in for: ${email}`);
+        return {
+          accessToken: 'mock-access-token',
+          refreshToken: 'mock-refresh-token',
+          idToken: 'mock-id-token',
+          expiresIn: 3600,
+          tokenType: 'Bearer',
+        };
+      }
+      const secretHash = this.calculateSecretHash(email);
+      const authParameters: Record<string, string> = {
+        USERNAME: email,
+        PASSWORD: password,
+      };
+      if (secretHash) {
+        authParameters.SECRET_HASH = secretHash;
+      }
+
+      // Try different auth flows in order of preference
+      const authFlows = [
+        AuthFlowType.ADMIN_NO_SRP_AUTH,
+        AuthFlowType.USER_PASSWORD_AUTH,
+      ];
+
+      for (const authFlow of authFlows) {
+        try {
+          let response;
+
+          if (authFlow === AuthFlowType.ADMIN_NO_SRP_AUTH) {
+            // Use AdminInitiateAuthCommand for admin flows
+            const command = new AdminInitiateAuthCommand({
+              UserPoolId: this.userPoolId,
+              ClientId: this.clientId,
+              AuthFlow: authFlow,
+              AuthParameters: authParameters,
+            });
+            response = await this.cognitoClient.send(command);
+          } else {
+            // Use InitiateAuthCommand for regular flows
+            const command = new InitiateAuthCommand({
+              ClientId: this.clientId,
+              AuthFlow: authFlow,
+              AuthParameters: authParameters,
+            });
+            response = await this.cognitoClient.send(command);
+          }
+
+          this.logger.log(
+            `User signed in successfully with ${authFlow}: ${email}`,
+          );
+
+          return {
+            accessToken: response.AuthenticationResult?.AccessToken,
+            refreshToken: response.AuthenticationResult?.RefreshToken,
+            idToken: response.AuthenticationResult?.IdToken,
+            expiresIn: response.AuthenticationResult?.ExpiresIn,
+            tokenType: response.AuthenticationResult?.TokenType,
+          };
+        } catch (flowError: any) {
+          this.logger.debug(
+            `Auth flow ${authFlow} failed: ${flowError.message}`,
+          );
+
+          // If this is not an auth flow error, rethrow immediately
+          if (
+            !flowError.message?.includes('Auth flow not enabled') &&
+            !flowError.message?.includes('not supported')
+          ) {
+            throw flowError;
+          }
+
+          // Continue to next auth flow
+          continue;
+        }
+      }
+
+      // If all flows failed, throw the generic error
+      throw new Error(
+        'All authentication flows failed. Please check your Cognito User Pool Client configuration.',
+      );
+    } catch (error) {
+      this.logger.error(`Sign in failed: ${error.message}`);
+      throw new UnauthorizedException(`Sign in failed: ${error.message}`);
+    }
+  }
+
+  async resendConfirmationCode(email: string) {
+    try {
+      const secretHash = this.calculateSecretHash(email);
+      const command = new ResendConfirmationCodeCommand({
+        ClientId: this.clientId,
+        Username: email,
+        ...(secretHash && { SecretHash: secretHash }),
+      });
+
+      const response = await this.cognitoClient.send(command);
+
+      return {
+        codeDeliveryDetails: response.CodeDeliveryDetails,
+      };
+    } catch (error) {
+      this.logger.error(`Resend code failed: ${error.message}`);
+      throw new UnauthorizedException(`Resend code failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Forgot Password
+   */
+  async forgotPassword(email: string) {
+    try {
+      const secretHash = this.calculateSecretHash(email);
+      const command = new ForgotPasswordCommand({
+        ClientId: this.clientId,
+        Username: email,
+        ...(secretHash && { SecretHash: secretHash }),
+      });
+
+      const response = await this.cognitoClient.send(command);
+
+      return {
+        codeDeliveryDetails: response.CodeDeliveryDetails,
+      };
+    } catch (error) {
+      this.logger.error(`Forgot password failed: ${error.message}`);
+      throw new UnauthorizedException(
+        `Forgot password failed: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Confirm Forgot Password
+   */
+  async confirmForgotPassword(
+    email: string,
+    confirmationCode: string,
+    newPassword: string,
+  ) {
+    try {
+      const secretHash = this.calculateSecretHash(email);
+      const command = new ConfirmForgotPasswordCommand({
+        ClientId: this.clientId,
+        Username: email,
+        ConfirmationCode: confirmationCode,
+        Password: newPassword,
+        ...(secretHash && { SecretHash: secretHash }),
+      });
+
+      await this.cognitoClient.send(command);
+
+      return { passwordReset: true };
+    } catch (error) {
+      this.logger.error(`Password reset failed: ${error.message}`);
+      throw new UnauthorizedException(
+        `Password reset failed: ${error.message}`,
+      );
+    }
   }
 
   /**
@@ -52,6 +346,24 @@ export class AwsCognitoService {
    */
   async validateToken(token: string) {
     try {
+      if (this.options.mockMode) {
+        this.logger.warn(
+          `Mock token validation for token: ${token.substring(0, 10)}...`,
+        );
+        return {
+          sub: 'mock-user-id',
+          email: 'mock@example.com',
+          email_verified: true,
+          'cognito:username': 'mock-user',
+          aud: this.clientId,
+          event_id: 'mock-event-id',
+          token_use: 'access',
+          auth_time: Math.floor(Date.now() / 1000),
+          exp: Math.floor(Date.now() / 1000) + 3600,
+          iat: Math.floor(Date.now() / 1000),
+          jti: 'mock-jti',
+        };
+      }
       const payload = await this.jwtVerifier.verify(token);
       this.logger.debug(`Token validated for user: ${payload.sub}`);
       return payload;
@@ -66,6 +378,22 @@ export class AwsCognitoService {
    */
   async getUser(accessToken: string) {
     try {
+      if (this.options.mockMode) {
+        this.logger.warn(
+          `Mock get user for token: ${accessToken.substring(0, 10)}...`,
+        );
+        return {
+          Username: 'mock-user',
+          UserAttributes: [
+            { Name: 'sub', Value: 'mock-user-id' },
+            { Name: 'email', Value: 'mock@example.com' },
+            { Name: 'email_verified', Value: 'true' },
+            { Name: 'name', Value: 'Mock User' },
+            { Name: 'given_name', Value: 'Mock' },
+            { Name: 'family_name', Value: 'User' },
+          ],
+        };
+      }
       const command = new GetUserCommand({
         AccessToken: accessToken,
       });

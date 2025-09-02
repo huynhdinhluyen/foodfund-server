@@ -1,12 +1,44 @@
-import { Module } from '@nestjs/common';
+import { DynamicModule, Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { AwsCognitoService } from './aws-cognito.service';
 import { CognitoAuthStrategy } from './strategies/cognito-auth.strategy';
-import { ConfigurableModuleClass } from './aws-cognito.module-definition';
+import {
+  ConfigurableModuleClass,
+  OPTIONS_TYPE,
+  MODULE_OPTIONS_TOKEN,
+} from './aws-cognito.module-definition';
 
-@Module({
-  imports: [PassportModule],
-  providers: [AwsCognitoService, CognitoAuthStrategy],
-  exports: [AwsCognitoService, CognitoAuthStrategy],
-})
-export class AwsCognitoModule extends ConfigurableModuleClass {}
+@Module({})
+export class AwsCognitoModule extends ConfigurableModuleClass {
+  /**
+   * Configure AWS Cognito for root module with authentication setup
+   */
+  static forRoot(options: typeof OPTIONS_TYPE = {}): DynamicModule {
+    const dynamicModule = super.forRoot(options);
+
+    return {
+      ...dynamicModule,
+      imports: [PassportModule],
+      providers: [
+        {
+          provide: MODULE_OPTIONS_TOKEN,
+          useValue: options,
+        },
+        AwsCognitoService,
+        CognitoAuthStrategy,
+      ],
+      exports: [AwsCognitoService, CognitoAuthStrategy],
+    };
+  }
+
+  /**
+   * Configure AWS Cognito for feature modules with specific guards
+   */
+  static forFeature(guards: any[] = []): DynamicModule {
+    return {
+      module: AwsCognitoModule,
+      providers: [...guards],
+      exports: [...guards],
+    };
+  }
+}

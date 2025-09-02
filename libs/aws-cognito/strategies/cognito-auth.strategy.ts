@@ -24,9 +24,7 @@ export class CognitoAuthStrategy extends PassportStrategy(
       const token = authHeader.substring(7);
 
       // Verify token with Cognito
-      const decodedToken = (await this.cognitoService.validateToken(
-        token,
-      )) as CognitoJwtPayload;
+      const decodedToken = await this.cognitoService.validateToken(token);
 
       // Get user details from Cognito
       const cognitoUserResponse = await this.cognitoService.getUser(token);
@@ -35,54 +33,57 @@ export class CognitoAuthStrategy extends PassportStrategy(
       const user: CognitoUser = {
         sub: decodedToken.sub,
         email:
-          decodedToken.email ||
+          (decodedToken as any).email ||
           this.cognitoService.getAttributeValue(
-            cognitoUserResponse.UserAttributes,
+            cognitoUserResponse.UserAttributes || [],
             'email',
           ) ||
           '',
-        emailVerified: decodedToken.email_verified || false,
+        emailVerified: (decodedToken as any).email_verified || false,
         username:
-          decodedToken['cognito:username'] || cognitoUserResponse.Username,
+          (decodedToken as any)['cognito:username'] ||
+          cognitoUserResponse.Username ||
+          '',
         name:
-          decodedToken.name ||
+          (decodedToken as any).name ||
           this.cognitoService.getAttributeValue(
-            cognitoUserResponse.UserAttributes,
+            cognitoUserResponse.UserAttributes || [],
             'name',
           ),
         givenName:
-          decodedToken.given_name ||
+          (decodedToken as any).given_name ||
           this.cognitoService.getAttributeValue(
-            cognitoUserResponse.UserAttributes,
+            cognitoUserResponse.UserAttributes || [],
             'given_name',
           ),
         familyName:
-          decodedToken.family_name ||
+          (decodedToken as any).family_name ||
           this.cognitoService.getAttributeValue(
-            cognitoUserResponse.UserAttributes,
+            cognitoUserResponse.UserAttributes || [],
             'family_name',
           ),
         picture:
-          decodedToken.picture ||
+          (decodedToken as any).picture ||
           this.cognitoService.getAttributeValue(
-            cognitoUserResponse.UserAttributes,
+            cognitoUserResponse.UserAttributes || [],
             'picture',
           ),
         phoneNumber:
-          decodedToken.phone_number ||
+          (decodedToken as any).phone_number ||
           this.cognitoService.getAttributeValue(
-            cognitoUserResponse.UserAttributes,
+            cognitoUserResponse.UserAttributes || [],
             'phone_number',
           ),
-        phoneNumberVerified: decodedToken.phone_number_verified || false,
-        groups: decodedToken['cognito:groups'] || [],
+        phoneNumberVerified:
+          (decodedToken as any).phone_number_verified || false,
+        groups: (decodedToken as any)['cognito:groups'] || [],
         customAttributes: this.cognitoService.extractCustomAttributes(
           cognitoUserResponse.UserAttributes || [],
         ),
         cognitoUser: cognitoUserResponse,
         provider: 'cognito',
-        createdAt: cognitoUserResponse.UserCreateDate,
-        updatedAt: cognitoUserResponse.UserLastModifiedDate,
+        createdAt: undefined, // Not available from GetUserCommand
+        updatedAt: undefined, // Not available from GetUserCommand
       };
 
       return user;

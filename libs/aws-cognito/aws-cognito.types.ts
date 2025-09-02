@@ -1,7 +1,11 @@
-// Base options interface
-export interface BaseOptions {
+// Module options interface
+export interface AwsCognitoModuleOptions {
+  userPoolId?: string;
+  clientId?: string;
+  clientSecret?: string;
+  region?: string;
   isGlobal?: boolean;
-  useGlobalImports?: boolean;
+  mockMode?: boolean; // For development/testing
 }
 
 export interface CognitoUser {
@@ -27,14 +31,6 @@ export interface AuthResponse {
   user: CognitoUser;
   message: string;
 }
-
-export interface CognitoAuthConfig {
-  userPoolId: string;
-  clientId: string;
-  region: string;
-}
-
-export type CognitoAuthOptions = BaseOptions & CognitoAuthConfig;
 
 // JWT payload interface from Cognito
 export interface CognitoJwtPayload {

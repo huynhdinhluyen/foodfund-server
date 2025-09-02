@@ -4,6 +4,7 @@ import {
 } from '@nestjs/apollo';
 import { Module } from '@nestjs/common';
 import { GraphQLModule as NestGraphQLModule } from '@nestjs/graphql';
+import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
 import { ApolloServerPluginInlineTrace } from '@apollo/server/plugin/inlineTrace';
 import {
   ConfigurableModuleClass,
@@ -13,8 +14,6 @@ import {
 @Module({})
 export class GraphQLSubgraphModule extends ConfigurableModuleClass {
   public static forRoot(options: typeof OPTIONS_TYPE = {}) {
-    const { debug = false, playground = false, path = '/graphql' } = options;
-
     const dynamicModule = super.forRoot(options);
 
     return {
@@ -25,13 +24,17 @@ export class GraphQLSubgraphModule extends ConfigurableModuleClass {
           autoSchemaFile: {
             federation: 2,
           },
-          plugins: [ApolloServerPluginInlineTrace()],
-          debug,
-          playground,
-          path,
+          plugins: [
+            ApolloServerPluginLandingPageLocalDefault(),
+            ApolloServerPluginInlineTrace(),
+          ],
+          csrfPrevention: false,
+          debug: false,
+          playground: false,
+          path: '/graphql',
           formatError: (error) => {
             // Remove the stack trace for production
-            if (!debug) {
+            if (!false) {
               delete error.extensions?.stacktrace;
             }
             return {

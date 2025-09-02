@@ -84,6 +84,7 @@ export interface AwsCognitoConfig {
   region: string;
   userPoolId: string;
   clientId: string;
+  clientSecret: string;
   userPoolDomain?: string;
 }
 
