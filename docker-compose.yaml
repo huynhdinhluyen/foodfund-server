@@ -1,10 +1,42 @@
 version: '3.8'
 services:
-  # Users Service Database
+  # ================================
+  # Application Services
+  # ================================
+  gateway-service:
+    build:
+      context: .
+      dockerfile: apps/graphql-gateway/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./.env.docker
+    environment:
+      - NODE_ENV=development
+      - METRICS_ENABLED=true
+    depends_on:
+      - auth-service
+    networks:
+      - foodfund-network
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: apps/auth/Dockerfile
+    ports:
+      - "8002:8002"
+    env_file:
+      - ./.env.docker  
+    environment:
+      - NODE_ENV=development
+      - METRICS_ENABLED=true
+    networks:
+      - foodfund-network
+  # ================================
+  # Databases
+  # ================================
   users-db:
-    image: postgres:17.5-alpine3.22
-    container_name: users-postgres-db
-    restart: unless-stopped
+    image: postgres:17.5-alpine
     environment:
       POSTGRES_DB: users_db
       POSTGRES_USER: root
@@ -13,12 +45,11 @@ services:
       - "5433:5432"
     volumes:
       - users_pgdata:/var/lib/postgresql/data
+    networks:
+      - foodfund-network
 
-  # Campaigns Service Database
   campaigns-db:
-    image: postgres:17.5-alpine3.22
-    container_name: campaigns-postgres-db
-    restart: unless-stopped
+    image: postgres:17.5-alpine
     environment:
       POSTGRES_DB: campaigns_db
       POSTGRES_USER: root
@@ -27,9 +58,13 @@ services:
       - "5434:5432"
     volumes:
       - campaigns_pgdata:/var/lib/postgresql/data
-
-  # Auth Service now uses Firebase Authentication (no database needed)
+    networks:
+      - foodfund-network
 
 volumes:
   users_pgdata:
   campaigns_pgdata:
+
+networks:
+  foodfund-network:
+    driver: bridge  

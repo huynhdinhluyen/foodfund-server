@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common"
+import { getHttpUrl } from "libs/common"
+import { Container, envConfig } from "libs/env"
 import { GraphQLGatewayModule } from "libs/graphql/gateway"
 
 @Module({
@@ -7,7 +9,11 @@ import { GraphQLGatewayModule } from "libs/graphql/gateway"
             subgraphs: [
                 {
                     name: "auth",
-                    url: "http://localhost:8002/graphql",
+                    url: getHttpUrl({
+                        host: envConfig().containers[Container.Auth]?.host,
+                        port: envConfig().containers[Container.Auth]?.port,
+                        path: "/graphql",
+                    }),
                 },
             ],
         }),
@@ -15,4 +21,4 @@ import { GraphQLGatewayModule } from "libs/graphql/gateway"
     controllers: [],
     providers: [],
 })
-export class ApiGatewayModule {}
+export class ApiGatewayModule { }
