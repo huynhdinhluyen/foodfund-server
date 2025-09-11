@@ -44,7 +44,7 @@ pipeline {
     parameters {
         choice(
             name: 'SERVICE',
-            choices: services.keySet().toList(),
+            choices: services.keySet().collect { it },
             description: 'Select the service to build and deploy'
         )
         choice(
