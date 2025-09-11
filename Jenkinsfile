@@ -44,7 +44,7 @@ pipeline {
     parameters {
         choice(
             name: 'SERVICE',
-            choices: services.keySet().toList(),
+            choices: services.keySet().collect { it },
             description: 'Select the service to build and deploy'
         )
         choice(
@@ -101,7 +101,7 @@ pipeline {
         SERVICE_PORT = "${services[params.SERVICE ?: defaultService].port}"
         
         // Environment specific namespace
-        TARGET_NAMESPACE = params.ENVIRONMENT == 'production' ? 'foodfund-production' : 'foodfund-staging'
+        TARGET_NAMESPACE = "${params.ENVIRONMENT == 'production' ? 'foodfund-production' : 'foodfund-staging'}"
 
         // Git configuration
         GIT_REPO = 'https://github.com/phuoctmse/FoodFund-Microservices.git'
