@@ -17,6 +17,43 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
-    "paths": {}
+    "paths": {
+      "libs/aws-cognito": [
+        "libs/aws-cognito/index.ts"
+      ],
+      "libs/aws-cognito/*": [
+        "libs/aws-cognito/*"
+      ],
+      "libs/common": [
+        "libs/common/index.ts"
+      ],
+      "libs/common/*": [
+        "libs/common/*"
+      ],
+      "libs/databases": [
+        "libs/databases/index.ts"
+      ],
+      "libs/databases/*": [
+        "libs/databases/*"
+      ],
+      "libs/env": [
+        "libs/env/index.ts"
+      ],
+      "libs/env/*": [
+        "libs/env/*"
+      ],
+      "libs/graphql": [
+        "libs/graphql/index.ts"
+      ],
+      "libs/graphql/*": [
+        "libs/graphql/*"
+      ],
+      "libs/jwt": [
+        "libs/jwt/index.ts"
+      ],
+      "libs/jwt/*": [
+        "libs/jwt/*"
+      ]
+    }
   }
 }
