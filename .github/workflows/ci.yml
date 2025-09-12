@@ -32,10 +32,10 @@ jobs:
         run: npm run test
 
       - name: Build auth app
-        run: npm run build --workspace=auth
+        run: npm run build auth
 
       - name: Build graphql-gateway app
-        run: npm run build --workspace=graphql-gateway
+        run: npm run build graphql-gateway
 
 
   build-and-push-docker:
