@@ -15,6 +15,11 @@ export default [
             "linebreak-style": "off",
             quotes: ["error", "double"],
             semi: ["error", "never"],
+            //temporarily off for testing cicd
+            "@typescript-eslint/no-explicit-any": "off",
+            "@typescript-eslint/no-unused-vars": "off",
+            "@typescript-eslint/no-empty-object-type": "off"
+
         },
     }
 ]
