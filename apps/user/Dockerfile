@@ -15,9 +15,11 @@ RUN npm ci
 COPY . .
 
 # Generate Prisma client for user service
-RUN cd apps/user && npx prisma generate
+WORKDIR /usr/src/app/apps/user
+RUN npx prisma generate
 
-# Build the application
+# Back to main directory and build the application
+WORKDIR /usr/src/app
 RUN npm run build user
 
 # Production stage
