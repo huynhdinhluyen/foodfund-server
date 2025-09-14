@@ -41,6 +41,7 @@ lerna-debug.log*
 .env.test.local
 .env.production.local
 .env.local
+.env.docker
 
 # temp directory
 .temp
@@ -54,3 +55,42 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+/generated/prisma
+
+docker-volumes
+
+# Helm artifacts  
+Chart.lock
+charts/
+*.tgz
+
+# Kubernetes sensitive configs
+k8s/values-production.yaml
+k8s/values-staging.yaml
+k8s/secrets/
+*.secret.yaml
+*secrets*.yaml
+
+# Database configs with real credentials
+k8s/values-*.local.yaml
+k8s/values-*.private.yaml
+
+# Environment specific configs
+.env.*
+*.env
+config/production.json
+config/staging.json
+
+# Kubernetes kubeconfig and cert files
+*.kubeconfig
+kubeconfig*
+*.crt
+*.key
+*.pem
+
+*.hpi
+*.jpi
+
+
+/generated/prisma

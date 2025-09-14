@@ -1,0 +1,114 @@
+import {
+    EnvironmentConfig,
+    NodeEnv,
+    Container,
+} from "./types"
+import {
+    DEFAULT_HEALTH_PORT,
+    LOCALHOST,
+    DEFAULT_JWT_REFRESH_TOKEN_EXPIRATION,
+    DEFAULT_JWT_ACCESS_TOKEN_EXPIRATION,
+} from "./env.constants"
+
+export const envConfig = (): EnvironmentConfig => ({
+    nodeEnv: (process.env.NODE_ENV ?? NodeEnv.Development) as NodeEnv,
+
+    // Container configurations
+    containers: {
+        [Container.Auth]: {
+            host: process.env.AUTH_HOST ?? LOCALHOST,
+            port: process.env.AUTH_PORT
+                ? Number.parseInt(process.env.AUTH_PORT)
+                : 8002,
+            healthCheckPort: process.env.AUTH_HEALTH_CHECK_PORT
+                ? Number.parseInt(process.env.AUTH_HEALTH_CHECK_PORT)
+                : DEFAULT_HEALTH_PORT,
+        },
+        [Container.GraphQLGateway]: {
+            host: process.env.GRAPHQL_GATEWAY_HOST ?? LOCALHOST,
+            port: process.env.GRAPHQL_GATEWAY_PORT
+                ? Number.parseInt(process.env.GRAPHQL_GATEWAY_PORT)
+                : 8001,
+            healthCheckPort: process.env.GRAPHQL_GATEWAY_HEALTH_CHECK_PORT
+                ? Number.parseInt(process.env.GRAPHQL_GATEWAY_HEALTH_CHECK_PORT)
+                : DEFAULT_HEALTH_PORT + 1,
+        },
+        [Container.UsersSubgraph]: {
+            host: process.env.USERS_SUBGRAPH_HOST ?? LOCALHOST,
+            port: process.env.USERS_SUBGRAPH_PORT
+                ? Number.parseInt(process.env.USERS_SUBGRAPH_PORT)
+                : 8003,
+            healthCheckPort: process.env.USERS_SUBGRAPH_HEALTH_CHECK_PORT
+                ? Number.parseInt(process.env.USERS_SUBGRAPH_HEALTH_CHECK_PORT)
+                : DEFAULT_HEALTH_PORT + 2,
+        },
+        [Container.CampaignsSubgraph]: {
+            host: process.env.CAMPAIGNS_SUBGRAPH_HOST ?? LOCALHOST,
+            port: process.env.CAMPAIGNS_SUBGRAPH_PORT
+                ? Number.parseInt(process.env.CAMPAIGNS_SUBGRAPH_PORT)
+                : 8004,
+            healthCheckPort: process.env.CAMPAIGNS_SUBGRAPH_HEALTH_CHECK_PORT
+                ? Number.parseInt(process.env.CAMPAIGNS_SUBGRAPH_HEALTH_CHECK_PORT)
+                : DEFAULT_HEALTH_PORT + 3,
+        },
+    },
+
+    // Database configurations
+    databases: {
+        // main: {
+        //     url: process.env.DATABASE_URL as string,
+        // },
+        users: {
+            url: process.env.USERS_DATABASE_URL as string,
+        },
+        campaigns: {
+            url: process.env.CAMPAIGNS_DATABASE_URL as string,
+        },
+    },
+
+    // Authentication & Security
+    jwt: {
+        secret: process.env.JWT_SECRET ?? "dev-jwt-secret",
+        accessTokenExpiration:
+            process.env.JWT_ACCESS_TOKEN_EXPIRATION ??
+            DEFAULT_JWT_ACCESS_TOKEN_EXPIRATION,
+        refreshTokenExpiration:
+            process.env.JWT_REFRESH_TOKEN_EXPIRATION ??
+            DEFAULT_JWT_REFRESH_TOKEN_EXPIRATION,
+    },
+
+    // AWS Configuration
+    aws: {
+        region: process.env.AWS_REGION as string,
+        cognito: {
+            region: process.env.AWS_REGION as string,
+            userPoolId: process.env.AWS_COGNITO_USER_POOL_ID as string,
+            clientId: process.env.AWS_COGNITO_CLIENT_ID as string,
+            clientSecret: process.env.AWS_COGNITO_CLIENT_SECRET as string,
+        },
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID as string,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY as string,
+    },
+})
+
+// Utility functions
+export function isDevelopment(): boolean {
+    return (
+        process.env.NODE_ENV === "development" ||
+        process.env.NODE_ENV === NodeEnv.Development
+    )
+}
+
+export function isProduction(): boolean {
+    return (
+        process.env.NODE_ENV === "production" ||
+        process.env.NODE_ENV === NodeEnv.Production
+    )
+}
+
+export function isTest(): boolean {
+    return (
+        process.env.NODE_ENV === "test" || 
+        process.env.NODE_ENV === NodeEnv.Test
+    )
+}
