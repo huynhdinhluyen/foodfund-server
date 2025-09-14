@@ -167,6 +167,16 @@ jobs:
     
           # Create namespace first (ignore if exists)
           kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+
+          # Check if release exists and has conflicts
+          if helm status foodfund-${{ env.BRANCH_NAME }} -n $NAMESPACE >/dev/null 2>&1; then
+            echo "🔍 Checking for template conflicts..."
+            if ! helm template foodfund-${{ env.BRANCH_NAME }} ./k8s -f ./k8s/values.yaml --namespace $NAMESPACE --set namespace.create=false >/dev/null 2>&1; then
+              echo "⚠️ Template conflict detected. Performing clean reinstall..."
+              helm uninstall foodfund-${{ env.BRANCH_NAME }} -n $NAMESPACE
+              sleep 10
+            fi
+          fi
     
           # Deploy using Helm with all configurations
           helm upgrade --install foodfund-${{ env.BRANCH_NAME }} ./k8s \
