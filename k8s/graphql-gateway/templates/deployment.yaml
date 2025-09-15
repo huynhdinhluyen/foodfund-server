@@ -70,6 +70,15 @@ spec:
                 secretKeyRef:
                   name: foodfund-database-secret
                   key: DATABASE_PASSWORD
+            # Subgraph service URLs inside Kubernetes cluster
+            - name: AUTH_HOST
+              value: "foodfund-auth-service"
+            - name: AUTH_PORT
+              value: "8002"
+            - name: USERS_SUBGRAPH_HOST
+              value: "foodfund-user-service"
+            - name: USERS_SUBGRAPH_PORT
+              value: "8003"
           {{- with .Values.livenessProbe }}
           livenessProbe:
             {{- toYaml . | nindent 12 }}
