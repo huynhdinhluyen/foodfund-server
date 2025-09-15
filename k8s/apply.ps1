@@ -147,7 +147,7 @@ $sb = New-Object System.Text.StringBuilder
 [void]$sb.AppendLine("data:")
 foreach ($k in $dataEntries.Keys) {
   $v = $dataEntries[$k]
-  [void]$sb.AppendLine("  $k: $v")
+  [void]$sb.AppendLine("  ${k}: ${v}")
 }
 
 $secretYaml = $sb.ToString()
