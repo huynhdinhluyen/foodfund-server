@@ -15,7 +15,6 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-      
       - run: npm ci
       - run: npm run lint
       - run: npm run test
@@ -33,25 +32,16 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      
       - uses: docker/setup-buildx-action@v3
-      
-      - name: Set tag
+
+      - name: Set image tag
         run: echo "TAG=${GITHUB_REF##*/}" >> $GITHUB_ENV
-      
+
       - name: Build & Push Images
         run: |
-          # Build and push all services in parallel
-          docker buildx build -t ${{ secrets.DOCKERHUB_USERNAME }}/foodfund-auth:$TAG \
-            -f apps/auth/Dockerfile . --push &
-          
-          docker buildx build -t ${{ secrets.DOCKERHUB_USERNAME }}/foodfund-user:$TAG \
-            -f apps/user/Dockerfile . --push &
-          
-          docker buildx build -t ${{ secrets.DOCKERHUB_USERNAME }}/foodfund-graphql-gateway:$TAG \
-            -f apps/graphql-gateway/Dockerfile . --push &
-          
-          wait  # Wait for all builds to complete
+          docker buildx build -t ${{ secrets.DOCKERHUB_USERNAME }}/foodfund-auth:$TAG -f apps/auth/Dockerfile . --push
+          docker buildx build -t ${{ secrets.DOCKERHUB_USERNAME }}/foodfund-user:$TAG -f apps/user/Dockerfile . --push
+          docker buildx build -t ${{ secrets.DOCKERHUB_USERNAME }}/foodfund-graphql-gateway:$TAG -f apps/graphql-gateway/Dockerfile . --push
 
   deploy:
     needs: docker
@@ -59,136 +49,50 @@ jobs:
     if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
+
       - uses: digitalocean/action-doctl@v2
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
-      - name: Export DO secrets to environment
-        env:
-          DIGITALOCEAN_CLUSTER_ID: ${{ secrets.DIGITALOCEAN_CLUSTER_ID }}
-          DIGITALOCEAN_CLUSTER_NAME: ${{ secrets.DIGITALOCEAN_CLUSTER_NAME }}
-          DO_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-        run: |
-          echo "DIGITALOCEAN_CLUSTER_ID=$DIGITALOCEAN_CLUSTER_ID" >> $GITHUB_ENV
-          echo "DIGITALOCEAN_CLUSTER_NAME=$DIGITALOCEAN_CLUSTER_NAME" >> $GITHUB_ENV
-          echo "DO_TOKEN=$DO_TOKEN" >> $GITHUB_ENV
+      - name: Setup kubeconfig
+        run: doctl kubernetes cluster kubeconfig save ${{ secrets.DIGITALOCEAN_CLUSTER_ID }}
 
-      - name: Setup kubectl
-        run: |
-          if [ -n "$DIGITALOCEAN_CLUSTER_ID" ]; then
-            doctl kubernetes cluster kubeconfig save "$DIGITALOCEAN_CLUSTER_ID"
-          else
-            doctl kubernetes cluster kubeconfig save "$DIGITALOCEAN_CLUSTER_NAME"
-          fi
-      
-      - name: Setup kubectl
-        run: |
-          echo "kubectl configured"
-      
-      - name: Set environment
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.15.2
+
+      - name: Set env (namespace, replicas, tag)
         run: |
           if [ "${GITHUB_REF##*/}" = "main" ]; then
             echo "NAMESPACE=foodfund-production" >> $GITHUB_ENV
             echo "REPLICAS=2" >> $GITHUB_ENV
           else
-            echo "NAMESPACE=foodfund-staging" >> $GITHUB_ENV  
+            echo "NAMESPACE=foodfund-staging" >> $GITHUB_ENV
             echo "REPLICAS=1" >> $GITHUB_ENV
           fi
           echo "TAG=${GITHUB_REF##*/}" >> $GITHUB_ENV
-      
-      - name: Deploy with Helm charts
-        shell: bash
-        env:
-          DATABASE_HOST: ${{ secrets.DATABASE_HOST }}
-          DATABASE_PORT: ${{ secrets.DATABASE_PORT }}
-          DATABASE_USERNAME: ${{ secrets.DATABASE_USERNAME }}
-          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
-          AUTH_REPO: ${{ secrets.DOCKERHUB_USERNAME }}/foodfund-auth
-          USER_REPO: ${{ secrets.DOCKERHUB_USERNAME }}/foodfund-user
-          GATEWAY_REPO: ${{ secrets.DOCKERHUB_USERNAME }}/foodfund-graphql-gateway
+
+      - name: Deploy with Helm
         run: |
-          set -euo pipefail
-
-          echo "Creating/updating database secret in namespace $NAMESPACE"
-          if [ -z "${DATABASE_HOST:-}" ] || [ -z "${DATABASE_PORT:-}" ] || [ -z "${DATABASE_USERNAME:-}" ] || [ -z "${DATABASE_PASSWORD:-}" ]; then
-            echo "Missing DB components in secrets; ensure DATABASE_HOST/PORT/USERNAME/PASSWORD are set"
-            exit 1
-          fi
-          USERS_DATABASE_URL="postgresql://${DATABASE_USERNAME}:${DATABASE_PASSWORD}@${DATABASE_HOST}:${DATABASE_PORT}/${USER_DATABASE_NAME:-users_db}?sslmode=${DATABASE_SSL_MODE:-require}"
-
-          kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f - || true
-          # Create secret with env-friendly keys (uppercase, underscore) so pods can consume them
-          kubectl create secret generic foodfund-database-secret -n $NAMESPACE \
-            --from-literal=USERS_DATABASE_URL="$USERS_DATABASE_URL" \
-            --from-literal=DATABASE_HOST="${DATABASE_HOST}" \
-            --from-literal=DATABASE_PORT="${DATABASE_PORT}" \
-            --from-literal=DATABASE_USERNAME="${DATABASE_USERNAME}" \
-            --from-literal=DATABASE_PASSWORD="${DATABASE_PASSWORD}" \
-            --dry-run=client -o yaml | kubectl apply -f -
-
-          echo "Installing Helm"
-          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
-          echo "Cleaning up legacy non-Helm resources (if any)"
-          # If legacy resources exist and are NOT managed by Helm (missing helm annotations), delete them so Helm can install the release.
-          for res in foodfund-auth foodfund-user; do
-            if kubectl get deployment "$res" -n "$NAMESPACE" >/dev/null 2>&1; then
-              owner=$(kubectl get deployment "$res" -n "$NAMESPACE" -o jsonpath='{.metadata.annotations.meta.helm.sh/release-name}' 2>/dev/null || true)
-              if [ -z "$owner" ]; then
-                echo "Deleting legacy deployment $res in $NAMESPACE (not Helm-managed)"
-                kubectl delete deployment "$res" -n "$NAMESPACE" --ignore-not-found || true
-              else
-                echo "Deployment $res is already Helm-managed by release: $owner"
-              fi
-            fi
-            svc_name="${res}-service"
-            if kubectl get service "$svc_name" -n "$NAMESPACE" >/dev/null 2>&1; then
-              svc_owner=$(kubectl get service "$svc_name" -n "$NAMESPACE" -o jsonpath='{.metadata.annotations.meta.helm.sh/release-name}' 2>/dev/null || true)
-              if [ -z "$svc_owner" ]; then
-                echo "Deleting legacy service $svc_name in $NAMESPACE (not Helm-managed)"
-                kubectl delete service "$svc_name" -n "$NAMESPACE" --ignore-not-found || true
-              else
-                echo "Service $svc_name is already Helm-managed by release: $svc_owner"
-              fi
-            fi
-          done
-
-          echo "Deploying charts with helm upgrade --install"
-          # auth
           helm upgrade --install foodfund-auth k8s/auth \
             --namespace $NAMESPACE --create-namespace \
-            --set image.repository=${AUTH_REPO} \
+            --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/foodfund-auth \
             --set image.tag=${TAG} \
-            --set replicaCount=${REPLICAS:-1} \
-            --wait --timeout 120s || true
+            --set replicaCount=${REPLICAS} --wait
 
-          # user
           helm upgrade --install foodfund-user k8s/user \
             --namespace $NAMESPACE \
-            --set image.repository=${USER_REPO} \
+            --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/foodfund-user \
             --set image.tag=${TAG} \
-            --set replicaCount=${REPLICAS:-1} \
-            --wait --timeout 120s || true
+            --set replicaCount=${REPLICAS} --wait
 
-          # gateway
           helm upgrade --install foodfund-gateway k8s/graphql-gateway \
             --namespace $NAMESPACE \
-            --set image.repository=${GATEWAY_REPO} \
+            --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/foodfund-graphql-gateway \
             --set image.tag=${TAG} \
-            --set replicaCount=${REPLICAS:-1} \
-            --wait --timeout 120s || true
-      
-      - name: Get Status
+            --set replicaCount=${REPLICAS} --wait
+
+      - name: Get status
         run: |
-          echo "🎉 Deployment completed!"
           kubectl get pods -n $NAMESPACE
           kubectl get svc -n $NAMESPACE
-          
-          # Get LoadBalancer IP (linux shell substitute)
-          EXTERNAL_IP=$(kubectl get svc -n $NAMESPACE -o jsonpath='{.items[?(@.spec.type=="LoadBalancer")].status.loadBalancer.ingress[0].ip}' || echo "pending")
-          if [ "$EXTERNAL_IP" != "pending" ] && [ -n "$EXTERNAL_IP" ]; then
-            echo "🌐 App URL: http://$EXTERNAL_IP"
-            echo "🎯 GraphQL: http://$EXTERNAL_IP/graphql" 
-          else
-            echo "⏳ LoadBalancer IP pending. Check: kubectl get svc -n $NAMESPACE"
-          fi
