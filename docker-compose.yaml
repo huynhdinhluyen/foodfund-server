@@ -1,8 +1,5 @@
 version: '3.8'
 services:
-  # ================================
-  # Application Services
-  # ================================
   gateway-service:
     build:
       context: .
@@ -12,8 +9,10 @@ services:
     env_file:
       - .env.docker
     depends_on:
-      - auth-service
-      - user-service
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
     networks:
       - foodfund-network
 
@@ -24,9 +23,15 @@ services:
     ports:
       - "8002:8002"
     env_file:
-      - .env.docker  
+      - .env.docker
     networks:
       - foodfund-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--server-response", "http://localhost:8002/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
   user-service:
     build:
@@ -38,6 +43,12 @@ services:
       - .env.docker
     networks:
       - foodfund-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--server-response", "http://localhost:8003/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
 networks:
   foodfund-network:

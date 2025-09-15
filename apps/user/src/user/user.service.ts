@@ -4,18 +4,19 @@ import {
     ConflictException,
     BadRequestException,
 } from "@nestjs/common"
-import { 
-    UserRepository, 
-    CreateUserInput, 
+import {
+    UserRepository,
+    CreateUserInput,
     UpdateUserInput,
     UpdateDonorProfileInput,
     UpdateKitchenStaffProfileInput,
     UpdateFundraiserProfileInput,
-    UpdateDeliveryStaffProfileInput
+    UpdateDeliveryStaffProfileInput,
 } from "./user.repository"
 
 // Import GraphQL models from shared libs for response typing
 import { Role } from "libs/databases/prisma/schemas"
+import { HealthResponse } from "./types/health-response.model"
 
 @Injectable()
 export class UserService {
@@ -106,11 +107,12 @@ export class UserService {
             // Check if username is being updated and if it already exists
             if (
                 updateUserInput.user_name &&
-                updateUserInput.user_name !== existingUser.user_name
+        updateUserInput.user_name !== existingUser.user_name
             ) {
-                const existingUsernameUser = await this.userRepository.findUserByUsername(
-                    updateUserInput.user_name,
-                )
+                const existingUsernameUser =
+          await this.userRepository.findUserByUsername(
+              updateUserInput.user_name,
+          )
                 if (existingUsernameUser) {
                     throw new ConflictException("Username already exists")
                 }
@@ -172,7 +174,7 @@ export class UserService {
         case Role.FUNDRAISER:
             await this.userRepository.createFundraiserProfile(
                 userId,
-                "Default Organization"
+                "Default Organization",
             )
             break
         case Role.DELIVERY_STAFF:
@@ -185,7 +187,10 @@ export class UserService {
     }
 
     // Donor Profile operations
-    async updateDonorProfile(id: string, updateDonorProfileInput: UpdateDonorProfileInput) {
+    async updateDonorProfile(
+        id: string,
+        updateDonorProfileInput: UpdateDonorProfileInput,
+    ) {
         try {
             return await this.userRepository.updateDonorProfile(
                 id,
@@ -289,5 +294,16 @@ export class UserService {
     // For GraphQL Federation - resolver reference
     async resolveReference(reference: { __typename: string; id: string }) {
         return this.findUserById(reference.id)
+    }
+
+    /**
+   * Health check endpoint
+   */
+    getHealth(): HealthResponse {
+        return {
+            status: "healthy",
+            service: "User Subgraph",
+            timestamp: new Date().toISOString(),
+        }
     }
 }
