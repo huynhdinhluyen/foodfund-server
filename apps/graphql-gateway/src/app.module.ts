@@ -22,7 +22,7 @@ import { GraphQLGatewayModule } from "libs/graphql/gateway"
                         port: envConfig().containers[Container.UsersSubgraph]?.port,
                         path: "/graphql",
                     }),
-                },
+                }
             ],
         }),
     ],
