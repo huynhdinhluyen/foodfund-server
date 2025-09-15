@@ -1,45 +1,25 @@
-# Production stage (single stage for simplicity)
-FROM node:20-alpine AS production
 
-# Set working directory
+# syntax=docker/dockerfile:1
+ARG NODE_VERSION=20.18.0
+
+# Build Stage
+FROM node:${NODE_VERSION}-alpine AS build
 WORKDIR /usr/src/app
-
-# Copy package files
 COPY package*.json ./
 COPY apps/user/package*.json ./apps/user/
-
-# Install all dependencies (including dev dependencies for Prisma)
 RUN npm ci
-
-# Copy source code (protected by .dockerignore)
 COPY . .
-
-# Generate Prisma client for user service
 RUN cd apps/user && npx prisma generate
-
-# Build application using the correct NestJS build command
 RUN npm run build:user
 
-# Verify build output exists
-RUN ls -la dist/apps/user/
-
-# Don't remove dev dependencies as we need them for runtime module resolution
-# RUN npm prune --production
-
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nestjs -u 1001
-
-# Change ownership of the app directory
-RUN chown -R nestjs:nodejs /usr/src/app
+# Production Stage
+FROM node:${NODE_VERSION}-alpine AS production
+WORKDIR /usr/src/app
+COPY --from=build /usr/src/app/dist ./dist
+COPY --from=build /usr/src/app/package*.json ./
+COPY --from=build /usr/src/app/apps/user/package*.json ./apps/user/
+COPY --from=build /usr/src/app/node_modules ./node_modules
+RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001
 USER nestjs
-
-# Expose port
 EXPOSE 8003
-
-# Health check (optional, nếu có healthcheck.js thì giữ lại, nếu không thì xóa)
-# HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 
-#   CMD node healthcheck.js
-
-# Start the application
 CMD ["node", "dist/apps/user/main.js"]

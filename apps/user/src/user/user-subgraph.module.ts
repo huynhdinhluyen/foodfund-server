@@ -10,6 +10,8 @@ import {
 } from "./resolvers/profile.resolver"
 import { UserResolver } from "./resolvers"
 
+import { HealthController } from "./health.controller"
+
 @Module({
     imports: [
         // PrismaModule không cần import vì đã global từ AppModule
@@ -27,6 +29,7 @@ import { UserResolver } from "./resolvers"
         FundraiserProfileResolver,
         DeliveryStaffProfileResolver
     ],
+    controllers: [HealthController],
     exports: [UserService, UserRepository],
 })
 export class UserSubgraphModule {}
