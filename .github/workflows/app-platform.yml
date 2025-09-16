@@ -64,7 +64,7 @@ jobs:
         if: steps.check_app.outputs.app_exists == 'false'
         run: |
           echo "Creating new App Platform app: ${APP_NAME}"
-          doctl apps create .do/app.yaml --wait
+          doctl apps create --spec .do/app.yaml --wait
           echo "✅ App created successfully!"
 
       - name: Update App Platform app (if exists)
