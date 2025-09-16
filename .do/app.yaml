@@ -4,12 +4,10 @@ region: nyc3
 services:
   # Auth Service
   - name: auth-service
-    source_dir: /
-    dockerfile_path: apps/auth/Dockerfile
-    github:
-      repo: phuoctmse/FoodFund-Microservices
-      branch: develop
-      deploy_on_push: true
+    image:
+      registry_type: DOCKER_HUB
+      registry: ttrece/foodfund-auth
+      tag: develop
     health_check:
       http_path: /health
     http_port: 8002
@@ -40,12 +38,10 @@ services:
 
   # User Service
   - name: user-service
-    source_dir: /
-    dockerfile_path: apps/user/Dockerfile
-    github:
-      repo: ttrece/FoodFund-Microservices
-      branch: develop
-      deploy_on_push: true
+    image:
+      registry_type: DOCKER_HUB
+      registry: ttrece/foodfund-user
+      tag: develop
     health_check:
       http_path: /health
     http_port: 8003
@@ -58,12 +54,10 @@ services:
 
   # GraphQL Gateway
   - name: graphql-gateway
-    source_dir: /
-    dockerfile_path: apps/graphql-gateway/Dockerfile
-    github:
-      repo: ttrece/FoodFund-Microservices
-      branch: develop
-      deploy_on_push: true
+    image:
+      registry_type: DOCKER_HUB
+      registry: ttrece/foodfund-graphql-gateway
+      tag: develop
     health_check:
       http_path: /health
     http_port: 8000
