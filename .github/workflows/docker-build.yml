@@ -201,10 +201,10 @@ jobs:
             exit 0
           fi
           
-          # Replace registry placeholders in .do/app.yaml with actual image names
-          sed -i "s|ttrece/foodfund-auth|${DOCKERHUB_USERNAME}/foodfund-auth|g" .do/app.yaml
-          sed -i "s|ttrece/foodfund-user|${DOCKERHUB_USERNAME}/foodfund-user|g" .do/app.yaml
-          sed -i "s|ttrece/foodfund-graphql-gateway|${DOCKERHUB_USERNAME}/foodfund-graphql-gateway|g" .do/app.yaml
+          # Replace registry placeholders in .do/app-spec.yaml with actual image names
+          sed -i "s|ttrece/foodfund-auth|${DOCKERHUB_USERNAME}/foodfund-auth|g" .do/app-spec.yaml
+          sed -i "s|ttrece/foodfund-user|${DOCKERHUB_USERNAME}/foodfund-user|g" .do/app-spec.yaml
+          sed -i "s|ttrece/foodfund-graphql-gateway|${DOCKERHUB_USERNAME}/foodfund-graphql-gateway|g" .do/app-spec.yaml
           
           # Keep develop tag - override existing image
           echo "Using develop tag to override existing images"
