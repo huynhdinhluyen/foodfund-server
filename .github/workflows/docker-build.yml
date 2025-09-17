@@ -167,37 +167,69 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install doctl
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          DOCTL_APP_ID: ${{ secrets.DOCTL_APP_ID }}
         run: |
-          curl -sL https://github.com/digitalocean/doctl/releases/download/v1.117.0/doctl-1.117.0-linux-amd64.tar.gz \
-          | tar -xzv
-          sudo mv doctl /usr/local/bin
+          if [ -z "$DIGITALOCEAN_ACCESS_TOKEN" ] || [ -z "$DOCTL_APP_ID" ]; then
+            echo "Deployment secrets not set, skipping doctl installation"
+            exit 0
+          fi
+          curl -sL https://github.com/digitalocean/doctl/releases/download/v1.110.0/doctl-1.110.0-linux-amd64.tar.gz | tar -xzv
+          sudo mv doctl /usr/local/bin/doctl
 
       - name: Authenticate doctl
-        run: doctl auth init -t ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-
-      - name: Sync secrets to DO App
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          DOCTL_APP_ID: ${{ secrets.DOCTL_APP_ID }}
         run: |
-          doctl apps update ${{ secrets.DOCTL_APP_ID }} \
-            --set-env KEY=USERS_DATABASE_URL,scope=RUN_TIME,type=SECRET,value=${{ secrets.USERS_DATABASE_URL }} \
-            --set-env KEY=AWS_REGION,scope=RUN_TIME,type=SECRET,value=${{ secrets.AWS_REGION }} \
-            --set-env KEY=AWS_COGNITO_USER_POOL_ID,scope=RUN_TIME,type=SECRET,value=${{ secrets.AWS_COGNITO_USER_POOL_ID }} \
-            --set-env KEY=AWS_COGNITO_CLIENT_ID,scope=RUN_TIME,type=SECRET,value=${{ secrets.AWS_COGNITO_CLIENT_ID }} \
-            --set-env KEY=AWS_ACCESS_KEY_ID,scope=RUN_TIME,type=SECRET,value=${{ secrets.AWS_ACCESS_KEY_ID }} \
-            --set-env KEY=AWS_SECRET_ACCESS_KEY,scope=RUN_TIME,type=SECRET,value=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
-            --set-env KEY=AWS_COGNITO_CLIENT_SECRET,scope=RUN_TIME,type=SECRET,value=${{ secrets.AWS_COGNITO_CLIENT_SECRET }}
+          if [ -z "$DIGITALOCEAN_ACCESS_TOKEN" ] || [ -z "$DOCTL_APP_ID" ]; then
+            echo "Deployment secrets not set, skipping authentication"
+            exit 0
+          fi
+          doctl auth init -t $DIGITALOCEAN_ACCESS_TOKEN
 
       - name: Deploy to DigitalOcean App Platform
         env:
           DOCTL_APP_ID: ${{ secrets.DOCTL_APP_ID }}
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          GITHUB_SHA: ${{ github.sha }}
+          # Database secrets
+          USERS_DATABASE_URL: ${{ secrets.USERS_DATABASE_URL }}
+          # AWS secrets
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_COGNITO_USER_POOL_ID: ${{ secrets.AWS_COGNITO_USER_POOL_ID }}
+          AWS_COGNITO_CLIENT_ID: ${{ secrets.AWS_COGNITO_CLIENT_ID }}
+          AWS_COGNITO_CLIENT_SECRET: ${{ secrets.AWS_COGNITO_CLIENT_SECRET }}
         run: |
-          # Replace registry placeholders in .do/app-spec.yaml with actual image names
-          sed -i "s|ttrece/foodfund-auth|${DOCKERHUB_USERNAME}/foodfund-auth|g" .do/app-spec.yaml
-          sed -i "s|ttrece/foodfund-user|${DOCKERHUB_USERNAME}/foodfund-user|g" .do/app-spec.yaml
-          sed -i "s|ttrece/foodfund-graphql-gateway|${DOCKERHUB_USERNAME}/foodfund-graphql-gateway|g" .do/app-spec.yaml
+          if [ -z "$DIGITALOCEAN_ACCESS_TOKEN" ] || [ -z "$DOCTL_APP_ID" ]; then
+            echo "Deployment secrets not set, skipping deployment"
+            exit 0
+          fi
           
-          echo "Using develop tag to override existing images"
-
-          # Trigger new deployment with updated spec
-          doctl apps create-deployment $DOCTL_APP_ID --spec .do/app-spec.yaml
-
+          # Replace registry placeholders with actual DockerHub username
+          sed -i "s|registry: \"ttrece\"|registry: \"${DOCKERHUB_USERNAME}\"|g" .do/app-spec.yaml
+          
+          # Replace secret placeholders with actual values
+          sed -i "s|\${USERS_DATABASE_URL}|${USERS_DATABASE_URL}|g" .do/app-spec.yaml
+          sed -i "s|\${AWS_REGION}|${AWS_REGION}|g" .do/app-spec.yaml
+          sed -i "s|\${AWS_ACCESS_KEY_ID}|${AWS_ACCESS_KEY_ID}|g" .do/app-spec.yaml
+          sed -i "s|\${AWS_SECRET_ACCESS_KEY}|${AWS_SECRET_ACCESS_KEY}|g" .do/app-spec.yaml
+          sed -i "s|\${AWS_COGNITO_USER_POOL_ID}|${AWS_COGNITO_USER_POOL_ID}|g" .do/app-spec.yaml
+          sed -i "s|\${AWS_COGNITO_CLIENT_ID}|${AWS_COGNITO_CLIENT_ID}|g" .do/app-spec.yaml
+          sed -i "s|\${AWS_COGNITO_CLIENT_SECRET}|${AWS_COGNITO_CLIENT_SECRET}|g" .do/app-spec.yaml
+          
+          # Set correct tag based on branch
+          if [ "${GITHUB_REF##*/}" = "main" ]; then
+            sed -i "s|tag: develop|tag: latest|g" .do/app-spec.yaml
+          fi
+          
+          echo "📝 Updated app-spec.yaml with secrets and registry info"
+          
+          # Update the existing app with the spec
+          doctl apps update $DOCTL_APP_ID --spec .do/app-spec.yaml
+          
+          echo "🚀 Deployment triggered for changed services"
