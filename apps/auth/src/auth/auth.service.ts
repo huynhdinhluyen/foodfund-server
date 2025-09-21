@@ -12,31 +12,66 @@ import {
 import { AwsCognitoService } from "libs/aws-cognito"
 import { CognitoUser } from "libs/aws-cognito/aws-cognito.types"
 import { ConfirmSignUpInput, SignInInput, SignUpInput } from "./dto"
+import { AuthErrorHelper } from "./helpers"
+import { SentryService } from "libs/observability/sentry.service"
 
 @Injectable()
 export class AuthSubgraphService {
     private readonly logger = new Logger(AuthSubgraphService.name)
 
-    constructor(private readonly cognitoService: AwsCognitoService) {}
+    constructor(
+        private readonly cognitoService: AwsCognitoService,
+        private readonly sentryService: SentryService,
+    ) {}
 
     async signUp(input: SignUpInput): Promise<SignUpResponse> {
         const { email, password, name, phoneNumber } = input
 
-        const attributes: Record<string, string> = {}
-        if (name) attributes.name = name
-        if (phoneNumber) attributes.phone_number = phoneNumber
+        try {
+            // Validate input
+            AuthErrorHelper.validateRequiredFields(input, ["email", "password"])
+            AuthErrorHelper.validateEmail(email)
+            AuthErrorHelper.validatePassword(password)
 
-        const result = await this.cognitoService.signUp(
-            email,
-            password,
-            attributes,
-        )
+            // Track user action
+            this.sentryService.addBreadcrumb("User signup attempt", "auth", { email })
 
-        return {
-            userSub: result.userSub as string,
-            message:
-                "Sign up successful. Please check your email for verification code.",
-            emailSent: true,
+            const attributes: Record<string, string> = {}
+            if (name) attributes.name = name
+            if (phoneNumber) attributes.phone_number = phoneNumber
+
+            const result = await this.cognitoService.signUp(
+                email,
+                password,
+                attributes,
+            )
+
+            // Track successful signup
+            this.sentryService.addBreadcrumb("User signup successful", "auth", { 
+                email, 
+                userSub: result.userSub 
+            })
+
+            return {
+                userSub: result.userSub as string,
+                message:
+                    "Sign up successful. Please check your email for verification code.",
+                emailSent: true,
+            }
+        } catch (error) {
+            // Handle Cognito errors
+            if (error.name || error.code) {
+                AuthErrorHelper.mapCognitoError(error, "signUp", email)
+            }
+            
+            // Re-throw if it's already our custom exception
+            if (error.errorCode) {
+                throw error
+            }
+            
+            // Unknown error
+            this.logger.error(`Unexpected signup error: ${error.message}`, error.stack)
+            AuthErrorHelper.throwCognitoError("signUp", error.message)
         }
     }
 
@@ -45,52 +80,121 @@ export class AuthSubgraphService {
     ): Promise<ConfirmSignUpResponse> {
         const { email, confirmationCode } = input
 
-        await this.cognitoService.confirmSignUp(email, confirmationCode)
+        try {
+            // Validate input
+            AuthErrorHelper.validateRequiredFields(input, ["email", "confirmationCode"])
+            AuthErrorHelper.validateEmail(email)
 
-        return {
-            confirmed: true,
-            message: "Email confirmed successfully. You can now sign in.",
+            if (!confirmationCode || confirmationCode.trim().length === 0) {
+                AuthErrorHelper.throwMissingField("confirmationCode")
+            }
+
+            // Track confirmation attempt
+            this.sentryService.addBreadcrumb("User confirmation attempt", "auth", { email })
+
+            await this.cognitoService.confirmSignUp(email, confirmationCode)
+
+            // Track successful confirmation
+            this.sentryService.addBreadcrumb("User confirmation successful", "auth", { email })
+
+            return {
+                confirmed: true,
+                message: "Email confirmed successfully. You can now sign in.",
+            }
+        } catch (error) {
+            // Handle Cognito errors
+            if (error.name || error.code) {
+                AuthErrorHelper.mapCognitoError(error, "confirmSignUp", email)
+            }
+            
+            // Re-throw if it's already our custom exception
+            if (error.errorCode) {
+                throw error
+            }
+            
+            // Unknown error
+            this.logger.error(`Unexpected confirmation error: ${error.message}`, error.stack)
+            AuthErrorHelper.throwCognitoError("confirmSignUp", error.message)
         }
     }
 
     async signIn(input: SignInInput): Promise<SignInResponse> {
         const { email, password } = input
 
-        // Authenticate with Cognito
-        const authResult = await this.cognitoService.signIn(email, password)
+        try {
+            // Validate input
+            AuthErrorHelper.validateRequiredFields(input, ["email", "password"])
+            AuthErrorHelper.validateEmail(email)
 
-        // Get user details using access token
-        const cognitoUserResponse = await this.cognitoService.getUser(
-            authResult.AccessToken as string,
-        )
+            if (!password || password.trim().length === 0) {
+                AuthErrorHelper.throwMissingField("password")
+            }
 
-        // Create AuthUser from Cognito response
-        const user: AuthUser = {
-            id: cognitoUserResponse.Username || "",
-            email:
-                this.cognitoService.getAttributeValue(
+            // Track signin attempt
+            this.sentryService.addBreadcrumb("User signin attempt", "auth", { email })
+            this.sentryService.setUser({ id: email, email })
+
+            // Authenticate with Cognito
+            const authResult = await this.cognitoService.signIn(email, password)
+
+            // Get user details using access token
+            const cognitoUserResponse = await this.cognitoService.getUser(
+                authResult.AccessToken as string,
+            )
+
+            // Create AuthUser from Cognito response
+            const user: AuthUser = {
+                id: cognitoUserResponse.Username || "",
+                email:
+                    this.cognitoService.getAttributeValue(
+                        cognitoUserResponse.UserAttributes || [],
+                        "email",
+                    ) || email,
+                username: cognitoUserResponse.Username || email,
+                name: this.cognitoService.getAttributeValue(
                     cognitoUserResponse.UserAttributes || [],
-                    "email",
-                ) || email,
-            username: cognitoUserResponse.Username || email,
-            name: this.cognitoService.getAttributeValue(
-                cognitoUserResponse.UserAttributes || [],
-                "name",
-            ),
-            provider: "aws-cognito",
-            createdAt:
-                "UserCreateDate" in cognitoUserResponse
-                    ? (cognitoUserResponse.UserCreateDate as Date)
-                    : new Date(),
-        }
+                    "name",
+                ),
+                provider: "aws-cognito",
+                createdAt:
+                    "UserCreateDate" in cognitoUserResponse
+                        ? (cognitoUserResponse.UserCreateDate as Date)
+                        : new Date(),
+            }
 
-        return {
-            user,
-            accessToken: authResult.AccessToken as string,
-            refreshToken: authResult.RefreshToken as string,
-            idToken: authResult.IdToken as string,
-            expiresIn: authResult.ExpiresIn as number,
-            message: "Sign in successful",
+            // Track successful signin
+            this.sentryService.addBreadcrumb("User signin successful", "auth", { 
+                email, 
+                userId: user.id 
+            })
+            this.sentryService.setUser({ 
+                id: user.id, 
+                email: user.email, 
+                username: user.username 
+            })
+
+            return {
+                user,
+                accessToken: authResult.AccessToken as string,
+                refreshToken: authResult.RefreshToken as string,
+                idToken: authResult.IdToken as string,
+                expiresIn: authResult.ExpiresIn as number,
+                message: "Sign in successful",
+            }
+        } catch (error) {
+            // Handle Cognito errors
+            if (error.name || error.code) {
+                AuthErrorHelper.mapCognitoError(error, "signIn", email)
+            }
+            
+            // Re-throw if it's already our custom exception
+            if (error.errorCode) {
+                throw error
+            }
+            
+            // Unknown error
+            this.logger.error(`Unexpected signin error: ${error.message}`, error.stack)
+            AuthErrorHelper.throwCognitoError("signIn", error.message)
         }
     }
 
