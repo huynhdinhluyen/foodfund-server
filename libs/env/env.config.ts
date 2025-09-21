@@ -2,6 +2,7 @@ import {
     EnvironmentConfig,
     NodeEnv,
     Container,
+    GrpcService,
 } from "./types"
 import {
     DEFAULT_HEALTH_PORT,
@@ -77,6 +78,34 @@ export const envConfig = (): EnvironmentConfig => ({
             DEFAULT_JWT_REFRESH_TOKEN_EXPIRATION,
     },
 
+    // gRPC configurations
+    grpc: {
+        [GrpcService.Auth]: {
+            port: process.env.AUTH_GRPC_PORT
+                ? Number.parseInt(process.env.AUTH_GRPC_PORT)
+                : 50001,
+            url: process.env.AUTH_GRPC_URL ?? "localhost:50001",
+        },
+        [GrpcService.User]: {
+            port: process.env.USER_GRPC_PORT
+                ? Number.parseInt(process.env.USER_GRPC_PORT)
+                : 50002,
+            url: process.env.USER_GRPC_URL ?? "localhost:50002",
+        },
+        // [GrpcService.Campaign]: {
+        //     port: process.env.CAMPAIGN_GRPC_PORT
+        //         ? Number.parseInt(process.env.CAMPAIGN_GRPC_PORT)
+        //         : 50003,
+        //     url: process.env.CAMPAIGN_GRPC_URL ?? "localhost:50003",
+        // },
+        // [GrpcService.Donation]: {
+        //     port: process.env.DONATION_GRPC_PORT
+        //         ? Number.parseInt(process.env.DONATION_GRPC_PORT)
+        //         : 50004,
+        //     url: process.env.DONATION_GRPC_URL ?? "localhost:50004",
+        // },
+    },
+
     // AWS Configuration
     aws: {
         region: process.env.AWS_REGION as string,
@@ -88,6 +117,13 @@ export const envConfig = (): EnvironmentConfig => ({
         },
         accessKeyId: process.env.AWS_ACCESS_KEY_ID as string,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY as string,
+    },
+
+    // Sentry Configuration
+    sentry: {
+        dsn: process.env.SENTRY_DSN ?? "",
+        environment: process.env.SENTRY_ENVIRONMENT ?? "development",
+        release: process.env.SENTRY_RELEASE ?? "1.0.0",
     },
 })
 

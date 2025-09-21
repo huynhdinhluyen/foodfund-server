@@ -109,3 +109,7 @@ kubeconfig*
 /generated/prisma
 
 .kiro/specs
+
+libs/grpc/generated/
+libs/grpc/**/*.js
+libs/grpc/**/*.d.ts

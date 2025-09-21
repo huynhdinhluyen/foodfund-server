@@ -1,12 +1,13 @@
-// Base options interface
+import { UserProfileSchema } from "libs/databases"
+
+
 export interface BaseOptions {
   isGlobal?: boolean;
   useGlobalImports?: boolean;
 }
 
-import { UserSchema } from "../databases/prisma/schemas"
 
-export type UserLike = Partial<UserSchema> & { id: string; refresh?: boolean };
+export type UserLike = Partial<UserProfileSchema> & { id: string; refresh?: boolean };
 
 export interface AuthCredentials {
   accessToken: string;

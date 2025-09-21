@@ -12,11 +12,23 @@ export enum Container {
   CampaignsSubgraph = "campaigns-subgraph",
 }
 
+export enum GrpcService {
+  Auth = "auth",
+  User = "user",
+  Campaign = "campaign",
+  Donation = "donation",
+}
+
 // Configuration interfaces
 export interface ContainerConfig {
   host: string;
   port?: number;
   healthCheckPort: number;
+}
+
+export interface GrpcServiceConfig {
+  port: number;
+  url: string;
 }
 
 export interface DatabaseConfig {
@@ -52,6 +64,11 @@ export interface EnvironmentConfig {
     [key in Container]?: ContainerConfig;
   };
 
+  // gRPC configurations
+  grpc: {
+    [key in GrpcService]?: GrpcServiceConfig;
+  };
+
   // Database configurations
   databases: {
     // main: DatabaseConfig;
@@ -64,6 +81,13 @@ export interface EnvironmentConfig {
 
   // AWS Configuration
   aws: AwsConfig;
+
+  // Sentry Configuration
+  sentry: {
+    dsn: string;
+    environment: string;
+    release: string;
+  };
 }
 
 export interface EnvModuleOptions {

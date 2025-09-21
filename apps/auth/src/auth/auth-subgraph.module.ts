@@ -6,17 +6,21 @@ import { GraphQLSubgraphModule } from "libs/graphql/subgraph"
 import { AwsCognitoModule } from "libs/aws-cognito"
 import { HealthController } from "./health.controller"
 import { AuthExceptionFilter } from "./filters"
+import { AuthGrpcService } from "./grpc"
+import { GrpcModule } from "libs/grpc"
 
 @Module({
     providers: [
         AuthResolver,
         AuthSubgraphService,
+        AuthGrpcService,
         {
             provide: APP_FILTER,
             useClass: AuthExceptionFilter,
         },
     ],
     imports: [
+        GrpcModule,
         GraphQLSubgraphModule.forRoot({
             debug: true,
             playground: true,
@@ -27,6 +31,5 @@ import { AuthExceptionFilter } from "./filters"
         }),
     ],
     controllers: [HealthController],
-    exports: [AuthSubgraphService],
 })
 export class AuthSubgraphModule {}

@@ -14,6 +14,7 @@ import { CognitoUser } from "libs/aws-cognito/aws-cognito.types"
 import { ConfirmSignUpInput, SignInInput, SignUpInput } from "./dto"
 import { AuthErrorHelper } from "./helpers"
 import { SentryService } from "libs/observability/sentry.service"
+import { GrpcClientService } from "libs/grpc"
 
 @Injectable()
 export class AuthSubgraphService {
@@ -22,6 +23,7 @@ export class AuthSubgraphService {
     constructor(
         private readonly cognitoService: AwsCognitoService,
         private readonly sentryService: SentryService,
+        private readonly grpcClient: GrpcClientService,
     ) {}
 
     async signUp(input: SignUpInput): Promise<SignUpResponse> {
@@ -51,6 +53,47 @@ export class AuthSubgraphService {
                 email, 
                 userSub: result.userSub 
             })
+
+            // Create user record in User service via gRPC
+            try {
+                const userCreationResult = await this.grpcClient.callUserService("CreateUser", {
+                    cognito_id: result.userSub as string,
+                    email,
+                    username: email, // Use email as username for now
+                    full_name: name || "",
+                    phone_number: phoneNumber || "",
+                    role: 0, // DONOR = 0 (from proto enum)
+                    cognito_attributes: attributes,
+                })
+
+                if (!userCreationResult.success) {
+                    this.logger.warn(`User creation in User service failed: ${userCreationResult.error}`)
+                    // Don't fail the signup, just log the warning
+                    this.sentryService.captureMessage(
+                        "User creation in User service failed after successful Cognito signup",
+                        "warning",
+                        {
+                            cognitoId: result.userSub,
+                            email,
+                            error: userCreationResult.error,
+                        }
+                    )
+                } else {
+                    this.logger.log(`User created in User service: ${userCreationResult.user.id}`)
+                    this.sentryService.addBreadcrumb("User created in User service", "grpc", {
+                        cognitoId: result.userSub,
+                        userId: userCreationResult.user.id,
+                    })
+                }
+            } catch (grpcError) {
+                this.logger.error("gRPC call to User service failed:", grpcError)
+                this.sentryService.captureError(grpcError as Error, {
+                    operation: "createUserAfterSignup",
+                    cognitoId: result.userSub,
+                    email,
+                })
+                // Don't fail the signup, just log the error
+            }
 
             return {
                 userSub: result.userSub as string,
@@ -154,7 +197,7 @@ export class AuthSubgraphService {
                 name: this.cognitoService.getAttributeValue(
                     cognitoUserResponse.UserAttributes || [],
                     "name",
-                ),
+                ) || "",
                 provider: "aws-cognito",
                 createdAt:
                     "UserCreateDate" in cognitoUserResponse
@@ -244,7 +287,7 @@ export class AuthSubgraphService {
             id: cognitoUser.sub,
             email: cognitoUser.email,
             username: cognitoUser.username,
-            name: cognitoUser.name || cognitoUser.givenName,
+            name: cognitoUser.name,
             provider: "aws-cognito",
             createdAt: cognitoUser.createdAt || new Date(),
         }
@@ -360,7 +403,7 @@ export class AuthSubgraphService {
                 name: this.cognitoService.getAttributeValue(
                     cognitoUserResponse.UserAttributes || [],
                     "name",
-                ),
+                ) || "",
                 givenName: this.cognitoService.getAttributeValue(
                     cognitoUserResponse.UserAttributes || [],
                     "given_name",
