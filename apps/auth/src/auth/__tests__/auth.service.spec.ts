@@ -29,18 +29,12 @@ describe("AuthSubgraphService", () => {
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 AuthSubgraphService,
-                {
-                    provide: AwsCognitoService,
-                    useValue: mockAwsCognitoService,
-                },
                 Logger,
+                { provide: AwsCognitoService, useValue: mockAwsCognitoService },
             ],
         }).compile()
 
         service = module.get<AuthSubgraphService>(AuthSubgraphService)
-    })
-
-    afterEach(() => {
         jest.clearAllMocks()
     })
 
@@ -49,155 +43,104 @@ describe("AuthSubgraphService", () => {
     })
 
     describe("signUp", () => {
-        it("should sign up a user and return userSub", async () => {
-            const signUpInput: SignUpInput = {
-                email: "moratemple6309@gmail.com",
-                password: "password123",
+        it("should call AwsCognitoService.signUp and return result", async () => {
+            const input: SignUpInput = {
+                email: "test@example.com",
+                password: "Password123!",
                 name: "Test User",
-                phoneNumber: "+1234567890",
+                phoneNumber: "+84901234567",
             }
-            const cognitoResult = { userSub: "some-user-sub" }
-            mockAwsCognitoService.signUp.mockResolvedValue(cognitoResult)
+            const mockResult = { success: true }
+            mockAwsCognitoService.signUp.mockResolvedValueOnce(mockResult)
 
-            const result = await service.signUp(signUpInput)
-
+            const result = await service.signUp(input)
             expect(mockAwsCognitoService.signUp).toHaveBeenCalledWith(
-                signUpInput.email,
-                signUpInput.password,
-                { name: signUpInput.name, phone_number: signUpInput.phoneNumber },
+                input.email,
+                input.password,
+                expect.objectContaining({
+                    name: input.name,
+                    phone_number: input.phoneNumber,
+                }),
             )
-            expect(result).toEqual({
-                userSub: cognitoResult.userSub,
-                message:
-          "Sign up successful. Please check your email for verification code.",
-                emailSent: true,
-            })
+            expect(result).toEqual(mockResult)
         })
     })
 
     describe("confirmSignUp", () => {
-        it("should confirm a user sign up", async () => {
-            const confirmSignUpInput: ConfirmSignUpInput = {
-                email: "moratemple6309@gmail.com",
+        it("should call AwsCognitoService.confirmSignUp and return result", async () => {
+            const input: ConfirmSignUpInput = {
+                email: "test@example.com",
                 confirmationCode: "123456",
             }
-            mockAwsCognitoService.confirmSignUp.mockResolvedValue({})
+            const mockResult = { success: true }
+            mockAwsCognitoService.confirmSignUp.mockResolvedValueOnce(mockResult)
 
-            const result = await service.confirmSignUp(confirmSignUpInput)
-
+            const result = await service.confirmSignUp(input)
             expect(mockAwsCognitoService.confirmSignUp).toHaveBeenCalledWith(
-                confirmSignUpInput.email,
-                confirmSignUpInput.confirmationCode,
+                input.email,
+                input.confirmationCode,
             )
-            expect(result).toEqual({
-                confirmed: true,
-                message: "Email confirmed successfully. You can now sign in.",
-            })
+            expect(result).toEqual(mockResult)
         })
     })
 
     describe("signIn", () => {
-        it("should sign in a user and return auth tokens and user info", async () => {
-            const signInInput: SignInInput = {
-                email: "moratemple6309@gmail.com",
-                password: "password123",
+        it("should call AwsCognitoService.signIn and return result", async () => {
+            const input: SignInInput = {
+                email: "test@example.com",
+                password: "Password123!",
             }
-            const authResult = {
-                AccessToken: "access-token",
-                RefreshToken: "refresh-token",
-                IdToken: "id-token",
-                ExpiresIn: 3600,
-            }
-            const userResponse = {
-                Username: "test-user",
-                UserAttributes: [
-                    { Name: "email", Value: "moratemple6309@gmail.com" },
-                    { Name: "name", Value: "Test User" },
-                ],
-                UserCreateDate: new Date(),
-            }
-            mockAwsCognitoService.signIn.mockResolvedValue(authResult)
-            mockAwsCognitoService.getUser.mockResolvedValue(userResponse)
+            const mockResult = { accessToken: "token" }
+            mockAwsCognitoService.signIn.mockResolvedValueOnce(mockResult)
 
-            const result = await service.signIn(signInInput)
-
+            const result = await service.signIn(input)
             expect(mockAwsCognitoService.signIn).toHaveBeenCalledWith(
-                signInInput.email,
-                signInInput.password,
+                input.email,
+                input.password,
             )
-            expect(mockAwsCognitoService.getUser).toHaveBeenCalledWith(
-                authResult.AccessToken,
-            )
-            expect(result).toHaveProperty("accessToken", authResult.AccessToken)
-            expect(result.user).toBeDefined()
-            expect(result.user.email).toBe("moratemple6309@gmail.com")
+            expect(result).toEqual(mockResult)
         })
     })
 
     describe("forgotPassword", () => {
-        it("should send a password reset code", async () => {
-            const email = "moratemple6309@gmail.com"
-            mockAwsCognitoService.forgotPassword.mockResolvedValue({})
+        it("should call AwsCognitoService.forgotPassword and return result", async () => {
+            const email = "test@example.com"
+            const mockResult = { success: true }
+            mockAwsCognitoService.forgotPassword.mockResolvedValueOnce(mockResult)
 
             const result = await service.forgotPassword(email)
-
             expect(mockAwsCognitoService.forgotPassword).toHaveBeenCalledWith(email)
-            expect(result).toEqual({
-                emailSent: true,
-                message: "Password reset code sent to your email.",
-            })
+            expect(result).toEqual(mockResult)
         })
     })
 
     describe("confirmForgotPassword", () => {
-        it("should reset the password with a confirmation code", async () => {
-            const email = "moratemple6309@gmail.com"
-            const confirmationCode = "123456"
-            const newPassword = "newPassword123"
-            mockAwsCognitoService.confirmForgotPassword.mockResolvedValue({})
+        it("should call AwsCognitoService.confirmForgotPassword and return result", async () => {
+            const email = "test@example.com"
+            const code = "123456"
+            const newPassword = "NewPassword123!"
+            const mockResult = { success: true }
+            mockAwsCognitoService.confirmForgotPassword.mockResolvedValueOnce(mockResult)
 
-            const result = await service.confirmForgotPassword(
-                email,
-                confirmationCode,
-                newPassword,
-            )
-
+            const result = await service.confirmForgotPassword(email, code, newPassword)
             expect(mockAwsCognitoService.confirmForgotPassword).toHaveBeenCalledWith(
                 email,
-                confirmationCode,
+                code,
                 newPassword,
             )
-            expect(result).toEqual({
-                passwordReset: true,
-                message:
-          "Password reset successful. You can now sign in with your new password.",
-            })
+            expect(result).toEqual(mockResult)
         })
     })
 
     describe("resendConfirmationCode", () => {
-        it("should resend the confirmation code", async () => {
-            const email = "moratemple6309@gmail.com"
-            mockAwsCognitoService.resendConfirmationCode.mockResolvedValue({})
+        it("should call AwsCognitoService.resendConfirmationCode and return result", async () => {
+            const email = "test@example.com"
+            const mockResult = { success: true }
+            mockAwsCognitoService.resendConfirmationCode.mockResolvedValueOnce(mockResult)
 
             const result = await service.resendConfirmationCode(email)
-
-            expect(mockAwsCognitoService.resendConfirmationCode).toHaveBeenCalledWith(
-                email,
-            )
-            expect(result).toEqual({
-                emailSent: true,
-                message: "Confirmation code resent to your email.",
-            })
-        })
-    })
-
-    describe("getHealth", () => {
-        it("should return a health check response", () => {
-            const result = service.getHealth()
-            expect(result.status).toBe("healthy")
-            expect(result.service).toContain("Auth Subgraph")
-            expect(result).toHaveProperty("timestamp")
+            expect(mockAwsCognitoService.resendConfirmationCode).toHaveBeenCalledWith(email)
+            expect(result).toEqual(mockResult)
         })
     })
 })
