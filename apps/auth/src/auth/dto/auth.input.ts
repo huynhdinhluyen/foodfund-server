@@ -116,3 +116,17 @@ export class GetUserInput {
     @IsString({ message: "User ID must be a string" })
         userId: string
 }
+
+@InputType()
+export class RefreshTokenInput {
+    @Field()
+    @IsNotEmpty({ message: "Refresh token is required" })
+    @IsString({ message: "Refresh token must be a string" })
+        refreshToken: string
+
+    @Field()
+    @IsNotEmpty({ message: "Email is required" })
+    // @IsEmail({}, { message: "Please provide a valid email address" })
+    // @Transform(({ value }) => value?.toLowerCase().trim())
+        userName: string
+}

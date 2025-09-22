@@ -8,10 +8,16 @@ import {
     SignInResponse,
     ForgotPasswordResponse,
     ResetPasswordResponse,
+    RefreshTokenResponse,
 } from "./models"
 import { AwsCognitoService } from "libs/aws-cognito"
 import { CognitoUser } from "libs/aws-cognito/aws-cognito.types"
-import { ConfirmSignUpInput, SignInInput, SignUpInput } from "./dto"
+import {
+    ConfirmSignUpInput,
+    SignInInput,
+    SignUpInput,
+    RefreshTokenInput,
+} from "./dto"
 import { AuthErrorHelper } from "./helpers"
 import { SentryService } from "libs/observability/sentry.service"
 import { GrpcClientService } from "libs/grpc"
@@ -298,6 +304,48 @@ export class AuthSubgraphService {
         return {
             emailSent: true,
             message: "Confirmation code resent to your email.",
+        }
+    }
+
+    async refreshToken(input: RefreshTokenInput): Promise<RefreshTokenResponse> {
+        const { refreshToken, userName } = input
+
+        try {
+            // Track refresh token attempt
+            this.sentryService.addBreadcrumb("Token refresh attempt", "auth", {
+                userName,
+            })
+
+            const authResult = await this.cognitoService.refreshToken(refreshToken, userName)
+
+            // Track successful token refresh
+            this.sentryService.addBreadcrumb("Token refresh successful", "auth", {
+                userName,
+            })
+
+            return {
+                accessToken: authResult.AccessToken as string,
+                idToken: authResult.IdToken as string,
+                expiresIn: authResult.ExpiresIn as number,
+                message: "Token refreshed successfully",
+            }
+        } catch (error) {
+            // Handle Cognito errors
+            if (error.name || error.code) {
+                AuthErrorHelper.mapCognitoError(error, "refreshToken", userName)
+            }
+
+            // Re-throw if it's already our custom exception
+            if (error.errorCode) {
+                throw error
+            }
+
+            // Unknown error
+            this.logger.error(
+                `Unexpected token refresh error: ${error.message}`,
+                error.stack,
+            )
+            AuthErrorHelper.throwCognitoError("refreshToken", error.message)
         }
     }
 

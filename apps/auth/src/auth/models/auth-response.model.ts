@@ -79,3 +79,18 @@ export class ResendCodeResponse {
   @Field()
       message: string
 }
+
+@ObjectType()
+export class RefreshTokenResponse {
+  @Field()
+      accessToken: string
+
+  @Field()
+      idToken: string
+
+  @Field()
+      expiresIn: number
+
+  @Field()
+      message: string
+}

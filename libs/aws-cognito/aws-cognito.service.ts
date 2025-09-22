@@ -44,17 +44,6 @@ export class AwsCognitoService {
         private readonly options: AwsCognitoModuleOptions,
     ) {
         const config = envConfig().aws
-        // Check if mock mode is enabled
-        // if (this.options.mockMode) {
-        //   this.logger.warn(
-        //     'AWS Cognito Service running in MOCK MODE - for development only!',
-        //   );
-        //   // Set dummy values for mock mode
-        //   this.userPoolId = 'mock-user-pool-id';
-        //   this.clientId = 'mock-client-id';
-        //   this.clientSecret = 'mock-client-secret';
-        //   return;
-        // }
 
         if (!config) {
             throw new Error("AWS configuration not found in environment")
@@ -404,32 +393,12 @@ export class AwsCognitoService {
      */
     async validateToken(token: string) {
         try {
-            // if (this.options.mockMode) {
-            //   this.logger.warn(
-            //     `Mock token validation for token: ${token.substring(0, 10)}...`,
-            //   );
-            //   return {
-            //     sub: 'mock-user-id',
-            //     email: 'mock@example.com',
-            //     email_verified: true,
-            //     'cognito:username': 'mock-user',
-            //     aud: this.clientId,
-            //     event_id: 'mock-event-id',
-            //     token_use: 'access',
-            //     auth_time: Math.floor(Date.now() / 1000),
-            //     exp: Math.floor(Date.now() / 1000) + 3600,
-            //     iat: Math.floor(Date.now() / 1000),
-            //     jti: 'mock-jti',
-            //   };
-            // }
-
             // Create JWT verifier on demand
             const jwtVerifier = CognitoJwtVerifier.create({
                 userPoolId: this.userPoolId,
                 tokenUse: "access",
                 clientId: this.clientId,
             })
-
 
             const payload = await jwtVerifier.verify(token)
             this.logger.debug(`Token validated for user: ${payload.sub}`)
@@ -447,22 +416,6 @@ export class AwsCognitoService {
      */
     async getUser(accessToken: string) {
         try {
-            // if (this.options.mockMode) {
-            //   this.logger.warn(
-            //     `Mock get user for token: ${accessToken.substring(0, 10)}...`,
-            //   );
-            //   return {
-            //     Username: 'mock-user',
-            //     UserAttributes: [
-            //       { Name: 'sub', Value: 'mock-user-id' },
-            //       { Name: 'email', Value: 'mock@example.com' },
-            //       { Name: 'email_verified', Value: 'true' },
-            //       { Name: 'name', Value: 'Mock User' },
-            //       { Name: 'given_name', Value: 'Mock' },
-            //       { Name: 'family_name', Value: 'User' },
-            //     ],
-            //   };
-            // }
             const command = new GetUserCommand({
                 AccessToken: accessToken,
             })
@@ -499,9 +452,6 @@ export class AwsCognitoService {
         }
     }
 
-    /**
-     * Extract custom attributes from user attributes array
-     */
     extractCustomAttributes(
         attributes: CognitoUserAttribute[],
     ): Record<string, string> {
@@ -514,13 +464,49 @@ export class AwsCognitoService {
         return customAttrs
     }
 
-    /**
-     * Get attribute value by name
-     */
     getAttributeValue(
         attributes: CognitoUserAttribute[],
         attributeName: string,
     ): string | undefined {
         return attributes?.find((attr) => attr.Name === attributeName)?.Value
+    }
+
+    /**
+     * Refresh access token using refresh token
+     */
+    async refreshToken(refreshToken: string, userName: string) {
+        try {
+            const authParameters: Record<string, string> = {
+                REFRESH_TOKEN: refreshToken,
+            }
+
+            const secretHash = this.calculateSecretHash(userName)
+            if (secretHash) {
+                authParameters.SECRET_HASH = secretHash
+            }
+
+            const command = new InitiateAuthCommand({
+                ClientId: this.clientId,
+                AuthFlow: AuthFlowType.REFRESH_TOKEN_AUTH,
+                AuthParameters: authParameters,
+            })
+
+            const response = await this.cognitoClient.send(command)
+
+            if (!response.AuthenticationResult) {
+                throw new Error("Authentication result is missing")
+            }
+
+            this.logger.log("Token refreshed successfully")
+
+            return this.formatAuthResponse(response.AuthenticationResult)
+        } catch (error) {
+            const errorMessage =
+                error instanceof Error ? error.message : String(error)
+            this.logger.error(`Token refresh failed: ${errorMessage}`)
+            throw new UnauthorizedException(
+                `Token refresh failed: ${errorMessage}`,
+            )
+        }
     }
 }
