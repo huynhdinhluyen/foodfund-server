@@ -65,6 +65,12 @@
       ],
       "@libs/exceptions/*": [
         "libs/exceptions/*"
+      ],
+      "@libs/observability": [
+        "libs/observability/index.ts"
+      ],
+      "@libs/observability/*": [
+        "libs/observability/*"
       ]
     }
   }
