@@ -1,7 +1,6 @@
 import { Module, DynamicModule, Global } from "@nestjs/common"
 import { APP_INTERCEPTOR } from "@nestjs/core"
 import * as Sentry from "@sentry/nestjs"
-import { DemoController } from "./demo.controller"
 import { SentryInterceptor } from "./sentry.interceptor"
 import { SentryService } from "./sentry.service"
 
@@ -40,7 +39,7 @@ export class SentryModule {
 
         return {
             module: SentryModule,
-            controllers: [DemoController],
+            controllers: [],
             providers: [
                 {
                     provide: "SENTRY_OPTIONS",

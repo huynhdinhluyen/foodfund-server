@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package foodfund.user;
+
+// User Service for internal communication
+service UserService {
+  // Create user from auth service
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  
+  // Get user by ID
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  
+  // Update user profile
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  
+  // Check if user exists
+  rpc UserExists(UserExistsRequest) returns (UserExistsResponse);
+  
+  // Get user by email
+  rpc GetUserByEmail(GetUserByEmailRequest) returns (GetUserResponse);
+}
+
+// Messages
+message User {
+  string id = 1;
+  string cognito_id = 2;
+  string email = 3;
+  string username = 4;
+  string full_name = 5;
+  string phone_number = 6;
+  string avatar_url = 7;
+  string bio = 8;
+  Role role = 9;
+  bool is_active = 10;
+  string created_at = 11;
+  string updated_at = 12;
+}
+
+enum Role {
+  DONOR = 0;
+  FUNDRAISER = 1;
+  KITCHEN_STAFF = 2;
+  DELIVERY_STAFF = 3;
+  ADMIN = 4;
+}
+
+// Create User
+message CreateUserRequest {
+  string cognito_id = 1;
+  string email = 2;
+  string username = 3;
+  string full_name = 4;
+  string phone_number = 5;
+  Role role = 6;
+  map<string, string> cognito_attributes = 7;
+}
+
+message CreateUserResponse {
+  bool success = 1;
+  User user = 2;
+  string error = 3;
+}
+
+// Get User
+message GetUserRequest {
+  string id = 1;
+}
+
+message GetUserResponse {
+  bool success = 1;
+  User user = 2;
+  string error = 3;
+}
+
+// Update User
+message UpdateUserRequest {
+  string id = 1;
+  string full_name = 2;
+  string phone_number = 3;
+  string avatar_url = 4;
+  string bio = 5;
+}
+
+message UpdateUserResponse {
+  bool success = 1;
+  User user = 2;
+  string error = 3;
+}
+
+// User Exists
+message UserExistsRequest {
+  string cognito_id = 1;
+}
+
+message UserExistsResponse {
+  bool exists = 1;
+  string user_id = 2;
+}
+
+// Get User by Email
+message GetUserByEmailRequest {
+  string email = 1;
+}

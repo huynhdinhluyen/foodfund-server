@@ -21,7 +21,7 @@ import { CognitoJwtVerifier } from "aws-jwt-verify"
 import { createHmac } from "crypto"
 import { envConfig } from "../env"
 import { MODULE_OPTIONS_TOKEN } from "./aws-cognito.module-definition"
-import { 
+import {
     AwsCognitoModuleOptions,
     CognitoUserAttribute,
     AuthenticationResult,
@@ -40,21 +40,10 @@ export class AwsCognitoService {
     private readonly clientSecret?: string
 
     constructor(
-    @Inject(MODULE_OPTIONS_TOKEN)
-    private readonly options: AwsCognitoModuleOptions,
+        @Inject(MODULE_OPTIONS_TOKEN)
+        private readonly options: AwsCognitoModuleOptions,
     ) {
         const config = envConfig().aws
-        // Check if mock mode is enabled
-        // if (this.options.mockMode) {
-        //   this.logger.warn(
-        //     'AWS Cognito Service running in MOCK MODE - for development only!',
-        //   );
-        //   // Set dummy values for mock mode
-        //   this.userPoolId = 'mock-user-pool-id';
-        //   this.clientId = 'mock-client-id';
-        //   this.clientSecret = 'mock-client-secret';
-        //   return;
-        // }
 
         if (!config) {
             throw new Error("AWS configuration not found in environment")
@@ -64,7 +53,7 @@ export class AwsCognitoService {
         this.userPoolId = this.options.userPoolId || config.cognito.userPoolId
         this.clientId = this.options.clientId || config.cognito.clientId
         this.clientSecret =
-      this.options.clientSecret || config.cognito.clientSecret
+            this.options.clientSecret || config.cognito.clientSecret
         const region = this.options.region || config.cognito.region
 
         if (!this.userPoolId) {
@@ -88,12 +77,12 @@ export class AwsCognitoService {
         this.cognitoClient = new CognitoIdentityProviderClient({
             region: region,
             credentials:
-        config.accessKeyId && config.secretAccessKey
-            ? {
-                accessKeyId: config.accessKeyId,
-                secretAccessKey: config.secretAccessKey,
-            }
-            : undefined, // Use default credentials if not provided
+                config.accessKeyId && config.secretAccessKey
+                    ? {
+                        accessKeyId: config.accessKeyId,
+                        secretAccessKey: config.secretAccessKey,
+                    }
+                    : undefined, // Use default credentials if not provided
         })
 
         // JWT verifier will be created when needed
@@ -104,8 +93,8 @@ export class AwsCognitoService {
     }
 
     /**
-   * Calculate SECRET_HASH for Cognito operations
-   */
+     * Calculate SECRET_HASH for Cognito operations
+     */
     private calculateSecretHash(username: string): string | undefined {
         if (!this.clientSecret) {
             return undefined
@@ -151,7 +140,8 @@ export class AwsCognitoService {
                 userConfirmed: response.UserConfirmed,
             } as SignUpResponse
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage =
+                error instanceof Error ? error.message : String(error)
             this.logger.error(`Sign up failed: ${errorMessage}`)
             throw new UnauthorizedException(`Sign up failed: ${errorMessage}`)
         }
@@ -172,9 +162,12 @@ export class AwsCognitoService {
 
             return { confirmed: true } as ConfirmationResponse
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage =
+                error instanceof Error ? error.message : String(error)
             this.logger.error(`Confirmation failed: ${errorMessage}`)
-            throw new UnauthorizedException(`Confirmation failed: ${errorMessage}`)
+            throw new UnauthorizedException(
+                `Confirmation failed: ${errorMessage}`,
+            )
         }
     }
 
@@ -192,7 +185,8 @@ export class AwsCognitoService {
 
             return this.formatAuthResponse(authResult)
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage =
+                error instanceof Error ? error.message : String(error)
             this.logger.error(`Sign in failed for ${email}: ${errorMessage}`)
             throw new UnauthorizedException(
                 `Authentication failed: ${errorMessage}`,
@@ -217,12 +211,17 @@ export class AwsCognitoService {
         return authParameters
     }
 
-    private async attemptAuthentication(authParameters: Record<string, string>) {
+    private async attemptAuthentication(
+        authParameters: Record<string, string>,
+    ) {
         const authFlows = [AuthFlowType.ADMIN_NO_SRP_AUTH]
 
         for (const authFlow of authFlows) {
             try {
-                const response = await this.executeAuthFlow(authFlow, authParameters)
+                const response = await this.executeAuthFlow(
+                    authFlow,
+                    authParameters,
+                )
 
                 if (response.AuthenticationResult) {
                     return response.AuthenticationResult
@@ -230,8 +229,13 @@ export class AwsCognitoService {
 
                 throw new Error("Authentication result is missing")
             } catch (flowError: unknown) {
-                const errorMessage = flowError instanceof Error ? flowError.message : String(flowError)
-                this.logger.debug(`Auth flow ${authFlow} failed: ${errorMessage}`)
+                const errorMessage =
+                    flowError instanceof Error
+                        ? flowError.message
+                        : String(flowError)
+                this.logger.debug(
+                    `Auth flow ${authFlow} failed: ${errorMessage}`,
+                )
 
                 // If this is not an auth flow configuration error, rethrow immediately
                 if (!this.isAuthFlowConfigError(flowError)) {
@@ -271,14 +275,17 @@ export class AwsCognitoService {
     }
 
     private isAuthFlowConfigError(error: unknown): boolean {
-        const errorMessage = error instanceof Error ? error.message : String(error)
+        const errorMessage =
+            error instanceof Error ? error.message : String(error)
         return (
             errorMessage?.includes("Auth flow not enabled") ||
             errorMessage?.includes("not supported")
         )
     }
 
-    private formatAuthResponse(authResult: AuthenticationResult): AuthenticationResult {
+    private formatAuthResponse(
+        authResult: AuthenticationResult,
+    ): AuthenticationResult {
         return {
             AccessToken: authResult.AccessToken,
             RefreshToken: authResult.RefreshToken,
@@ -303,15 +310,18 @@ export class AwsCognitoService {
                 codeDeliveryDetails: response.CodeDeliveryDetails,
             } as ResendCodeResponse
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage =
+                error instanceof Error ? error.message : String(error)
             this.logger.error(`Resend code failed: ${errorMessage}`)
-            throw new UnauthorizedException(`Resend code failed: ${errorMessage}`)
+            throw new UnauthorizedException(
+                `Resend code failed: ${errorMessage}`,
+            )
         }
     }
 
     /**
-   * Forgot Password
-   */
+     * Forgot Password
+     */
     async forgotPassword(email: string) {
         try {
             const secretHash = this.calculateSecretHash(email)
@@ -327,7 +337,8 @@ export class AwsCognitoService {
                 codeDeliveryDetails: response.CodeDeliveryDetails,
             } as ResendCodeResponse
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage =
+                error instanceof Error ? error.message : String(error)
             this.logger.error(`Forgot password failed: ${errorMessage}`)
             throw new UnauthorizedException(
                 `Forgot password failed: ${errorMessage}`,
@@ -336,8 +347,8 @@ export class AwsCognitoService {
     }
 
     /**
-   * Confirm Forgot Password
-   */
+     * Confirm Forgot Password
+     */
     async confirmForgotPassword(
         email: string,
         confirmationCode: string,
@@ -353,11 +364,23 @@ export class AwsCognitoService {
                 ...(secretHash && { SecretHash: secretHash }),
             })
 
+            this.logger.debug(command)
+
             await this.cognitoClient.send(command)
 
             return { passwordReset: true } as PasswordResetResponse
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage =
+                error instanceof Error ? error.message : String(error)
+            if (
+                error?.name === "CodeMismatchException" ||
+                errorMessage.includes("Invalid verification code")
+            ) {
+                this.logger.warn(`Wrong confirmation code for ${email}`)
+                throw new UnauthorizedException(
+                    "Mã xác nhận không đúng hoặc đã hết hạn. Vui lòng kiểm tra lại email và mã xác nhận.",
+                )
+            }
             this.logger.error(`Password reset failed: ${errorMessage}`)
             throw new UnauthorizedException(
                 `Password reset failed: ${errorMessage}`,
@@ -366,67 +389,33 @@ export class AwsCognitoService {
     }
 
     /**
-   * Validate Cognito access token
-   */
+     * Validate Cognito access token
+     */
     async validateToken(token: string) {
         try {
-            // if (this.options.mockMode) {
-            //   this.logger.warn(
-            //     `Mock token validation for token: ${token.substring(0, 10)}...`,
-            //   );
-            //   return {
-            //     sub: 'mock-user-id',
-            //     email: 'mock@example.com',
-            //     email_verified: true,
-            //     'cognito:username': 'mock-user',
-            //     aud: this.clientId,
-            //     event_id: 'mock-event-id',
-            //     token_use: 'access',
-            //     auth_time: Math.floor(Date.now() / 1000),
-            //     exp: Math.floor(Date.now() / 1000) + 3600,
-            //     iat: Math.floor(Date.now() / 1000),
-            //     jti: 'mock-jti',
-            //   };
-            // }
-            
             // Create JWT verifier on demand
             const jwtVerifier = CognitoJwtVerifier.create({
                 userPoolId: this.userPoolId,
                 tokenUse: "access",
                 clientId: this.clientId,
             })
-            
+
             const payload = await jwtVerifier.verify(token)
             this.logger.debug(`Token validated for user: ${payload.sub}`)
             return payload
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage =
+                error instanceof Error ? error.message : String(error)
             this.logger.error(`Token validation failed: ${errorMessage}`)
             throw new UnauthorizedException("Invalid AWS Cognito token")
         }
     }
 
     /**
-   * Get user details using access token
-   */
+     * Get user details using access token
+     */
     async getUser(accessToken: string) {
         try {
-            // if (this.options.mockMode) {
-            //   this.logger.warn(
-            //     `Mock get user for token: ${accessToken.substring(0, 10)}...`,
-            //   );
-            //   return {
-            //     Username: 'mock-user',
-            //     UserAttributes: [
-            //       { Name: 'sub', Value: 'mock-user-id' },
-            //       { Name: 'email', Value: 'mock@example.com' },
-            //       { Name: 'email_verified', Value: 'true' },
-            //       { Name: 'name', Value: 'Mock User' },
-            //       { Name: 'given_name', Value: 'Mock' },
-            //       { Name: 'family_name', Value: 'User' },
-            //     ],
-            //   };
-            // }
             const command = new GetUserCommand({
                 AccessToken: accessToken,
             })
@@ -435,15 +424,16 @@ export class AwsCognitoService {
             this.logger.debug(`User retrieved: ${response.Username}`)
             return response
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage =
+                error instanceof Error ? error.message : String(error)
             this.logger.error(`Failed to get user: ${errorMessage}`)
             throw new UnauthorizedException("User not found or token invalid")
         }
     }
 
     /**
-   * Get user by username (admin operation)
-   */
+     * Get user by username (admin operation)
+     */
     async getUserByUsername(username: string) {
         try {
             const command = new AdminGetUserCommand({
@@ -455,16 +445,16 @@ export class AwsCognitoService {
             this.logger.debug(`Admin user retrieved: ${username}`)
             return response
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage =
+                error instanceof Error ? error.message : String(error)
             this.logger.error(`Failed to get user by username: ${errorMessage}`)
             throw new UnauthorizedException("User not found")
         }
     }
 
-    /**
-   * Extract custom attributes from user attributes array
-   */
-    extractCustomAttributes(attributes: CognitoUserAttribute[]): Record<string, string> {
+    extractCustomAttributes(
+        attributes: CognitoUserAttribute[],
+    ): Record<string, string> {
         const customAttrs: Record<string, string> = {}
         attributes?.forEach((attr) => {
             if (attr.Name && attr.Value && attr.Name.startsWith("custom:")) {
@@ -474,13 +464,49 @@ export class AwsCognitoService {
         return customAttrs
     }
 
-    /**
-   * Get attribute value by name
-   */
     getAttributeValue(
         attributes: CognitoUserAttribute[],
         attributeName: string,
     ): string | undefined {
         return attributes?.find((attr) => attr.Name === attributeName)?.Value
+    }
+
+    /**
+     * Refresh access token using refresh token
+     */
+    async refreshToken(refreshToken: string, userName: string) {
+        try {
+            const authParameters: Record<string, string> = {
+                REFRESH_TOKEN: refreshToken,
+            }
+
+            const secretHash = this.calculateSecretHash(userName)
+            if (secretHash) {
+                authParameters.SECRET_HASH = secretHash
+            }
+
+            const command = new InitiateAuthCommand({
+                ClientId: this.clientId,
+                AuthFlow: AuthFlowType.REFRESH_TOKEN_AUTH,
+                AuthParameters: authParameters,
+            })
+
+            const response = await this.cognitoClient.send(command)
+
+            if (!response.AuthenticationResult) {
+                throw new Error("Authentication result is missing")
+            }
+
+            this.logger.log("Token refreshed successfully")
+
+            return this.formatAuthResponse(response.AuthenticationResult)
+        } catch (error) {
+            const errorMessage =
+                error instanceof Error ? error.message : String(error)
+            this.logger.error(`Token refresh failed: ${errorMessage}`)
+            throw new UnauthorizedException(
+                `Token refresh failed: ${errorMessage}`,
+            )
+        }
     }
 }

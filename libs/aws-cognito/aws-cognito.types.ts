@@ -19,7 +19,7 @@ export interface CognitoUser {
   email: string;
   emailVerified: boolean;
   username: string;
-  name?: string;
+  name: string;
   givenName?: string;
   familyName?: string;
   picture?: string;

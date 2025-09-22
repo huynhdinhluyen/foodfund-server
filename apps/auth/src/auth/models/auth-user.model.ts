@@ -12,8 +12,8 @@ export class AuthUser {
   @Field()
       username: string
 
-  @Field({ nullable: true })
-      name?: string
+  @Field()
+      name: string
 
   @Field()
       provider: string

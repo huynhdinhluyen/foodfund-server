@@ -2,19 +2,20 @@ import { Module } from "@nestjs/common"
 import { GraphQLSubgraphModule } from "libs/graphql/subgraph"
 import { UserService } from "./user.service"
 import { UserRepository } from "./user.repository"
-import { 
-    KitchenStaffProfileResolver, 
-    FundraiserProfileResolver, 
+import {
+    KitchenStaffProfileResolver,
+    FundraiserProfileResolver,
     DeliveryStaffProfileResolver,
-    DonorProfileResolver, 
+    DonorProfileResolver,
 } from "./resolvers/profile.resolver"
 import { UserResolver } from "./resolvers"
-
+import { UserGrpcService } from "./grpc"
 import { HealthController } from "./health.controller"
+import { GrpcModule } from "libs/grpc"
 
 @Module({
     imports: [
-        // PrismaModule không cần import vì đã global từ AppModule
+        GrpcModule,
         GraphQLSubgraphModule.forRoot({
             debug: true,
             playground: true,
@@ -27,9 +28,10 @@ import { HealthController } from "./health.controller"
         DonorProfileResolver,
         KitchenStaffProfileResolver,
         FundraiserProfileResolver,
-        DeliveryStaffProfileResolver
+        DeliveryStaffProfileResolver,
+        UserGrpcService,
     ],
     controllers: [HealthController],
-    exports: [UserService, UserRepository],
+    exports: [UserService, UserRepository, UserGrpcService],
 })
-export class UserSubgraphModule {}
+export class UserModule {}

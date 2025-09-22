@@ -8,35 +8,134 @@ import {
     SignInResponse,
     ForgotPasswordResponse,
     ResetPasswordResponse,
+    RefreshTokenResponse,
 } from "./models"
 import { AwsCognitoService } from "libs/aws-cognito"
 import { CognitoUser } from "libs/aws-cognito/aws-cognito.types"
-import { ConfirmSignUpInput, SignInInput, SignUpInput } from "./dto"
+import {
+    ConfirmSignUpInput,
+    SignInInput,
+    SignUpInput,
+    RefreshTokenInput,
+} from "./dto"
+import { AuthErrorHelper } from "./helpers"
+import { SentryService } from "libs/observability/sentry.service"
+import { GrpcClientService } from "libs/grpc"
 
 @Injectable()
 export class AuthSubgraphService {
     private readonly logger = new Logger(AuthSubgraphService.name)
 
-    constructor(private readonly cognitoService: AwsCognitoService) {}
+    constructor(
+        private readonly cognitoService: AwsCognitoService,
+        private readonly sentryService: SentryService,
+        private readonly grpcClient: GrpcClientService,
+    ) {}
 
     async signUp(input: SignUpInput): Promise<SignUpResponse> {
         const { email, password, name, phoneNumber } = input
 
-        const attributes: Record<string, string> = {}
-        if (name) attributes.name = name
-        if (phoneNumber) attributes.phone_number = phoneNumber
+        try {
+            // Business validation only (basic validation handled by class-validator)
+            AuthErrorHelper.validateBusinessRules(email, "signUp")
+            AuthErrorHelper.validatePasswordComplexity(password)
 
-        const result = await this.cognitoService.signUp(
-            email,
-            password,
-            attributes,
-        )
+            // Track user action
+            this.sentryService.addBreadcrumb("User signup attempt", "auth", {
+                email,
+            })
 
-        return {
-            userSub: result.userSub as string,
-            message:
-        "Sign up successful. Please check your email for verification code.",
-            emailSent: true,
+            const attributes: Record<string, string> = {}
+            if (name) attributes.name = name
+            if (phoneNumber) attributes.phone_number = phoneNumber
+
+            const result = await this.cognitoService.signUp(
+                email,
+                password,
+                attributes,
+            )
+
+            // Track successful signup
+            this.sentryService.addBreadcrumb("User signup successful", "auth", {
+                email,
+                userSub: result.userSub,
+            })
+
+            try {
+                const userCreationResult =
+                    await this.grpcClient.callUserService("CreateUser", {
+                        cognito_id: result.userSub as string,
+                        email,
+                        username: email, // Use email as username for now
+                        full_name: name || "",
+                        phone_number: phoneNumber || "",
+                        role: 0, // DONOR = 0 (from proto enum)
+                        cognito_attributes: attributes,
+                    })
+
+                if (!userCreationResult.success) {
+                    this.logger.warn(
+                        `User creation in User service failed: ${userCreationResult.error}`,
+                    )
+                    // Don't fail the signup, just log the warning
+                    this.sentryService.captureMessage(
+                        "User creation in User service failed after successful Cognito signup",
+                        "warning",
+                        {
+                            cognitoId: result.userSub,
+                            email,
+                            error: userCreationResult.error,
+                        },
+                    )
+                } else {
+                    this.logger.log(
+                        `User created in User service: ${userCreationResult.user.id}`,
+                    )
+                    this.sentryService.addBreadcrumb(
+                        "User created in User service",
+                        "grpc",
+                        {
+                            cognitoId: result.userSub,
+                            userId: userCreationResult.user.id,
+                        },
+                    )
+                }
+            } catch (grpcError) {
+                this.logger.error(
+                    "gRPC call to User service failed:",
+                    grpcError,
+                )
+                this.sentryService.captureError(grpcError as Error, {
+                    operation: "createUserAfterSignup",
+                    cognitoId: result.userSub,
+                    email,
+                })
+                // Don't fail the signup, just log the error
+            }
+
+            return {
+                userSub: result.userSub as string,
+                message:
+                    "Sign up successful. Please check your email for verification code.",
+                emailSent: true,
+            }
+        } catch (error) {
+            // Handle Cognito errors
+            if (error.name || error.code) {
+                AuthErrorHelper.mapCognitoError(error, "signUp", email)
+            }
+
+            // Re-throw if it's already our custom exception
+            if (error.errorCode) {
+                throw error
+            }
+
+            // Unknown error
+            this.logger.error(
+                `Unexpected signup error: ${error.message}`,
+                error.stack,
+            )
+            AuthErrorHelper.throwCognitoError("signUp", error.message)
         }
     }
 
@@ -45,49 +144,128 @@ export class AuthSubgraphService {
     ): Promise<ConfirmSignUpResponse> {
         const { email, confirmationCode } = input
 
-        await this.cognitoService.confirmSignUp(email, confirmationCode)
+        try {
+            // Business validation only (basic validation handled by class-validator)
+            AuthErrorHelper.validateBusinessRules(email, "confirmSignUp")
 
-        return {
-            confirmed: true,
-            message: "Email confirmed successfully. You can now sign in.",
+            // Track confirmation attempt
+            this.sentryService.addBreadcrumb(
+                "User confirmation attempt",
+                "auth",
+                { email },
+            )
+
+            await this.cognitoService.confirmSignUp(email, confirmationCode)
+
+            // Track successful confirmation
+            this.sentryService.addBreadcrumb(
+                "User confirmation successful",
+                "auth",
+                { email },
+            )
+
+            return {
+                confirmed: true,
+                message: "Email confirmed successfully. You can now sign in.",
+            }
+        } catch (error) {
+            // Handle Cognito errors
+            if (error.name || error.code) {
+                AuthErrorHelper.mapCognitoError(error, "confirmSignUp", email)
+            }
+
+            // Re-throw if it's already our custom exception
+            if (error.errorCode) {
+                throw error
+            }
+
+            // Unknown error
+            this.logger.error(
+                `Unexpected confirmation error: ${error.message}`,
+                error.stack,
+            )
+            AuthErrorHelper.throwCognitoError("confirmSignUp", error.message)
         }
     }
 
     async signIn(input: SignInInput): Promise<SignInResponse> {
         const { email, password } = input
 
-        // Authenticate with Cognito
-        const authResult = await this.cognitoService.signIn(email, password)
+        try {
+            // Business validation only (basic validation handled by class-validator)
+            AuthErrorHelper.validateBusinessRules(email, "signIn")
 
-        // Get user details using access token
-        const cognitoUserResponse = await this.cognitoService.getUser(
-      authResult.AccessToken as string,
-        )
+            // Track signin attempt
+            this.sentryService.addBreadcrumb("User signin attempt", "auth", {
+                email,
+            })
+            this.sentryService.setUser({ id: email, email })
 
-        // Create AuthUser from Cognito response
-        const user: AuthUser = {
-            id: cognitoUserResponse.Username || "",
-            email:
-        this.cognitoService.getAttributeValue(
-            cognitoUserResponse.UserAttributes || [],
-            "email",
-        ) || email,
-            username: cognitoUserResponse.Username || email,
-            name: this.cognitoService.getAttributeValue(
-                cognitoUserResponse.UserAttributes || [],
-                "name",
-            ),
-            provider: "aws-cognito",
-            createdAt: "UserCreateDate" in cognitoUserResponse ? cognitoUserResponse.UserCreateDate as Date : new Date(),
-        }
+            // Authenticate with Cognito
+            const authResult = await this.cognitoService.signIn(email, password)
 
-        return {
-            user,
-            accessToken: authResult.AccessToken as string,
-            refreshToken: authResult.RefreshToken as string,
-            idToken: authResult.IdToken as string,
-            expiresIn: authResult.ExpiresIn as number,
-            message: "Sign in successful",
+            // Get user details using access token
+            const cognitoUserResponse = await this.cognitoService.getUser(
+                authResult.AccessToken as string,
+            )
+
+            // Create AuthUser from Cognito response
+            const user: AuthUser = {
+                id: cognitoUserResponse.Username || "",
+                email:
+                    this.cognitoService.getAttributeValue(
+                        cognitoUserResponse.UserAttributes || [],
+                        "email",
+                    ) || email,
+                username: cognitoUserResponse.Username || email,
+                name:
+                    this.cognitoService.getAttributeValue(
+                        cognitoUserResponse.UserAttributes || [],
+                        "name",
+                    ) || "",
+                provider: "aws-cognito",
+                createdAt:
+                    "UserCreateDate" in cognitoUserResponse
+                        ? (cognitoUserResponse.UserCreateDate as Date)
+                        : new Date(),
+            }
+
+            // Track successful signin
+            this.sentryService.addBreadcrumb("User signin successful", "auth", {
+                email,
+                userId: user.id,
+            })
+            this.sentryService.setUser({
+                id: user.id,
+                email: user.email,
+                username: user.username,
+            })
+
+            return {
+                user,
+                accessToken: authResult.AccessToken as string,
+                refreshToken: authResult.RefreshToken as string,
+                idToken: authResult.IdToken as string,
+                expiresIn: authResult.ExpiresIn as number,
+                message: "Sign in successful",
+            }
+        } catch (error) {
+            // Handle Cognito errors
+            if (error.name || error.code) {
+                AuthErrorHelper.mapCognitoError(error, "signIn", email)
+            }
+
+            // Re-throw if it's already our custom exception
+            if (error.errorCode) {
+                throw error
+            }
+
+            // Unknown error
+            this.logger.error(
+                `Unexpected signin error: ${error.message}`,
+                error.stack,
+            )
+            AuthErrorHelper.throwCognitoError("signIn", error.message)
         }
     }
 
@@ -114,7 +292,7 @@ export class AuthSubgraphService {
         return {
             passwordReset: true,
             message:
-        "Password reset successful. You can now sign in with your new password.",
+                "Password reset successful. You can now sign in with your new password.",
         }
     }
 
@@ -129,123 +307,174 @@ export class AuthSubgraphService {
         }
     }
 
+    async refreshToken(input: RefreshTokenInput): Promise<RefreshTokenResponse> {
+        const { refreshToken, userName } = input
+
+        try {
+            // Track refresh token attempt
+            this.sentryService.addBreadcrumb("Token refresh attempt", "auth", {
+                userName,
+            })
+
+            const authResult = await this.cognitoService.refreshToken(refreshToken, userName)
+
+            // Track successful token refresh
+            this.sentryService.addBreadcrumb("Token refresh successful", "auth", {
+                userName,
+            })
+
+            return {
+                accessToken: authResult.AccessToken as string,
+                idToken: authResult.IdToken as string,
+                expiresIn: authResult.ExpiresIn as number,
+                message: "Token refreshed successfully",
+            }
+        } catch (error) {
+            // Handle Cognito errors
+            if (error.name || error.code) {
+                AuthErrorHelper.mapCognitoError(error, "refreshToken", userName)
+            }
+
+            // Re-throw if it's already our custom exception
+            if (error.errorCode) {
+                throw error
+            }
+
+            // Unknown error
+            this.logger.error(
+                `Unexpected token refresh error: ${error.message}`,
+                error.stack,
+            )
+            AuthErrorHelper.throwCognitoError("refreshToken", error.message)
+        }
+    }
+
     /**
-   * Convert CognitoUser to AuthUser for GraphQL
-   */
+     * Convert CognitoUser to AuthUser for GraphQL
+     */
     private mapCognitoUserToAuthUser(cognitoUser: CognitoUser): AuthUser {
         return {
             id: cognitoUser.sub,
             email: cognitoUser.email,
             username: cognitoUser.username,
-            name: cognitoUser.name || cognitoUser.givenName,
+            name: cognitoUser.name,
             provider: "aws-cognito",
             createdAt: cognitoUser.createdAt || new Date(),
         }
     }
 
     /**
-   * Verify token using AWS Cognito
-   */
+     * Verify token using AWS Cognito
+     */
     async verifyToken(accessToken: string): Promise<AuthUser> {
         try {
             // Validate token with Cognito
-            const decodedToken = await this.cognitoService.validateToken(accessToken)
+            const decodedToken =
+                await this.cognitoService.validateToken(accessToken)
 
             // Get user details from Cognito
             const cognitoUserResponse =
-        await this.cognitoService.getUser(accessToken)
+                await this.cognitoService.getUser(accessToken)
 
             // Map Cognito response to our AuthUser interface
             const cognitoUser: CognitoUser = {
                 sub: decodedToken.sub,
                 email:
-          (decodedToken as any).email ||
-          this.cognitoService.getAttributeValue(
-              cognitoUserResponse.UserAttributes || [],
-              "email",
-          ) ||
-          "",
+                    (decodedToken as any).email ||
+                    this.cognitoService.getAttributeValue(
+                        cognitoUserResponse.UserAttributes || [],
+                        "email",
+                    ) ||
+                    "",
                 emailVerified: (decodedToken as any).email_verified || false,
                 username:
-          (decodedToken as any)["cognito:username"] ||
-          cognitoUserResponse.Username ||
-          "",
+                    (decodedToken as any)["cognito:username"] ||
+                    cognitoUserResponse.Username ||
+                    "",
                 name:
-          (decodedToken as any).name ||
-          this.cognitoService.getAttributeValue(
-              cognitoUserResponse.UserAttributes || [],
-              "name",
-          ),
+                    (decodedToken as any).name ||
+                    this.cognitoService.getAttributeValue(
+                        cognitoUserResponse.UserAttributes || [],
+                        "name",
+                    ),
                 givenName:
-          (decodedToken as any).given_name ||
-          this.cognitoService.getAttributeValue(
-              cognitoUserResponse.UserAttributes || [],
-              "given_name",
-          ),
+                    (decodedToken as any).given_name ||
+                    this.cognitoService.getAttributeValue(
+                        cognitoUserResponse.UserAttributes || [],
+                        "given_name",
+                    ),
                 familyName:
-          (decodedToken as any).family_name ||
-          this.cognitoService.getAttributeValue(
-              cognitoUserResponse.UserAttributes || [],
-              "family_name",
-          ),
+                    (decodedToken as any).family_name ||
+                    this.cognitoService.getAttributeValue(
+                        cognitoUserResponse.UserAttributes || [],
+                        "family_name",
+                    ),
                 picture:
-          (decodedToken as any).picture ||
-          this.cognitoService.getAttributeValue(
-              cognitoUserResponse.UserAttributes || [],
-              "picture",
-          ),
+                    (decodedToken as any).picture ||
+                    this.cognitoService.getAttributeValue(
+                        cognitoUserResponse.UserAttributes || [],
+                        "picture",
+                    ),
                 phoneNumber:
-          (decodedToken as any).phone_number ||
-          this.cognitoService.getAttributeValue(
-              cognitoUserResponse.UserAttributes || [],
-              "phone_number",
-          ),
+                    (decodedToken as any).phone_number ||
+                    this.cognitoService.getAttributeValue(
+                        cognitoUserResponse.UserAttributes || [],
+                        "phone_number",
+                    ),
                 phoneNumberVerified:
-          (decodedToken as any).phone_number_verified || false,
+                    (decodedToken as any).phone_number_verified || false,
                 groups: (decodedToken as any)["cognito:groups"] || [],
                 customAttributes: this.cognitoService.extractCustomAttributes(
                     cognitoUserResponse.UserAttributes || [],
                 ),
                 cognitoUser: cognitoUserResponse,
                 provider: "aws-cognito",
-                createdAt: "UserCreateDate" in cognitoUserResponse ? cognitoUserResponse.UserCreateDate as Date : new Date(),
-                updatedAt: "UserLastModifiedDate" in cognitoUserResponse ? cognitoUserResponse.UserLastModifiedDate as Date : new Date(),
+                createdAt:
+                    "UserCreateDate" in cognitoUserResponse
+                        ? (cognitoUserResponse.UserCreateDate as Date)
+                        : new Date(),
+                updatedAt:
+                    "UserLastModifiedDate" in cognitoUserResponse
+                        ? (cognitoUserResponse.UserLastModifiedDate as Date)
+                        : new Date(),
             }
 
             return this.mapCognitoUserToAuthUser(cognitoUser)
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage =
+                error instanceof Error ? error.message : String(error)
             this.logger.error(`Token verification failed: ${errorMessage}`)
             throw new Error("Invalid token")
         }
     }
 
     /**
-   * Get user by ID using AWS Cognito
-   */
+     * Get user by ID using AWS Cognito
+     */
     async getUserById(userId: string): Promise<AuthUser | null> {
         try {
             // In Cognito, userId is typically the 'sub' claim
             const cognitoUserResponse =
-        await this.cognitoService.getUserByUsername(userId)
+                await this.cognitoService.getUserByUsername(userId)
 
             const cognitoUser: CognitoUser = {
                 sub: userId,
                 email:
-          this.cognitoService.getAttributeValue(
-              cognitoUserResponse.UserAttributes || [],
-              "email",
-          ) || "",
+                    this.cognitoService.getAttributeValue(
+                        cognitoUserResponse.UserAttributes || [],
+                        "email",
+                    ) || "",
                 emailVerified:
-          this.cognitoService.getAttributeValue(
-              cognitoUserResponse.UserAttributes || [],
-              "email_verified",
-          ) === "true",
+                    this.cognitoService.getAttributeValue(
+                        cognitoUserResponse.UserAttributes || [],
+                        "email_verified",
+                    ) === "true",
                 username: cognitoUserResponse.Username || "",
-                name: this.cognitoService.getAttributeValue(
-                    cognitoUserResponse.UserAttributes || [],
-                    "name",
-                ),
+                name:
+                    this.cognitoService.getAttributeValue(
+                        cognitoUserResponse.UserAttributes || [],
+                        "name",
+                    ) || "",
                 givenName: this.cognitoService.getAttributeValue(
                     cognitoUserResponse.UserAttributes || [],
                     "given_name",
@@ -263,31 +492,38 @@ export class AuthSubgraphService {
                     "phone_number",
                 ),
                 phoneNumberVerified:
-          this.cognitoService.getAttributeValue(
-              cognitoUserResponse.UserAttributes || [],
-              "phone_number_verified",
-          ) === "true",
+                    this.cognitoService.getAttributeValue(
+                        cognitoUserResponse.UserAttributes || [],
+                        "phone_number_verified",
+                    ) === "true",
                 groups: [], // Admin API doesn't return groups, would need separate call
                 customAttributes: this.cognitoService.extractCustomAttributes(
                     cognitoUserResponse.UserAttributes || [],
                 ),
                 cognitoUser: cognitoUserResponse,
                 provider: "aws-cognito",
-                createdAt: "UserCreateDate" in cognitoUserResponse ? cognitoUserResponse.UserCreateDate as Date : new Date(),
-                updatedAt: "UserLastModifiedDate" in cognitoUserResponse ? cognitoUserResponse.UserLastModifiedDate as Date : new Date(),
+                createdAt:
+                    "UserCreateDate" in cognitoUserResponse
+                        ? (cognitoUserResponse.UserCreateDate as Date)
+                        : new Date(),
+                updatedAt:
+                    "UserLastModifiedDate" in cognitoUserResponse
+                        ? (cognitoUserResponse.UserLastModifiedDate as Date)
+                        : new Date(),
             }
 
             return this.mapCognitoUserToAuthUser(cognitoUser)
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage =
+                error instanceof Error ? error.message : String(error)
             this.logger.error(`Failed to get user by ID: ${errorMessage}`)
             return null
         }
     }
 
     /**
-   * Validate user authentication status
-   */
+     * Validate user authentication status
+     */
     async validateUser(user: AuthUser): Promise<AuthResponse> {
         return {
             user,
@@ -296,8 +532,8 @@ export class AuthSubgraphService {
     }
 
     /**
-   * Health check endpoint
-   */
+     * Health check endpoint
+     */
     getHealth(): HealthResponse {
         return {
             status: "healthy",

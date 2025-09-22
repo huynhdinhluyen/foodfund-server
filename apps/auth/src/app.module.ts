@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common"
 import { AuthSubgraphModule } from "./auth/auth-subgraph.module"
-import { EnvModule } from "libs/env"
+import { EnvModule, envConfig } from "libs/env"
 import { SentryModule } from "libs/observability/sentry.module"
 
 
@@ -9,10 +9,10 @@ import { SentryModule } from "libs/observability/sentry.module"
         EnvModule.forRoot(),
         // Sentry for error tracking & performance monitoring
         SentryModule.forRoot({
-            dsn: process.env.SENTRY_DSN || "",
+            dsn: envConfig().sentry.dsn,
             serviceName: "auth-service",
-            environment: process.env.NODE_ENV || "development",
-            release: "1.0.0",
+            environment: envConfig().sentry.environment,
+            release: envConfig().sentry.release,
             enableTracing: true,
         }),
 
