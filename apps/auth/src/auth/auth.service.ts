@@ -30,13 +30,14 @@ export class AuthSubgraphService {
         const { email, password, name, phoneNumber } = input
 
         try {
-            // Validate input
-            AuthErrorHelper.validateRequiredFields(input, ["email", "password"])
-            AuthErrorHelper.validateEmail(email)
-            AuthErrorHelper.validatePassword(password)
+            // Business validation only (basic validation handled by class-validator)
+            AuthErrorHelper.validateBusinessRules(email, "signUp")
+            AuthErrorHelper.validatePasswordComplexity(password)
 
             // Track user action
-            this.sentryService.addBreadcrumb("User signup attempt", "auth", { email })
+            this.sentryService.addBreadcrumb("User signup attempt", "auth", {
+                email,
+            })
 
             const attributes: Record<string, string> = {}
             if (name) attributes.name = name
@@ -49,25 +50,27 @@ export class AuthSubgraphService {
             )
 
             // Track successful signup
-            this.sentryService.addBreadcrumb("User signup successful", "auth", { 
-                email, 
-                userSub: result.userSub 
+            this.sentryService.addBreadcrumb("User signup successful", "auth", {
+                email,
+                userSub: result.userSub,
             })
 
-            // Create user record in User service via gRPC
             try {
-                const userCreationResult = await this.grpcClient.callUserService("CreateUser", {
-                    cognito_id: result.userSub as string,
-                    email,
-                    username: email, // Use email as username for now
-                    full_name: name || "",
-                    phone_number: phoneNumber || "",
-                    role: 0, // DONOR = 0 (from proto enum)
-                    cognito_attributes: attributes,
-                })
+                const userCreationResult =
+                    await this.grpcClient.callUserService("CreateUser", {
+                        cognito_id: result.userSub as string,
+                        email,
+                        username: email, // Use email as username for now
+                        full_name: name || "",
+                        phone_number: phoneNumber || "",
+                        role: 0, // DONOR = 0 (from proto enum)
+                        cognito_attributes: attributes,
+                    })
 
                 if (!userCreationResult.success) {
-                    this.logger.warn(`User creation in User service failed: ${userCreationResult.error}`)
+                    this.logger.warn(
+                        `User creation in User service failed: ${userCreationResult.error}`,
+                    )
                     // Don't fail the signup, just log the warning
                     this.sentryService.captureMessage(
                         "User creation in User service failed after successful Cognito signup",
@@ -76,17 +79,26 @@ export class AuthSubgraphService {
                             cognitoId: result.userSub,
                             email,
                             error: userCreationResult.error,
-                        }
+                        },
                     )
                 } else {
-                    this.logger.log(`User created in User service: ${userCreationResult.user.id}`)
-                    this.sentryService.addBreadcrumb("User created in User service", "grpc", {
-                        cognitoId: result.userSub,
-                        userId: userCreationResult.user.id,
-                    })
+                    this.logger.log(
+                        `User created in User service: ${userCreationResult.user.id}`,
+                    )
+                    this.sentryService.addBreadcrumb(
+                        "User created in User service",
+                        "grpc",
+                        {
+                            cognitoId: result.userSub,
+                            userId: userCreationResult.user.id,
+                        },
+                    )
                 }
             } catch (grpcError) {
-                this.logger.error("gRPC call to User service failed:", grpcError)
+                this.logger.error(
+                    "gRPC call to User service failed:",
+                    grpcError,
+                )
                 this.sentryService.captureError(grpcError as Error, {
                     operation: "createUserAfterSignup",
                     cognitoId: result.userSub,
@@ -106,14 +118,17 @@ export class AuthSubgraphService {
             if (error.name || error.code) {
                 AuthErrorHelper.mapCognitoError(error, "signUp", email)
             }
-            
+
             // Re-throw if it's already our custom exception
             if (error.errorCode) {
                 throw error
             }
-            
+
             // Unknown error
-            this.logger.error(`Unexpected signup error: ${error.message}`, error.stack)
+            this.logger.error(
+                `Unexpected signup error: ${error.message}`,
+                error.stack,
+            )
             AuthErrorHelper.throwCognitoError("signUp", error.message)
         }
     }
@@ -124,21 +139,24 @@ export class AuthSubgraphService {
         const { email, confirmationCode } = input
 
         try {
-            // Validate input
-            AuthErrorHelper.validateRequiredFields(input, ["email", "confirmationCode"])
-            AuthErrorHelper.validateEmail(email)
-
-            if (!confirmationCode || confirmationCode.trim().length === 0) {
-                AuthErrorHelper.throwMissingField("confirmationCode")
-            }
+            // Business validation only (basic validation handled by class-validator)
+            AuthErrorHelper.validateBusinessRules(email, "confirmSignUp")
 
             // Track confirmation attempt
-            this.sentryService.addBreadcrumb("User confirmation attempt", "auth", { email })
+            this.sentryService.addBreadcrumb(
+                "User confirmation attempt",
+                "auth",
+                { email },
+            )
 
             await this.cognitoService.confirmSignUp(email, confirmationCode)
 
             // Track successful confirmation
-            this.sentryService.addBreadcrumb("User confirmation successful", "auth", { email })
+            this.sentryService.addBreadcrumb(
+                "User confirmation successful",
+                "auth",
+                { email },
+            )
 
             return {
                 confirmed: true,
@@ -149,14 +167,17 @@ export class AuthSubgraphService {
             if (error.name || error.code) {
                 AuthErrorHelper.mapCognitoError(error, "confirmSignUp", email)
             }
-            
+
             // Re-throw if it's already our custom exception
             if (error.errorCode) {
                 throw error
             }
-            
+
             // Unknown error
-            this.logger.error(`Unexpected confirmation error: ${error.message}`, error.stack)
+            this.logger.error(
+                `Unexpected confirmation error: ${error.message}`,
+                error.stack,
+            )
             AuthErrorHelper.throwCognitoError("confirmSignUp", error.message)
         }
     }
@@ -165,16 +186,13 @@ export class AuthSubgraphService {
         const { email, password } = input
 
         try {
-            // Validate input
-            AuthErrorHelper.validateRequiredFields(input, ["email", "password"])
-            AuthErrorHelper.validateEmail(email)
-
-            if (!password || password.trim().length === 0) {
-                AuthErrorHelper.throwMissingField("password")
-            }
+            // Business validation only (basic validation handled by class-validator)
+            AuthErrorHelper.validateBusinessRules(email, "signIn")
 
             // Track signin attempt
-            this.sentryService.addBreadcrumb("User signin attempt", "auth", { email })
+            this.sentryService.addBreadcrumb("User signin attempt", "auth", {
+                email,
+            })
             this.sentryService.setUser({ id: email, email })
 
             // Authenticate with Cognito
@@ -194,10 +212,11 @@ export class AuthSubgraphService {
                         "email",
                     ) || email,
                 username: cognitoUserResponse.Username || email,
-                name: this.cognitoService.getAttributeValue(
-                    cognitoUserResponse.UserAttributes || [],
-                    "name",
-                ) || "",
+                name:
+                    this.cognitoService.getAttributeValue(
+                        cognitoUserResponse.UserAttributes || [],
+                        "name",
+                    ) || "",
                 provider: "aws-cognito",
                 createdAt:
                     "UserCreateDate" in cognitoUserResponse
@@ -206,14 +225,14 @@ export class AuthSubgraphService {
             }
 
             // Track successful signin
-            this.sentryService.addBreadcrumb("User signin successful", "auth", { 
-                email, 
-                userId: user.id 
+            this.sentryService.addBreadcrumb("User signin successful", "auth", {
+                email,
+                userId: user.id,
             })
-            this.sentryService.setUser({ 
-                id: user.id, 
-                email: user.email, 
-                username: user.username 
+            this.sentryService.setUser({
+                id: user.id,
+                email: user.email,
+                username: user.username,
             })
 
             return {
@@ -229,14 +248,17 @@ export class AuthSubgraphService {
             if (error.name || error.code) {
                 AuthErrorHelper.mapCognitoError(error, "signIn", email)
             }
-            
+
             // Re-throw if it's already our custom exception
             if (error.errorCode) {
                 throw error
             }
-            
+
             // Unknown error
-            this.logger.error(`Unexpected signin error: ${error.message}`, error.stack)
+            this.logger.error(
+                `Unexpected signin error: ${error.message}`,
+                error.stack,
+            )
             AuthErrorHelper.throwCognitoError("signIn", error.message)
         }
     }
@@ -400,10 +422,11 @@ export class AuthSubgraphService {
                         "email_verified",
                     ) === "true",
                 username: cognitoUserResponse.Username || "",
-                name: this.cognitoService.getAttributeValue(
-                    cognitoUserResponse.UserAttributes || [],
-                    "name",
-                ) || "",
+                name:
+                    this.cognitoService.getAttributeValue(
+                        cognitoUserResponse.UserAttributes || [],
+                        "name",
+                    ) || "",
                 givenName: this.cognitoService.getAttributeValue(
                     cognitoUserResponse.UserAttributes || [],
                     "given_name",

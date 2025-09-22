@@ -53,6 +53,18 @@
       ],
       "@libs/jwt/*": [
         "libs/jwt/*"
+      ],
+      "@libs/validation": [
+        "libs/validation/index.ts"
+      ],
+      "@libs/validation/*": [
+        "libs/validation/*"
+      ],
+      "@libs/exceptions": [
+        "libs/exceptions/index.ts"
+      ],
+      "@libs/exceptions/*": [
+        "libs/exceptions/*"
       ]
     }
   }

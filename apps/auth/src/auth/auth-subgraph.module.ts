@@ -5,7 +5,6 @@ import { AuthResolver } from "./resolver"
 import { GraphQLSubgraphModule } from "libs/graphql/subgraph"
 import { AwsCognitoModule } from "libs/aws-cognito"
 import { HealthController } from "./health.controller"
-import { AuthExceptionFilter } from "./filters"
 import { AuthGrpcService } from "./grpc"
 import { GrpcModule } from "libs/grpc"
 
@@ -14,10 +13,6 @@ import { GrpcModule } from "libs/grpc"
         AuthResolver,
         AuthSubgraphService,
         AuthGrpcService,
-        {
-            provide: APP_FILTER,
-            useClass: AuthExceptionFilter,
-        },
     ],
     imports: [
         GrpcModule,

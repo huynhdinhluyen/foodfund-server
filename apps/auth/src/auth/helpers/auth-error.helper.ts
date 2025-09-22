@@ -2,17 +2,19 @@ import {
     InvalidEmailFormatException,
     WeakPasswordException,
     MissingRequiredFieldException,
+    InvalidTokenException,
+    TokenExpiredException,
+    TooManyAttemptsException,
+} from "libs/exceptions"
+import {
     UserAlreadyExistsException,
     UserNotConfirmedException,
     InvalidCredentialsException,
     AccountLockedException,
     InvalidConfirmationCodeException,
     ConfirmationCodeExpiredException,
-    TooManyAttemptsException,
     CognitoServiceException,
     EmailServiceException,
-    InvalidTokenException,
-    TokenExpiredException,
     SuspiciousActivityException,
 } from "../exceptions"
 
@@ -81,51 +83,24 @@ export class AuthErrorHelper {
         throw new SuspiciousActivityException(activity, userAgent, ip)
     }
 
-    // Validation utilities
-    static validateEmail(email: string): void {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        if (!email || !emailRegex.test(email)) {
-            this.throwInvalidEmail(email)
+    // Business validation utilities (keep only business logic validations)
+    static validateBusinessRules(email: string, operation: string): void {
+        // Example: Check if email domain is allowed for this operation
+        // This is business logic, not basic validation
+        const blockedDomains = ["tempmail.com", "guerrillamail.com"]
+        const domain = email.split("@")[1]?.toLowerCase()
+        
+        if (blockedDomains.includes(domain)) {
+            throw new InvalidEmailFormatException(`Email domain ${domain} is not allowed`)
         }
     }
 
-    static validatePassword(password: string): void {
-        const requirements: string[] = []
-    
-        if (!password) {
-            this.throwMissingField("password")
-        }
-    
-        if (password.length < 8) {
-            requirements.push("At least 8 characters")
-        }
-    
-        if (!/[A-Z]/.test(password)) {
-            requirements.push("At least one uppercase letter")
-        }
-    
-        if (!/[a-z]/.test(password)) {
-            requirements.push("At least one lowercase letter")
-        }
-    
-        if (!/\d/.test(password)) {
-            requirements.push("At least one number")
-        }
-    
-        if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-            requirements.push("At least one special character")
-        }
-    
-        if (requirements.length > 0) {
-            this.throwWeakPassword(requirements)
-        }
-    }
-
-    static validateRequiredFields(data: Record<string, any>, requiredFields: string[]): void {
-        for (const field of requiredFields) {
-            if (!data[field] || data[field].toString().trim() === "") {
-                this.throwMissingField(field)
-            }
+    static validatePasswordComplexity(password: string): void {
+        // Business rule: Check against common passwords or company-specific rules
+        const commonPasswords = ["password", "123456", "qwerty"]
+        
+        if (commonPasswords.includes(password.toLowerCase())) {
+            this.throwWeakPassword(["Password is too common, please choose a more secure password"])
         }
     }
 

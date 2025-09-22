@@ -11,10 +11,11 @@ import {
 import { UserResolver } from "./resolvers"
 
 import { HealthController } from "./health.controller"
+import { GrpcModule } from "libs/grpc"
 
 @Module({
     imports: [
-        // PrismaModule không cần import vì đã global từ AppModule
+        GrpcModule,
         GraphQLSubgraphModule.forRoot({
             debug: true,
             playground: true,
