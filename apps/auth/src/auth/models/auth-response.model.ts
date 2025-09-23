@@ -94,3 +94,21 @@ export class RefreshTokenResponse {
   @Field()
       message: string
 }
+
+@ObjectType()
+export class CreateStaffAccountResponse {
+  @Field()
+      success: boolean
+
+  @Field()
+      message: string
+
+  @Field({ nullable: true })
+      userId?: string
+
+  @Field({ nullable: true })
+      cognitoId?: string
+
+  @Field()
+      temporaryPasswordSent: boolean
+}

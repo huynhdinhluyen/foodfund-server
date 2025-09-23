@@ -10,6 +10,21 @@ export interface CreateUserInput {
     role: Role
     user_name: string
     bio?: string
+    cognito_attributes?: Record<string, string>
+}
+
+export interface CreateStaffUserInput {
+    cognito_id: string
+    full_name: string
+    avatar_url: string
+    email: string
+    phone_number: string
+    role: Role
+    user_name: string
+    bio?: string
+    organization_name?: string // For FUNDRAISER
+    organization_address?: string // For FUNDRAISER
+    created_by_admin_id?: string // Audit trail
 }
 
 export interface UpdateUserInput {

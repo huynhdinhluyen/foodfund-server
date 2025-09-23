@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client"
 import { Role } from "libs/databases/prisma/schemas"
 import { 
     CreateUserInput, 
+    CreateStaffUserInput,
     UpdateUserInput,
     CreateDonorProfileInput,
     UpdateDonorProfileInput,
@@ -17,6 +18,7 @@ import {
 // Re-export types for use in other modules
 export type {
     CreateUserInput,
+    CreateStaffUserInput,
     UpdateUserInput,
     CreateDonorProfileInput,
     UpdateDonorProfileInput,
@@ -44,6 +46,23 @@ export class UserRepository {
                 // Kitchen_Staff_Profile: true,
                 // Fundraiser_Profile: true,
                 // Delivery_Staff_Profile: true
+            }
+        })
+    }
+
+    async createStaffUser(data: CreateStaffUserInput) {
+        const { organization_name, organization_address, created_by_admin_id, ...userData } = data
+        
+        return this.prisma.user.create({
+            data: {
+                ...userData,
+                is_active: true
+            },
+            include: {
+                Donor_Profile: true,
+                Kitchen_Staff_Profile: true,
+                Fundraiser_Profile: true,
+                Delivery_Staff_Profile: true
             }
         })
     }
