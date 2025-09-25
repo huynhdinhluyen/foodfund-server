@@ -7,6 +7,10 @@ async function bootstrap() {
     const allowedOrigins = [
         "http://localhost:3000", // FE local dev
         "https://food-fund.vercel.app", // FE production trên Vercel
+        "https://seahorse-app-i62zf.ondigitalocean.app",
+        "http://localhost:8000", // GraphQL Gateway local
+        "http://localhost:8001", // Auth service local
+        "http://localhost:8002", // User service local
     ]
 
     app.enableCors({
