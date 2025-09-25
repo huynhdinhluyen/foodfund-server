@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from "@nestjs/common"
 import { GrpcServerService } from "libs/grpc"
 import { envConfig } from "libs/env"
 import { UserService } from "../user.service"
+import { generateUniqueUsername } from "libs/common"
 import { v7 as uuidv7 } from "uuid"
 
 
@@ -80,8 +81,7 @@ export class UserGrpcService implements OnModuleInit {
                 4: "ADMIN",
             }
 
-            const finalUsername =
-                username || this.extractUsernameFromEmail(email)
+            const finalUsername = username || generateUniqueUsername(email)
 
             const user = await this.userService.createUser({
                 cognito_id: cognito_id,
@@ -249,13 +249,7 @@ export class UserGrpcService implements OnModuleInit {
         }
     }
 
-    private extractUsernameFromEmail(email: string): string {
-        if (typeof email !== "string") return ""
-        const atIndex = email.indexOf("@")
-        if (atIndex <= 0) return ""
-        // Lấy phần trước dấu @, cắt tối đa 20 ký tự
-        return email.substring(0, atIndex).slice(0, 20)
-    }
+
 
     // Get user by ID
     private async getUser(call: any, callback: any) {
