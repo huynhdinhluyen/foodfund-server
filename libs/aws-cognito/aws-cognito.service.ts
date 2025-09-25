@@ -19,6 +19,7 @@ import {
     AdminConfirmSignUpCommand,
     AuthFlowType,
     AdminDeleteUserCommand,
+    GlobalSignOutCommand,
 } from "@aws-sdk/client-cognito-identity-provider"
 import { CognitoJwtVerifier } from "aws-jwt-verify"
 import { createHmac } from "crypto"
@@ -560,6 +561,29 @@ export class AwsCognitoService {
             throw new UnauthorizedException(
                 `Admin confirmation failed: ${errorMessage}`,
             )
+        }
+    }
+
+    /**
+     * Sign out user globally from all devices
+     */
+    async signOut(accessToken: string): Promise<{ success: boolean }> {
+        try {
+            this.logger.log("Signing out user globally")
+
+            const command = new GlobalSignOutCommand({
+                AccessToken: accessToken,
+            })
+
+            await this.cognitoClient.send(command)
+            this.logger.log("User signed out successfully")
+
+            return { success: true }
+        } catch (error) {
+            const errorMessage =
+                error instanceof Error ? error.message : String(error)
+            this.logger.error(`Sign out failed: ${errorMessage}`)
+            throw new UnauthorizedException(`Sign out failed: ${errorMessage}`)
         }
     }
 }
