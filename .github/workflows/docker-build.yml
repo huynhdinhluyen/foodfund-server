@@ -233,6 +233,7 @@ jobs:
           
           # Replace secret placeholders with actual values
           sed -i "s|\${USERS_DATABASE_URL}|${USERS_DATABASE_URL}|g" .do/app-spec.yaml
+          sed -i "s|\${CAMPAIGN_DATABASE_URL}|${CAMPAIGN_DATABASE_URL}|g" .do/app-spec.yaml
           sed -i "s|\${AWS_REGION}|${AWS_REGION}|g" .do/app-spec.yaml
           sed -i "s|\${AWS_ACCESS_KEY_ID}|${AWS_ACCESS_KEY_ID}|g" .do/app-spec.yaml
           sed -i "s|\${AWS_SECRET_ACCESS_KEY}|${AWS_SECRET_ACCESS_KEY}|g" .do/app-spec.yaml
