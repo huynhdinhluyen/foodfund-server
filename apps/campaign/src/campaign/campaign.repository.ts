@@ -2,13 +2,13 @@ import { SentryService } from "@libs/observability/sentry.service"
 import {
     CampaignFilterInput,
     CampaignSortOrder,
-    CreateCampaignInput,
     UpdateCampaignInput,
 } from "./dtos/request/campaign.input"
-import { CampaignStatus } from "./enums/campaign.enums"
-import { Campaign } from "./models/campaign.model"
 import { PrismaClient } from "@prisma/client"
 import { Injectable, Logger } from "@nestjs/common"
+import { CampaignStatus } from "@libs/databases/prisma/schemas/enums/campaign.enum"
+import { Campaign } from "@libs/databases/prisma/schemas/models/campaign.model"
+import { CampaignMapper } from "./campaign.mapper"
 
 export interface FindManyOptions {
     filter?: CampaignFilterInput
@@ -45,6 +45,7 @@ export class CampaignRepository {
     constructor(
         private readonly prisma: PrismaClient,
         private readonly sentryService: SentryService,
+        private readonly campaignMapper: CampaignMapper,
     ) {}
 
     async create(data: CreateCampaignData): Promise<Campaign> {
@@ -60,33 +61,16 @@ export class CampaignRepository {
                     start_date: data.startDate,
                     end_date: data.endDate,
                     created_by: data.createdBy,
-                    status: data.status,
+                    status: this.campaignMapper.graphQLStatusToPrisma(
+                        data.status,
+                    ),
                     donation_count: 0,
                     received_amount: BigInt(0),
                     is_active: true,
                 },
-                select: {
-                    id: true,
-                    title: true,
-                    description: true,
-                    cover_image: true,
-                    cover_image_file_key: true,
-                    location: true,
-                    target_amount: true,
-                    donation_count: true,
-                    received_amount: true,
-                    status: true,
-                    start_date: true,
-                    end_date: true,
-                    is_active: true,
-                    created_by: true,
-                    approved_at: true,
-                    created_at: true,
-                    updated_at: true,
-                },
             })
 
-            return this.mapToGraphQLModel(campaign)
+            return this.campaignMapper.safeMapToGraphQLModel(campaign)
         } catch (error) {
             this.logger.error("Failed to create campaign:", error)
             this.sentryService.captureError(error as Error, {
@@ -105,28 +89,11 @@ export class CampaignRepository {
         try {
             const campaign = await this.prisma.campaign.findUnique({
                 where: { id },
-                select: {
-                    id: true,
-                    title: true,
-                    description: true,
-                    cover_image: true,
-                    cover_image_file_key: true,
-                    location: true,
-                    target_amount: true,
-                    donation_count: true,
-                    received_amount: true,
-                    status: true,
-                    start_date: true,
-                    end_date: true,
-                    is_active: true,
-                    created_by: true,
-                    approved_at: true,
-                    created_at: true,
-                    updated_at: true,
-                },
             })
 
-            return campaign ? this.mapToGraphQLModel(campaign) : null
+            return campaign
+                ? this.campaignMapper.safeMapToGraphQLModel(campaign)
+                : null
         } catch (error) {
             this.logger.error(`Failed to find campaign by ID ${id}:`, error)
             this.sentryService.captureError(error as Error, {
@@ -152,9 +119,12 @@ export class CampaignRepository {
             }
 
             if (filter?.status && filter.status.length > 0) {
+                const prismaStatuses = filter.status.map((status) =>
+                    this.campaignMapper.graphQLStatusToPrisma(status),
+                )
                 whereClause.AND.push({
                     status: {
-                        in: filter.status,
+                        in: prismaStatuses,
                     },
                 })
             }
@@ -194,31 +164,12 @@ export class CampaignRepository {
 
             const campaigns = await this.prisma.campaign.findMany({
                 where: whereClause.AND.length > 0 ? whereClause : undefined,
-                select: {
-                    id: true,
-                    title: true,
-                    description: true,
-                    cover_image: true,
-                    cover_image_file_key: true,
-                    location: true,
-                    target_amount: true,
-                    donation_count: true,
-                    received_amount: true,
-                    status: true,
-                    start_date: true,
-                    end_date: true,
-                    is_active: true,
-                    created_by: true,
-                    approved_at: true,
-                    created_at: true,
-                    updated_at: true,
-                },
                 orderBy,
                 take: Math.min(limit, 100),
                 skip: offset,
             })
 
-            return campaigns.map((campaign) => this.mapToGraphQLModel(campaign))
+            return this.campaignMapper.mapArrayToGraphQLModel(campaigns)
         } catch (error) {
             this.logger.error("Failed to find campaigns:", error)
             this.sentryService.captureError(error as Error, {
@@ -246,35 +197,19 @@ export class CampaignRepository {
             if (data.startDate !== undefined)
                 updateData.start_date = data.startDate
             if (data.endDate !== undefined) updateData.end_date = data.endDate
-            if (data.status !== undefined) updateData.status = data.status
+            if (data.status !== undefined)
+                updateData.status = this.campaignMapper.graphQLStatusToPrisma(
+                    data.status,
+                )
             if (data.approvedAt !== undefined)
                 updateData.approved_at = data.approvedAt
 
             const campaign = await this.prisma.campaign.update({
                 where: { id },
                 data: updateData,
-                select: {
-                    id: true,
-                    title: true,
-                    description: true,
-                    cover_image: true,
-                    cover_image_file_key: true,
-                    location: true,
-                    target_amount: true,
-                    donation_count: true,
-                    received_amount: true,
-                    status: true,
-                    start_date: true,
-                    end_date: true,
-                    is_active: true,
-                    created_by: true,
-                    approved_at: true,
-                    created_at: true,
-                    updated_at: true,
-                },
             })
 
-            return this.mapToGraphQLModel(campaign)
+            return this.campaignMapper.safeMapToGraphQLModel(campaign)
         } catch (error) {
             this.logger.error(`Failed to update campaign ${id}:`, error)
             this.sentryService.captureError(error as Error, {
@@ -299,9 +234,12 @@ export class CampaignRepository {
             }
 
             if (filter?.status && filter.status.length > 0) {
+                const prismaStatuses = filter.status.map((status) =>
+                    this.campaignMapper.graphQLStatusToPrisma(status),
+                )
                 whereClause.AND.push({
                     status: {
-                        in: filter.status,
+                        in: prismaStatuses,
                     },
                 })
             }
@@ -355,28 +293,6 @@ export class CampaignRepository {
             return { target_amount: "desc" }
         default:
             return { created_at: "desc" }
-        }
-    }
-
-    private mapToGraphQLModel(dbCampaign: any): Campaign {
-        return {
-            id: dbCampaign.id,
-            title: dbCampaign.title,
-            description: dbCampaign.description,
-            coverImage: dbCampaign.cover_image,
-            coverImageFileKey: dbCampaign.cover_image_file_key || undefined,
-            location: dbCampaign.location,
-            targetAmount: dbCampaign.target_amount.toString(),
-            donationCount: dbCampaign.donation_count,
-            receivedAmount: dbCampaign.received_amount.toString(),
-            status: dbCampaign.status as CampaignStatus,
-            startDate: dbCampaign.start_date,
-            endDate: dbCampaign.end_date,
-            isActive: dbCampaign.is_active,
-            createdBy: dbCampaign.created_by,
-            approvedAt: dbCampaign.approved_at,
-            createdAt: dbCampaign.created_at,
-            updatedAt: dbCampaign.updated_at,
         }
     }
 
