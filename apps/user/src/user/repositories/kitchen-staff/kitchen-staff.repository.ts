@@ -13,10 +13,10 @@ export class KitchenStaffRepository {
         })
     }
 
-    async findKitchenStaffProfile(userId: string) {
-        return this.prisma.kitchen_Staff_Profile.findUnique({
-            where: { user_id: userId },
-            include: { user: true },
+    async findKitchenStaffProfile(cognito_id: string) {
+        return this.prisma.user.findUnique({
+            where: { cognito_id},
+            include: { Kitchen_Staff_Profile: true },
         })
     }
 

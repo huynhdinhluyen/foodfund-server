@@ -8,9 +8,9 @@ export class KitchenStaffService {
     constructor(private readonly kitchenStaffRepository: KitchenStaffRepository) {}
 
     // Kitchen Staff Business Logic: Get own profile only
-    async getProfile(userId: string) {
-        this.logger.log(`Getting kitchen staff profile for user: ${userId}`)
-        return this.kitchenStaffRepository.findKitchenStaffProfile(userId)
+    async getProfile(cognito_id: string) {
+        this.logger.log(`Getting kitchen staff profile for user: ${cognito_id}`)
+        return this.kitchenStaffRepository.findKitchenStaffProfile(cognito_id)
     }
 
     // Kitchen Staff Business Logic: Get own stats

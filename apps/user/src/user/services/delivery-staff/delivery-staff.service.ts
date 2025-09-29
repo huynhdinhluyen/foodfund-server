@@ -8,9 +8,9 @@ export class DeliveryStaffService {
     constructor(private readonly deliveryStaffRepository: DeliveryStaffRepository) {}
 
     // Delivery Staff Business Logic: Get own profile only
-    async getProfile(userId: string) {
-        this.logger.log(`Getting delivery staff profile for user: ${userId}`)
-        return this.deliveryStaffRepository.findDeliveryStaffProfile(userId)
+    async getProfile(cognito_id: string) {
+        this.logger.log(`Getting delivery staff profile for user: ${cognito_id}`)
+        return this.deliveryStaffRepository.findDeliveryStaffProfile(cognito_id)
     }
 
     // Delivery Staff Business Logic: Get own stats

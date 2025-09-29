@@ -13,10 +13,10 @@ export class DeliveryStaffRepository {
         })
     }
 
-    async findDeliveryStaffProfile(userId: string) {
-        return this.prisma.delivery_Staff_Profile.findUnique({
-            where: { user_id: userId },
-            include: { user: true },
+    async findDeliveryStaffProfile(cognito_id: string) {
+        return this.prisma.user.findUnique({
+            where: { cognito_id },
+            include: { Delivery_Staff_Profile: true },
         })
     }
 

@@ -24,9 +24,9 @@ export class DonorService {
     }
 
     // Donor Business Logic: Get own profile  
-    async getProfile(userId: string) {
-        this.logger.log(`Getting donor profile for user: ${userId}`)
-        return this.donorRepository.findDonorProfile(userId)
+    async getProfile(cognito_id: string) {
+        this.logger.log(`Getting donor profile for user: ${cognito_id}`)
+        return this.donorRepository.findDonorProfile(cognito_id)
     }
 
     // Donor Business Logic: Get donation stats

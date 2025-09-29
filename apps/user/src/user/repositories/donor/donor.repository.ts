@@ -13,10 +13,10 @@ export class DonorRepository {
         })
     }
 
-    async findDonorProfile(userId: string) {
-        return this.prisma.donor_Profile.findUnique({
-            where: { user_id: userId },
-            include: { user: true },
+    async findDonorProfile(cognito_id: string) {
+        return this.prisma.user.findUnique({
+            where: { cognito_id },
+            include: { Donor_Profile: true },
         })
     }
 

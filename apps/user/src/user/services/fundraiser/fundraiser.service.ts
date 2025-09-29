@@ -15,9 +15,9 @@ export class FundraiserService {
     }
 
     // Fundraiser Business Logic: Get own profile
-    async getProfile(userId: string) {
-        this.logger.log(`Getting fundraiser profile for user: ${userId}`)
-        return this.fundraiserRepository.findFundraiserProfile(userId)
+    async getProfile(cognito_id: string) {
+        this.logger.log(`Getting fundraiser profile for user: ${cognito_id}`)
+        return this.fundraiserRepository.findFundraiserProfile(cognito_id)
     }
 
     // Fundraiser Business Logic: Get own stats

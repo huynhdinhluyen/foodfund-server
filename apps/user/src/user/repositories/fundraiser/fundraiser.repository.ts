@@ -16,10 +16,10 @@ export class FundraiserRepository {
         })
     }
 
-    async findFundraiserProfile(userId: string) {
-        return this.prisma.fundraiser_Profile.findUnique({
-            where: { user_id: userId },
-            include: { user: true },
+    async findFundraiserProfile(cognito_id: string) {
+        return this.prisma.user.findUnique({
+            where: { cognito_id },
+            include: { Fundraiser_Profile: true },
         })
     }
 

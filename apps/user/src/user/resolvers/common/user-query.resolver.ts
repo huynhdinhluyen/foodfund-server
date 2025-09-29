@@ -6,6 +6,8 @@ import {
     ResolveReference,
     Context,
     createUnionType,
+    ObjectType,
+    Field,
 } from "@nestjs/graphql"
 import { 
     UserProfileSchema, 
@@ -25,19 +27,32 @@ import { DeliveryStaffService } from "../../services/delivery-staff/delivery-sta
 import { UseGuards } from "@nestjs/common"
 import { CognitoGraphQLGuard } from "@libs/aws-cognito"
 import { CurrentUser, RequireRole } from "libs/auth"
+import { User } from "apps/user/src/generated/user-client"
 
-// Create union type for role-specific profiles
-export const RoleProfileUnion = createUnionType({
-    name: "RoleProfile",
-    types: () => [DonorProfileSchema, FundraiserProfileSchema, KitchenStaffProfileSchema, DeliveryStaffProfileSchema],
-    resolveType: (obj) => {
-        if (obj.total_donated !== undefined) return DonorProfileSchema
-        if (obj.organization_name !== undefined) return FundraiserProfileSchema
-        if (obj.cooking_experience !== undefined) return KitchenStaffProfileSchema
-        if (obj.vehicle_type !== undefined) return DeliveryStaffProfileSchema
-        return null
-    }
-})
+// Create a generic profile response that works for all roles
+@ObjectType()
+export class RoleProfileResponse {
+    @Field(() => Role)
+        role: Role
+
+    @Field(() => String)
+        message: string
+
+    @Field(() => DonorProfileSchema, { nullable: true })
+        donorProfile?: DonorProfileSchema
+
+    @Field(() => FundraiserProfileSchema, { nullable: true })
+        fundraiserProfile?: FundraiserProfileSchema
+
+    @Field(() => KitchenStaffProfileSchema, { nullable: true })
+        kitchenStaffProfile?: KitchenStaffProfileSchema
+
+    @Field(() => DeliveryStaffProfileSchema, { nullable: true })
+        deliveryStaffProfile?: DeliveryStaffProfileSchema
+
+    @Field(() => String, { nullable: true })
+        adminStats?: string
+}
 
 @Resolver(() => UserProfileSchema)
 export class UserQueryResolver {
@@ -101,33 +116,60 @@ export class UserQueryResolver {
     }
 
     // Common role profile getter - replaces individual role profile resolvers
-    @Query(() => RoleProfileUnion, { name: "getMyRoleProfile" })
-    async getMyRoleProfile(@CurrentUser() user: { cognito_id: string; role?: Role }) {
-        const userId = user.cognito_id
+    @Query(() => RoleProfileResponse, { name: "getMyRoleProfile" })
+    @UseGuards(CognitoGraphQLGuard)
+    async getMyRoleProfile(@CurrentUser() user: any): Promise<RoleProfileResponse> {
+        
+        if (!user) {
+            throw new Error("User not authenticated")
+        }
+        
+        const cognito_id = user.username as string
+
+        if (!cognito_id) {
+            throw new Error("User cognito_id not found")
+        }
         
         // Get user info to determine role
-        const userInfo = await this.userQueryService.findUserByCognitoId(userId)
+        const userInfo = await this.userQueryService.findUserByCognitoId(cognito_id)
         if (!userInfo) {
             throw new Error("User not found")
         }
 
         const role = userInfo.role
+        const response: RoleProfileResponse = {
+            role,
+            message: `Profile for ${role.toLowerCase()} user`,
+        }
         
         // Route to appropriate service based on role
         switch (role) {
-        case Role.DONOR:
-            return this.donorService.getProfile(userId)
-        case Role.FUNDRAISER:
-            return this.fundraiserService.getProfile(userId)
-        case Role.KITCHEN_STAFF:
-            return this.kitchenStaffService.getProfile(userId)
-        case Role.DELIVERY_STAFF:
-            return this.deliveryStaffService.getProfile(userId)
-        case Role.ADMIN:
-            return this.adminService.getAdminProfile(userId)   
+        case Role.DONOR: {
+            response.donorProfile = (await this.donorService.getProfile(cognito_id as string)) as any
+            break
+        }
+        case Role.FUNDRAISER: {
+            response.fundraiserProfile = (await this.fundraiserService.getProfile(cognito_id as string)) as any
+            break
+        }
+        case Role.KITCHEN_STAFF: {
+            response.kitchenStaffProfile = (await this.kitchenStaffService.getProfile(cognito_id as string)) as any
+            break
+        }
+        case Role.DELIVERY_STAFF: {
+            response.deliveryStaffProfile = (await this.deliveryStaffService.getProfile(cognito_id as string)) as any
+            break
+        }
+        case Role.ADMIN: {
+            const adminInfo = await this.adminService.getAdminProfile(cognito_id as string)
+            response.adminStats = JSON.stringify(adminInfo)
+            break
+        }
         default:
             throw new Error(`Role profile not supported for role: ${role}`)
         }
+
+        return response
     }
 
     // GraphQL Federation resolver

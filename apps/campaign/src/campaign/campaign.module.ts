@@ -7,6 +7,7 @@ import { JwtModule } from "@libs/jwt"
 import { HealthController } from "./health.controller"
 import { GraphQLSubgraphModule } from "@libs/graphql/subgraph"
 import { AwsCognitoModule } from "@libs/aws-cognito"
+import { PrismaClient } from "../generated/campaign-client"
 
 @Module({
     imports: [
@@ -26,7 +27,7 @@ import { AwsCognitoModule } from "@libs/aws-cognito"
             useGlobalImports: true,
         }),
     ],
-    providers: [CampaignService, CampaignResolver, CampaignRepository],
+    providers: [CampaignService, CampaignResolver, CampaignRepository, PrismaClient],
     controllers: [HealthController],
     exports: [CampaignService, CampaignRepository],
 })
