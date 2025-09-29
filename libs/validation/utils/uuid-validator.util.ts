@@ -1,3 +1,5 @@
+import { randomBytes } from "crypto"
+
 export interface UUIDValidationOptions {
     allowRelaxedFormat?: boolean
     allowedVersions?: number[]
@@ -11,6 +13,12 @@ export interface UUIDValidationResult {
     error?: string
 }
 
+/**
+ * Validates UUID format and version
+ * @param uuid - UUID string to validate
+ * @param options - Validation options
+ * @returns boolean indicating if UUID is valid
+ */
 export function isValidUUID(
     uuid: string,
     options: UUIDValidationOptions = {},
@@ -19,6 +27,12 @@ export function isValidUUID(
     return result.isValid
 }
 
+/**
+ * Comprehensive UUID validation with detailed results
+ * @param uuid - UUID string to validate
+ * @param options - Validation options
+ * @returns Detailed validation result
+ */
 export function validateUUID(
     uuid: string,
     options: UUIDValidationOptions = {},
@@ -100,6 +114,11 @@ export function validateUUID(
     }
 }
 
+/**
+ * Formats a clean UUID string with proper hyphens
+ * @param cleanUuid - 32-character hex string
+ * @returns Properly formatted UUID string
+ */
 export function formatUUID(cleanUuid: string): string {
     if (cleanUuid.length !== 32) {
         throw new Error("Clean UUID must be exactly 32 characters")
@@ -116,26 +135,63 @@ export function formatUUID(cleanUuid: string): string {
         .toLowerCase()
 }
 
+/**
+ * Generates a cryptographically secure test UUID v4
+ * @returns A valid UUID v4 string
+ */
 export function generateTestUUID(): string {
-    const chars = "0123456789abcdef"
-    let uuid = ""
+    try {
+        const randomBytesBuffer = randomBytes(16)
+        const randomHex = randomBytesBuffer.toString("hex")
 
-    for (let i = 0; i < 32; i++) {
-        if (i === 12) {
-            uuid += "4"
-        } else if (i === 16) {
-            uuid += chars[Math.floor(Math.random() * 4) + 8]
-        } else {
-            uuid += chars[Math.floor(Math.random() * 16)]
-        }
+        const chars = randomHex.split("")
+
+        chars[12] = "4"
+
+        const variantOptions = ["8", "9", "a", "b"]
+        const variantIndex = randomBytesBuffer[8] % 4
+        chars[16] = variantOptions[variantIndex]
+
+        const cleanUuid = chars.join("")
+        return formatUUID(cleanUuid)
+    } catch (error) {
+        console.warn(
+            "Failed to generate secure UUID, using fallback:",
+            error.message,
+        )
+        return "12345678-1234-4000-8000-123456789abc"
     }
-
-    return formatUUID(uuid)
 }
 
+/**
+ * Type guard to check if value is a valid UUID string
+ * @param value - Value to check
+ * @param options - Validation options
+ * @returns Type predicate indicating if value is a valid UUID string
+ */
 export function isUUIDString(
     value: unknown,
     options?: UUIDValidationOptions,
 ): value is string {
     return typeof value === "string" && isValidUUID(value, options)
+}
+
+/**
+ * Generates a cryptographically secure random UUID v4
+ * @returns A secure UUID v4 string
+ */
+export function generateSecureUUID(): string {
+    try {
+        const randomBytesBuffer = randomBytes(16)
+        const bytes = Array.from(randomBytesBuffer)
+
+        bytes[6] = (bytes[6] & 0x0f) | 0x40
+        bytes[8] = (bytes[8] & 0x3f) | 0x80
+
+        const hex = bytes.map((b) => b.toString(16).padStart(2, "0")).join("")
+
+        return formatUUID(hex)
+    } catch (error) {
+        throw new Error(`Failed to generate secure UUID: ${error.message}`)
+    }
 }
