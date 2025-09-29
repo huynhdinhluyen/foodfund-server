@@ -400,8 +400,8 @@ export class CampaignRepository {
             isActive: dbCampaign.is_active,
             createdBy: dbCampaign.created_by,
             approvedAt: dbCampaign.approved_at,
-            createdAt: dbCampaign.created_at,
-            updatedAt: dbCampaign.updated_at,
+            created_at: dbCampaign.created_at,
+            updated_at: dbCampaign.updated_at,
         }
     }
 

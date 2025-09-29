@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/campaign-client"
+  output   = "../src/generated/campaign-client" // do sài nhiều chỗ, nên để thư mục riêng chứ để chung @prisma/client thì k làm được
 }
 
 datasource db {

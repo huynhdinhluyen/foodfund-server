@@ -4,17 +4,69 @@ import { AbstractSchema } from "../abstract.schema"
 import {
     VerificationStatus,
     AvailabilityStatus,
+    Role,
 } from "../enums/user.enums"
 
 // Main User GraphQL Schema - now inherits all common fields from AbstractSchema
 @ObjectType()
+@Directive("@shareable")
 @Directive("@key(fields: \"id\")")
 export class UserProfileSchema extends AbstractSchema {
+    
+    @Field(() => String, {
+        description: "User's full name",
+    })
+        full_name: string
+
+    @Field(() => String, {
+        description: "User email address", 
+    })
+        email: string
+
+    @Field(() => String, {
+        description: "User's avatar URL",
+        nullable: true,
+    })
+        avatar_url?: string
+
+    @Field(() => String, {
+        description: "Unique username",
+    })
+        user_name: string
+
+    @Field(() => Boolean, {
+        description: "Whether the user is active",
+        defaultValue: true,
+    })
+        is_active: boolean
+
+    @Field(() => Role, {
+        description: "User's role in the system",
+    })
+        role: Role
+
+    @Field(() => String, {
+        description: "User's phone number",
+        nullable: true,
+    })
+        phone_number?: string
+
+    @Field(() => String, {
+        nullable: true,
+        description: "User's bio/description",
+    })
+        bio?: string
+
+    __typename?: string
+
+    constructor() {
+        super()
+    }
 }
 
 // Donor Profile Schema
 @ObjectType()
-export class DonorProfileSchema extends AbstractSchema {
+export class DonorProfileSchema extends UserProfileSchema {
     @Field(() => Number, {
         description: "Total number of donations made",
     })
@@ -28,7 +80,7 @@ export class DonorProfileSchema extends AbstractSchema {
 
 // Kitchen Staff Profile Schema
 @ObjectType()
-export class KitchenStaffProfileSchema extends AbstractSchema {
+export class KitchenStaffProfileSchema extends UserProfileSchema {
     @Field(() => Number, {
         description: "Total batches prepared",
     })
@@ -37,7 +89,7 @@ export class KitchenStaffProfileSchema extends AbstractSchema {
 
 // Fundraiser Profile Schema
 @ObjectType()
-export class FundraiserProfileSchema extends AbstractSchema {
+export class FundraiserProfileSchema extends UserProfileSchema {
     @Field(() => String, {
         description: "Organization name",
     })
@@ -62,7 +114,7 @@ export class FundraiserProfileSchema extends AbstractSchema {
 
 // Delivery Staff Profile Schema
 @ObjectType()
-export class DeliveryStaffProfileSchema extends AbstractSchema {
+export class DeliveryStaffProfileSchema extends UserProfileSchema {
     @Field(() => AvailabilityStatus, {
         description: "Current availability status",
     })
