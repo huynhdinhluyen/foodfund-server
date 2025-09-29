@@ -17,10 +17,10 @@ import { GraphQLSubgraphModule } from "@libs/graphql/subgraph"
         }),
         PrismaModule.forRoot({
             isGlobal: true,
-            enableLogging: true,
+            enableLogging: process.env.NODE_ENV === "development",
             logLevel:
                 process.env.NODE_ENV === "development"
-                    ? ["query", "info", "warn", "error"]
+                    ? ["info", "warn", "error"]
                     : ["error"],
             datasourceUrl: process.env.CAMPAIGN_DATABASE_URL,
         }),
