@@ -7,8 +7,8 @@ import { JwtModule } from "@libs/jwt"
 import { HealthController } from "./health.controller"
 import { AwsCognitoModule } from "@libs/aws-cognito"
 import { SpacesUploadService } from "libs/s3-storage/spaces-upload.service"
-import { CampaignSchedulerService } from "./services/campaign-scheduler.service"
-import { CampaignStatusJob } from "./jobs/campaign-status.job"
+import { CampaignSchedulerService } from "./workers/schedulers/campaign-scheduler.service"
+import { CampaignStatusJob } from "./workers/schedulers/campaign-status.job"
 import { ScheduleModule } from "@nestjs/schedule"
 
 @Module({
