@@ -10,7 +10,6 @@ import {
     CampaignFilterInput,
     CampaignSortOrder,
     CreateCampaignInput,
-    GenerateUploadUrlInput,
     UpdateCampaignInput,
 } from "./dtos/request/campaign.input"
 import { SentryService } from "@libs/observability/sentry.service"
@@ -18,7 +17,12 @@ import { CampaignRepository } from "./campaign.repository"
 import { SpacesUploadService } from "libs/s3-storage/spaces-upload.service"
 import { Campaign } from "@libs/databases/prisma/schemas/models/campaign.model"
 import { CampaignStatus } from "@libs/databases/prisma/schemas/enums/campaign.enum"
-import { CampaignNotFoundException } from "./exceptions/campaign.exception"
+import {
+    CampaignCannotBeDeletedException,
+    CampaignNotFoundException,
+} from "./exceptions/campaign.exception"
+import { GenerateUploadUrlInput } from "./dtos/request/generate-upload-url.input"
+import { CampaignCategoryRepository } from "../campaign-category/campaign-category.repository"
 
 @Injectable()
 export class CampaignService {
@@ -28,6 +32,7 @@ export class CampaignService {
 
     constructor(
         private readonly campaignRepository: CampaignRepository,
+        private readonly campaignCategoryRepository: CampaignCategoryRepository,
         private readonly sentryService: SentryService,
         private readonly spacesUploadService: SpacesUploadService,
     ) {}
@@ -82,15 +87,16 @@ export class CampaignService {
         }
     }
 
-    async createCampaign(
-        input: CreateCampaignInput,
-        createdBy: string,
-    ): Promise<Campaign> {
+    async createCampaign(input: CreateCampaignInput, createdBy: string) {
         try {
             if (!createdBy) {
                 throw new UnauthorizedException(
                     "User authentication required to create campaign",
                 )
+            }
+
+            if (input.categoryId) {
+                await this.validateCategoryExists(input.categoryId)
             }
 
             const fileValidation =
@@ -130,6 +136,7 @@ export class CampaignService {
                 createdBy,
                 status: CampaignStatus.PENDING,
                 coverImageFileKey: fileKey,
+                categoryId: input.categoryId,
             })
 
             this.sentryService.addBreadcrumb(
@@ -183,7 +190,7 @@ export class CampaignService {
         id: string,
         input: UpdateCampaignInput,
         userId: string,
-    ): Promise<Campaign> {
+    ) {
         try {
             if (!userId) {
                 throw new UnauthorizedException(
@@ -194,6 +201,10 @@ export class CampaignService {
             const campaign = await this.findCampaignById(id)
             this.validateCampaignOwnership(campaign, userId)
             this.validateCampaignForUpdate(campaign)
+
+            if (input.categoryId) {
+                await this.validateCategoryExists(input.categoryId)
+            }
 
             if (input.startDate || input.endDate) {
                 const startDate = input.startDate || campaign.startDate
@@ -294,11 +305,7 @@ export class CampaignService {
         }
     }
 
-    async changeStatus(
-        id: string,
-        newStatus: CampaignStatus,
-        userId: string,
-    ): Promise<Campaign> {
+    async changeStatus(id: string, newStatus: CampaignStatus, userId: string) {
         try {
             if (!userId) {
                 throw new UnauthorizedException(
@@ -393,7 +400,7 @@ export class CampaignService {
         sortBy: CampaignSortOrder = CampaignSortOrder.ACTIVE_FIRST,
         limit: number = 10,
         offset: number = 0,
-    ): Promise<Campaign[]> {
+    ) {
         try {
             return await this.campaignRepository.findMany({
                 filter,
@@ -416,30 +423,90 @@ export class CampaignService {
         }
     }
 
-    async findCampaignById(id: string): Promise<Campaign> {
+    async findCampaignById(id: string) {
+        const campaign = await this.campaignRepository.findById(id)
+        if (campaign == null) {
+            throw new CampaignNotFoundException(id)
+        }
+        return campaign
+    }
+
+    async deleteCampaign(id: string, userId: string): Promise<boolean> {
         try {
-            const campaign = await this.campaignRepository.findById(id)
-            if (!campaign) {
-                throw new CampaignNotFoundException(id)
+            if (!userId) {
+                throw new UnauthorizedException(
+                    "User authentication required to delete campaign",
+                )
             }
-            return campaign
+
+            const campaign = await this.findCampaignById(id)
+
+            this.validateCampaignOwnership(campaign, userId)
+
+            if (campaign.status !== CampaignStatus.PENDING) {
+                throw new CampaignCannotBeDeletedException(campaign.status)
+            }
+
+            const result = await this.campaignRepository.delete(id)
+
+            if (!result) {
+                throw new BadRequestException(`Failed to delete campaign ${id}`)
+            }
+
+            if (campaign.coverImageFileKey) {
+                try {
+                    await this.spacesUploadService.deleteResourceImage(
+                        campaign.coverImageFileKey,
+                    )
+                } catch (cleanupError) {
+                    this.logger.error(
+                        `Failed to delete campaign cover image ${campaign.coverImageFileKey}, but campaign deletion succeeded:`,
+                        cleanupError,
+                    )
+
+                    this.sentryService.captureError(cleanupError as Error, {
+                        operation: "deleteCampaignCoverImage",
+                        campaignId: id,
+                        coverImageFileKey: campaign.coverImageFileKey,
+                        severity: "warning",
+                    })
+                }
+            }
+
+            this.sentryService.addBreadcrumb("Campaign deleted", "campaign", {
+                campaignId: id,
+                userId,
+                campaignTitle: campaign.title,
+                campaignStatus: campaign.status,
+                hadCoverImage: !!campaign.coverImageFileKey,
+            })
+
+            return result
         } catch (error) {
-            if (error instanceof NotFoundException) {
+            if (
+                error instanceof NotFoundException ||
+                error instanceof ForbiddenException ||
+                error instanceof BadRequestException ||
+                error instanceof UnauthorizedException
+            ) {
                 throw error
             }
-            this.logger.error(`Failed to find campaign ${id}:`, error)
+
+            this.logger.error(`Failed to delete campaign ${id}:`, error)
             this.sentryService.captureError(error as Error, {
-                operation: "findCampaignById",
+                operation: "deleteCampaign",
                 campaignId: id,
+                userId,
+                authenticated: !!userId,
             })
-            throw error
+
+            throw new BadRequestException(
+                "Failed to delete campaign. Please try again later.",
+            )
         }
     }
 
-    async resolveReference(reference: {
-        __typename: string
-        id: string
-    }): Promise<Campaign> {
+    async resolveReference(reference: { __typename: string; id: string }) {
         return this.findCampaignById(reference.id)
     }
 
@@ -543,7 +610,10 @@ export class CampaignService {
                 CampaignStatus.APPROVED,
                 CampaignStatus.REJECTED,
             ],
-            [CampaignStatus.APPROVED]: [CampaignStatus.ACTIVE],
+            [CampaignStatus.APPROVED]: [
+                CampaignStatus.ACTIVE,
+                CampaignStatus.CANCELLED,
+            ],
             [CampaignStatus.ACTIVE]: [
                 CampaignStatus.COMPLETED,
                 CampaignStatus.CANCELLED,
@@ -577,7 +647,6 @@ export class CampaignService {
         const nonEditableStatuses = [
             CampaignStatus.APPROVED,
             CampaignStatus.REJECTED,
-            CampaignStatus.ACTIVE,
             CampaignStatus.COMPLETED,
             CampaignStatus.CANCELLED,
         ]
@@ -586,6 +655,35 @@ export class CampaignService {
             throw new ForbiddenException(
                 `Cannot modify campaign in ${campaign.status} status`,
             )
+        }
+    }
+
+    private async validateCategoryExists(categoryId: string): Promise<void> {
+        try {
+            const category =
+                await this.campaignCategoryRepository.findById(categoryId)
+
+            if (!category) {
+                throw new BadRequestException(
+                    `Campaign category with ID ${categoryId} not found`,
+                )
+            }
+        } catch (error) {
+            if (error instanceof BadRequestException) {
+                throw error
+            }
+
+            this.logger.error(
+                `Failed to validate category ${categoryId}:`,
+                error,
+            )
+            this.sentryService.captureError(error as Error, {
+                operation: "validateCategoryExists",
+                categoryId,
+                service: "campaign-service",
+            })
+
+            throw new BadRequestException("Invalid category ID provided")
         }
     }
 

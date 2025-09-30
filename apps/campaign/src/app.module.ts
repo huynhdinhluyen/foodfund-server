@@ -4,6 +4,7 @@ import { CampaignModule } from "./campaign/campaign.module"
 import { PrismaModule } from "@libs/databases"
 import { SentryModule } from "@libs/observability/sentry.module"
 import { GraphQLSubgraphModule } from "@libs/graphql/subgraph"
+import { CampaignCategoryModule } from "./campaign-category/campaign-category.module"
 
 @Module({
     imports: [
@@ -24,13 +25,14 @@ import { GraphQLSubgraphModule } from "@libs/graphql/subgraph"
                     : ["error"],
             datasourceUrl: process.env.CAMPAIGN_DATABASE_URL,
         }),
-        CampaignModule,
         GraphQLSubgraphModule.forRoot({
             debug: process.env.NODE_ENV === "development",
             playground: process.env.NODE_ENV === "development",
             federationVersion: 2,
             path: "/graphql",
         }),
+        CampaignModule,
+        CampaignCategoryModule,
     ],
     controllers: [],
     providers: [],

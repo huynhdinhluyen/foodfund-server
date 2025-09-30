@@ -8,8 +8,9 @@ import { HealthController } from "./health.controller"
 import { AwsCognitoModule } from "@libs/aws-cognito"
 import { SpacesUploadService } from "libs/s3-storage/spaces-upload.service"
 import { CampaignSchedulerService } from "./workers/schedulers/campaign-scheduler.service"
-import { CampaignStatusJob } from "./workers/schedulers/campaign-status.job"
+import { CampaignStatusJob } from "./workers/campaign-status.job"
 import { ScheduleModule } from "@nestjs/schedule"
+import { CampaignCategoryModule } from "../campaign-category/campaign-category.module"
 
 @Module({
     imports: [
@@ -23,6 +24,7 @@ import { ScheduleModule } from "@nestjs/schedule"
             useGlobalImports: true,
         }),
         ScheduleModule.forRoot(),
+        CampaignCategoryModule,
     ],
     providers: [
         SpacesUploadService,

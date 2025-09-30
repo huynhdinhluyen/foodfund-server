@@ -3,6 +3,7 @@ import { AbstractSchema } from "../abstract.schema"
 import { UserProfileSchema } from "./user-profiles.model"
 import { Donation } from "./donation.model"
 import { CampaignStatus } from "../enums/campaign.enum"
+import { CampaignCategory } from "./campaign-category.model"
 
 @ObjectType("Campaign")
 @Directive("@key(fields: \"id\")")
@@ -58,6 +59,12 @@ export class Campaign extends AbstractSchema {
     })
         createdBy: string
 
+    @Field(() => String, {
+        nullable: true,
+        description: "Campaign category ID",
+    })
+        categoryId?: string
+
     @Field(() => Date, {
         nullable: true,
         description: "When campaign was approved",
@@ -70,6 +77,12 @@ export class Campaign extends AbstractSchema {
             "Campaign Creator - resolved by User service via federation",
     })
         creator?: UserProfileSchema
+
+    @Field(() => CampaignCategory, {
+        nullable: true,
+        description: "Campaign category",
+    })
+        category?: CampaignCategory
 
     @Field(() => [Donation], {
         description: "Campaign donations - resolved by federation",
