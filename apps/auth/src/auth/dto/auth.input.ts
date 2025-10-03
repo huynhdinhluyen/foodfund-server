@@ -218,3 +218,24 @@ export class ChangePasswordInput {
     @IsString({ message: "Confirm new password must be a string" })
         confirmNewPassword: string
 }
+
+@InputType()
+export class CheckCurrentPasswordInput {
+    @Field()
+    @IsNotEmpty({ message: "Current password is required" })
+    @IsString({ message: "Current password must be a string" })
+        currentPassword: string
+}
+
+@InputType()
+export class GoogleAuthInput {
+    @Field()
+    @IsNotEmpty({ message: "Google ID token is required" })
+    @IsString({ message: "Google ID token must be a string" })
+        idToken: string
+
+    @Field({ nullable: true })
+    @IsOptional()
+    @IsString({ message: "Access token must be a string" })
+        accessToken?: string
+}

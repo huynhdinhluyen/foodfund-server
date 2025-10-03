@@ -1,8 +1,11 @@
 import { Args, ID, Query, Resolver, ResolveReference } from "@nestjs/graphql"
-import { AuthUser } from "../models"
+import { AuthUser, CheckPasswordResponse, GoogleAuthResponse } from "../models"
 import { AuthResolver } from "../auth.resolver"
-import { UpdateUserInput, ChangePasswordInput } from "../dto/auth.input"
+import { UpdateUserInput, ChangePasswordInput, CheckCurrentPasswordInput, GoogleAuthInput } from "../dto/auth.input"
 import { Mutation } from "@nestjs/graphql"
+import { CognitoGraphQLGuard } from "@libs/aws-cognito"
+import { UseGuards } from "@nestjs/common"
+import { CurrentUser } from "libs/auth"
 
 @Resolver(() => AuthUser)
 export class AuthUserResolver {
@@ -23,11 +26,29 @@ export class AuthUserResolver {
     }): Promise<AuthUser | null> {
         return this.authResolver.getUserById(reference.id)
     }
+    
     @Mutation(() => Boolean)
+    @UseGuards(CognitoGraphQLGuard)
     async changePassword(
-        @Args("id", { type: () => ID }) id: string,
+        @CurrentUser() { id }: { id: string },
         @Args("input") input: ChangePasswordInput,
     ): Promise<boolean> {
         return this.authResolver.changePassword(id, input)
+    }
+
+    @Mutation(() => CheckPasswordResponse)
+    @UseGuards(CognitoGraphQLGuard)
+    async checkCurrentPassword(
+        @CurrentUser() { id }: { id: string },
+        @Args("input") input: CheckCurrentPasswordInput,
+    ): Promise<CheckPasswordResponse> {
+        return this.authResolver.checkCurrentPassword(id, input)
+    }
+
+    @Mutation(() => GoogleAuthResponse)
+    async googleAuthentication(
+        @Args("input") input: GoogleAuthInput,
+    ): Promise<GoogleAuthResponse> {
+        return this.authResolver.googleAuthentication(input)
     }
 }

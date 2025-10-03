@@ -9,6 +9,8 @@ import {
     ForgotPasswordResponse,
     ResetPasswordResponse,
     RefreshTokenResponse,
+    CheckPasswordResponse,
+    GoogleAuthResponse,
 } from "./models"
 import {
     ConfirmSignUpInput,
@@ -22,7 +24,7 @@ import {
     AuthUserService,
 } from "./services"
 
-import { UpdateUserInput, ChangePasswordInput } from "./dto/auth.input"
+import { UpdateUserInput, ChangePasswordInput, CheckCurrentPasswordInput, GoogleAuthInput } from "./dto/auth.input"
 
 @Injectable()
 export class AuthService {
@@ -104,10 +106,22 @@ export class AuthService {
     async validateUser(user: AuthUser): Promise<AuthResponse> {
         return this.authUserService.validateUser(user)
     }
+    
     async changePassword(
         id: string,
         input: ChangePasswordInput,
     ): Promise<boolean> {
         return this.authUserService.changePassword(id, input)
+    }
+
+    async checkCurrentPassword(
+        id: string,
+        input: CheckCurrentPasswordInput,
+    ): Promise<CheckPasswordResponse> {
+        return this.authUserService.checkCurrentPassword(id, input)
+    }
+
+    async googleAuthentication(input: GoogleAuthInput): Promise<GoogleAuthResponse> {
+        return this.authUserService.googleAuthentication(input)
     }
 }
