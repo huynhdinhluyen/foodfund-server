@@ -16,15 +16,10 @@ import {
     SignUpInput,
     SignInInput,
     ConfirmSignUpInput,
-    VerifyTokenInput,
-    ForgotPasswordInput,
-    ConfirmForgotPasswordInput,
-    ResendCodeInput,
     RefreshTokenInput,
 } from "./dto"
 import { AuthService } from "./auth.service"
-
-import { UpdateUserInput, ChangePasswordInput } from "./dto/auth.input"
+import { ChangePasswordInput } from "./dto/auth.input"
 
 //Apply Facade Pattern
 @Injectable()

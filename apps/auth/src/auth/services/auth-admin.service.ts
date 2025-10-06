@@ -5,7 +5,6 @@ import { CreateStaffAccountInput } from "../dto"
 import { Role } from "libs/databases/prisma/schemas/enums/user.enums"
 import { AuthErrorHelper } from "../helpers"
 import { GrpcClientService } from "libs/grpc"
-import { generateUniqueUsername } from "libs/common"
 
 @Injectable()
 export class AuthAdminService {

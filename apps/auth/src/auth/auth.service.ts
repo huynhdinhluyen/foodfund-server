@@ -21,8 +21,7 @@ import {
     AuthAuthenticationService,
     AuthUserService,
 } from "./services"
-
-import { UpdateUserInput, ChangePasswordInput } from "./dto/auth.input"
+import { ChangePasswordInput } from "./dto/auth.input"
 
 @Injectable()
 export class AuthService {

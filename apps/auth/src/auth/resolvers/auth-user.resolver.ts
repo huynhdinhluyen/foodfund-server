@@ -1,7 +1,7 @@
 import { Args, ID, Query, Resolver, ResolveReference } from "@nestjs/graphql"
 import { AuthUser } from "../models"
 import { AuthResolver } from "../auth.resolver"
-import { UpdateUserInput, ChangePasswordInput } from "../dto/auth.input"
+import { ChangePasswordInput } from "../dto/auth.input"
 import { Mutation } from "@nestjs/graphql"
 
 @Resolver(() => AuthUser)
