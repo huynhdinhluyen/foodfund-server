@@ -1,5 +1,5 @@
 import { Resolver, ResolveReference } from "@nestjs/graphql"
-import { UserRef } from "../../shared/reference/user.ref"
+import { UserRef } from "../reference/user.ref"
 
 @Resolver(() => UserRef)
 export class UserRefResolver {
