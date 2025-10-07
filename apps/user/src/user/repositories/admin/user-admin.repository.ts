@@ -2,30 +2,30 @@ import { Injectable } from "@nestjs/common"
 import { PrismaClient } from "../../../generated/user-client"
 import { Role } from "libs/databases/prisma/schemas"
 import { v7 as uuidv7 } from "uuid"
-import { CreateStaffUserInput, UpdateUserInput } from "../types/user.types"
+import { CreateStaffUserInput, UpdateUserInput } from "../../dto/user.types"
 
 @Injectable()
 export class UserAdminRepository {
     constructor(private readonly prisma: PrismaClient) {}
 
-    // Admin-specific user management
-    async createStaffUser(data: CreateStaffUserInput) {
-        const { organization_address, ...userData } = data
+    // // Admin-specific user management
+    // async createStaffUser(data: CreateStaffUserInput) {
+    //     const { organization_address, ...userData } = data
 
-        return this.prisma.user.create({
-            data: {
-                id: uuidv7(),
-                ...userData,
-                is_active: true,
-            },
-            include: {
-                Donor_Profile: true,
-                Kitchen_Staff_Profile: true,
-                Fundraiser_Profile: true,
-                Delivery_Staff_Profile: true,
-            },
-        })
-    }
+    //     return this.prisma.user.create({
+    //         data: {
+    //             id: uuidv7(),
+    //             ...userData,
+    //             is_active: true,
+    //         },
+    //         include: {
+    //             Donor_Profile: true,
+    //             Kitchen_Staff_Profile: true,
+    //             Fundraiser_Profile: true,
+    //             Delivery_Staff_Profile: true,
+    //         },
+    //     })
+    // }
 
     async findAllUsers(skip?: number, take?: number) {
         const validSkip = skip ?? 0
@@ -37,7 +37,7 @@ export class UserAdminRepository {
             include: {
                 Donor_Profile: true,
                 Kitchen_Staff_Profile: true,
-                Fundraiser_Profile: true,
+                Organization: true,
                 Delivery_Staff_Profile: true,
             },
             orderBy: {
@@ -52,7 +52,7 @@ export class UserAdminRepository {
             include: {
                 Donor_Profile: true,
                 Kitchen_Staff_Profile: true,
-                Fundraiser_Profile: true,
+                Organization: true,
                 Delivery_Staff_Profile: true,
             },
             orderBy: { created_at: "desc" },
@@ -65,7 +65,7 @@ export class UserAdminRepository {
             include: {
                 Donor_Profile: true,
                 Kitchen_Staff_Profile: true,
-                Fundraiser_Profile: true,
+                Organization: true,
                 Delivery_Staff_Profile: true,
             },
             orderBy: { created_at: "desc" },
@@ -109,7 +109,7 @@ export class UserAdminRepository {
             include: {
                 Donor_Profile: true,
                 Kitchen_Staff_Profile: true,
-                Fundraiser_Profile: true,
+                Organization: true,
                 Delivery_Staff_Profile: true,
             },
             orderBy: { created_at: "desc" },
@@ -123,7 +123,8 @@ export class UserAdminRepository {
             include: {
                 Donor_Profile: true,
                 Kitchen_Staff_Profile: true,
-                Fundraiser_Profile: true,
+                Organization: true,
+                Organization_Member: true,
                 Delivery_Staff_Profile: true,
             },
         })
@@ -135,7 +136,8 @@ export class UserAdminRepository {
             include: {
                 Donor_Profile: true,
                 Kitchen_Staff_Profile: true,
-                Fundraiser_Profile: true,
+                Organization: true,
+                Organization_Member: true,
                 Delivery_Staff_Profile: true,
             },
         })

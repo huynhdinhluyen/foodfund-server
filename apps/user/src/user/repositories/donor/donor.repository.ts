@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common"
 import { PrismaClient } from "../../../generated/user-client"
-import { CreateDonorProfileInput, UpdateDonorProfileInput } from "../types/user.types"
+import { CreateDonorProfileInput, UpdateDonorProfileInput } from "../../dto/user.types"
 
 @Injectable()
 export class DonorRepository {

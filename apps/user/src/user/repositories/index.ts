@@ -10,4 +10,4 @@ export * from "./fundraiser"
 export * from "./delivery-staff"
 
 // Types
-export * from "./types/user.types"
+export * from "../dto/user.types"

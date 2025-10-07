@@ -4,10 +4,14 @@ import { FundraiserProfileSchema, Role } from "libs/databases/prisma/schemas"
 import { UpdateFundraiserProfileInput } from "../../dto/profile.input"
 import { FundraiserService } from "../../services/fundraiser/fundraiser.service"
 import { CurrentUser, RequireRole } from "libs/auth"
+import { OrganizationService } from "../../services"
 
 @Resolver(() => FundraiserProfileSchema)
 export class FundraiserProfileResolver {
-    constructor(private readonly fundraiserService: FundraiserService) {}
+    constructor(
+        private readonly fundraiserService: FundraiserService,
+        private readonly organizationService: OrganizationService,
+    ) {}
 
     @Mutation(() => FundraiserProfileSchema)
     @RequireRole(Role.FUNDRAISER)
@@ -21,17 +25,34 @@ export class FundraiserProfileResolver {
             updateFundraiserProfileInput,
         )
     }
+    @Query(() => [String])
+    @RequireRole(Role.FUNDRAISER)
+    async getOrganizationJoinRequests(
+        @CurrentUser() user: any,
+        @Args("organizationId") organizationId: string,
+    ) {
+        const requests = await this.organizationService.getOrganizationJoinRequests(organizationId, user.id)
+        return requests.map(req => req.id)
+    }
 
-    // Individual role profile queries replaced by common getMyRoleProfile in UserQueryResolver
-    // @Query(() => FundraiserProfileSchema)
-    // @RequireRole(Role.FUNDRAISER)
-    // async getFundraiserProfile(@CurrentUser() user: { cognito_id: string }) {
-    //     return this.fundraiserService.getProfile(user.cognito_id)
-    // }
+    @Mutation(() => String)
+    @RequireRole(Role.FUNDRAISER)
+    async approveJoinRequest(
+        @CurrentUser() user: any,
+        @Args("requestId") requestId: string,
+    ) {
+        const result = await this.organizationService.approveJoinRequest(requestId, user.id)
+        return result.id
+    }
 
-    // Delete functionality removed - not part of business requirements
-    // @Mutation(() => FundraiserProfileSchema)
-    // async deleteFundraiserProfile(@Args("id", { type: () => ID }) id: string) {
-    //     return this.fundraiserService.deleteFundraiserProfile(id)
-    // }
+    @Mutation(() => String)
+    @RequireRole(Role.FUNDRAISER)
+    async rejectJoinRequest(
+        @CurrentUser() user: any,
+        @Args("requestId") requestId: string,
+    ) {
+        const result = await this.organizationService.rejectJoinRequest(requestId, user.id)
+        return result.id
+    }
+
 }

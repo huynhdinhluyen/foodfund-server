@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common"
 import { PrismaClient } from "../../../generated/user-client"
 import { v7 as uuidv7 } from "uuid"
-import { CreateUserInput } from "../types/user.types"
+import { CreateUserInput } from "../../dto/user.types"
 
 @Injectable()
 export class UserCommonRepository {
@@ -16,10 +16,7 @@ export class UserCommonRepository {
                 is_active: true,
             },
             include: {
-                Donor_Profile: true,
-                Kitchen_Staff_Profile: true,
-                Fundraiser_Profile: true,
-                Delivery_Staff_Profile: true,
+                Donor_Profile: true
             },
         })
     }
@@ -30,7 +27,7 @@ export class UserCommonRepository {
             include: {
                 Donor_Profile: true,
                 Kitchen_Staff_Profile: true,
-                Fundraiser_Profile: true,
+                Organization: true,
                 Delivery_Staff_Profile: true,
             },
         })
@@ -42,7 +39,7 @@ export class UserCommonRepository {
             include: {
                 Donor_Profile: true,
                 Kitchen_Staff_Profile: true,
-                Fundraiser_Profile: true,
+                Organization: true,
                 Delivery_Staff_Profile: true,
             },
         })
@@ -54,7 +51,7 @@ export class UserCommonRepository {
             include: {
                 Donor_Profile: true,
                 Kitchen_Staff_Profile: true,
-                Fundraiser_Profile: true,
+                Organization: true,
                 Delivery_Staff_Profile: true,
             },
         })
@@ -73,7 +70,7 @@ export class UserCommonRepository {
             include: {
                 Donor_Profile: true,
                 Kitchen_Staff_Profile: true,
-                Fundraiser_Profile: true,
+                Organization: true,
                 Delivery_Staff_Profile: true,
             },
         })

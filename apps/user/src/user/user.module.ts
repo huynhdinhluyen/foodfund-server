@@ -11,6 +11,7 @@ import {
     FundraiserRepository,
     DeliveryStaffRepository,
 } from "./repositories"
+import { OrganizationRepository } from "./repositories/organization"
 import {
     UserAdminResolver,
 
@@ -40,6 +41,7 @@ import {
     UserQueryService as GeneralUserQueryService,
     UserMutationService as GeneralUserMutationService,
 } from "./services"
+import { OrganizationService } from "./services/organization/organization.service"
 import { AwsCognitoModule } from "@libs/aws-cognito"
 
 @Module({
@@ -59,6 +61,7 @@ import { AwsCognitoModule } from "@libs/aws-cognito"
         PrismaClient,
         
         UserRepository,
+        OrganizationRepository,
 
         UserAdminRepository,
         UserCommonRepository,
@@ -68,6 +71,7 @@ import { AwsCognitoModule } from "@libs/aws-cognito"
         DeliveryStaffRepository,
 
         UserAdminService,
+        OrganizationService,
 
         DonorService,
         FundraiserService,

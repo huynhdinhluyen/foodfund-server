@@ -10,6 +10,7 @@ import { AuthErrorHelper } from "../helpers"
 
 import { UpdateUserInput, ChangePasswordInput, CheckCurrentPasswordInput, GoogleAuthInput } from "../dto/auth.input"
 import { GrpcClientService } from "libs/grpc"
+import { envConfig } from "@libs/env"
 
 @Injectable()
 export class AuthUserService {
@@ -244,7 +245,6 @@ export class AuthUserService {
     // Helper method: Verify Google ID token
     private async verifyGoogleIdToken(idToken: string): Promise<any> {
         try {
-            // Option 1: Use Google's token verification endpoint
             const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`)
             
             if (!response.ok) {
@@ -260,7 +260,7 @@ export class AuthUserService {
 
             // Verify audience (your Google Client ID)
             // You should add your Google Client ID to environment variables
-            const expectedAudience = process.env.GOOGLE_CLIENT_ID
+            const expectedAudience = envConfig().google.clientId
             if (expectedAudience && tokenInfo.aud !== expectedAudience) {
                 throw new Error("Invalid token audience")
             }

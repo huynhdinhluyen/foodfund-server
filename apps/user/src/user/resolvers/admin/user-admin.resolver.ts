@@ -15,11 +15,15 @@ import {
 import { RequireRole } from "libs/auth"
 import { Role, UserProfileSchema } from "libs/databases/prisma/schemas"
 import { UserAdminService } from "../../services/admin/user-admin.service"
+import { OrganizationService } from "../../services/organization/organization.service"
 import { ValidationPipe } from "@nestjs/common"
 
 @Resolver()
 export class UserAdminResolver {
-    constructor(private userAdminService: UserAdminService) {}
+    constructor(
+        private userAdminService: UserAdminService,
+        private organizationService: OrganizationService,
+    ) {}
 
     // Admin Query: Get all users
     @Query(() => [UserProfileSchema], { name: "getAllUsers" })
@@ -63,5 +67,31 @@ export class UserAdminResolver {
         @Args("input", new ValidationPipe()) input: UpdateUserAccountInput,
     ) {
         return this.userAdminService.updateUserAccount(userId, input) as any
+    }
+
+    // Organization management methods
+    @Query(() => [String])
+    @RequireRole(Role.ADMIN)
+    async getPendingOrganizationRequests() {
+        const organizations = await this.organizationService.getPendingOrganizationRequests()
+        return organizations.map(org => org.id)
+    }
+
+    @Mutation(() => String)
+    @RequireRole(Role.ADMIN)
+    async approveOrganizationRequest(
+        @Args("organizationId") organizationId: string,
+    ) {
+        const result = await this.organizationService.approveOrganizationRequest(organizationId)
+        return result.id
+    }
+
+    @Mutation(() => String)
+    @RequireRole(Role.ADMIN)
+    async rejectOrganizationRequest(
+        @Args("organizationId") organizationId: string,
+    ) {
+        const result = await this.organizationService.rejectOrganizationRequest(organizationId)
+        return result.id
     }
 }
