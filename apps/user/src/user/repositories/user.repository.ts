@@ -63,14 +63,7 @@ export class UserRepository {
 
     async findUserById(id: string) {
         return this.prisma.user.findUnique({
-            where: { cognito_id: id },
-            include: {
-                Organizations: {
-                    include: {
-                        Organization_Member: true,
-                    },
-                },
-            },
+            where: { cognito_id: id }
         })
     }
 

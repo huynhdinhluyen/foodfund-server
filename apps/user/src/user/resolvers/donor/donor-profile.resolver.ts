@@ -19,15 +19,7 @@ export class DonorProfileResolver {
         private readonly organizationService: OrganizationService,
     ) {}
 
-    @Mutation(() => UserProfileSchema)
-    @RequireRole(Role.DONOR)
-    async updateDonorProfile(
-        @CurrentUser() user: CurrentUserType,
-        @Args("updateUserInput", new ValidationPipe())
-            updateUserInput: UpdateUserInput,
-    ) {
-        return this.donorService.updateProfile(user.cognito_id, updateUserInput)
-    }
+
 
     @Mutation(() => OrganizationActionResponse)
     @RequireRole(Role.DONOR)

@@ -1,11 +1,10 @@
 import { Resolver, Mutation, Args, ID, Query } from "@nestjs/graphql"
 import { ValidationPipe } from "@nestjs/common"
-import { DeliveryStaffProfileSchema, Role } from "libs/databases/prisma/schemas"
 import { UpdateDeliveryStaffProfileInput } from "../../dto/profile.input"
 import { DeliveryStaffService } from "../../services/delivery-staff/delivery-staff.service"
 import { CurrentUser, RequireRole } from "libs/auth"
 
-@Resolver(() => DeliveryStaffProfileSchema)
+@Resolver()
 export class DeliveryStaffProfileResolver {
     constructor(private readonly deliveryStaffService: DeliveryStaffService) {}
 

@@ -1,11 +1,10 @@
 import { Resolver, Mutation, Args, ID, Query } from "@nestjs/graphql"
 import { ValidationPipe } from "@nestjs/common"
-import { KitchenStaffProfileSchema, Role } from "libs/databases/prisma/schemas"
 import { UpdateKitchenStaffProfileInput } from "../../dto/profile.input"
 import { KitchenStaffService } from "../../services/kitchen-staff/kitchen-staff.service"
 import { CurrentUser, RequireRole } from "libs/auth"
 
-@Resolver(() => KitchenStaffProfileSchema)
+@Resolver()
 export class KitchenStaffProfileResolver {
     constructor(private readonly kitchenStaffService: KitchenStaffService) {}
 

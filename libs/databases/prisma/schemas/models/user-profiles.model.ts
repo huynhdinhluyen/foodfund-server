@@ -30,6 +30,13 @@ export class UserProfileSchema extends AbstractSchema {
         avatar_url?: string
 
     @Field(() => String, {
+        description: "User's address",
+        nullable: true,
+    })
+        address?: string
+
+
+    @Field(() => String, {
         description: "Unique username",
     })
         user_name: string
@@ -62,66 +69,4 @@ export class UserProfileSchema extends AbstractSchema {
     constructor() {
         super()
     }
-}
-
-// Donor Profile Schema
-@ObjectType()
-export class DonorProfileSchema extends UserProfileSchema {
-    @Field(() => Number, {
-        description: "Total number of donations made",
-    })
-        donationCount: number
-
-    @Field(() => String, {
-        description: "Total amount donated (as string for BigInt)",
-    })
-        totalDonated: string
-}
-
-// Kitchen Staff Profile Schema
-@ObjectType()
-export class KitchenStaffProfileSchema extends UserProfileSchema {
-    @Field(() => Number, {
-        description: "Total batches prepared",
-    })
-        totalBatchPrepared: number
-}
-
-// Fundraiser Profile Schema
-@ObjectType()
-export class FundraiserProfileSchema extends UserProfileSchema {
-    @Field(() => String, {
-        description: "Organization name",
-    })
-        organizationName: string
-
-    @Field(() => String, {
-        nullable: true,
-        description: "Organization address",
-    })
-        organizationAddress?: string
-
-    @Field(() => VerificationStatus, {
-        description: "Verification status",
-    })
-        verificationStatus: VerificationStatus
-
-    @Field(() => Number, {
-        description: "Total campaigns created",
-    })
-        totalCampaignCreated: number
-}
-
-// Delivery Staff Profile Schema
-@ObjectType()
-export class DeliveryStaffProfileSchema extends UserProfileSchema {
-    @Field(() => AvailabilityStatus, {
-        description: "Current availability status",
-    })
-        availabilityStatus: AvailabilityStatus
-
-    @Field(() => Number, {
-        description: "Total deliveries completed",
-    })
-        totalDeliveries: number
 }

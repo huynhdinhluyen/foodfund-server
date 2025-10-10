@@ -10,24 +10,6 @@ export class DonorService {
 
     constructor(private readonly userRepository: UserRepository) {}
 
-    async updateProfile(cognitoId: string, updateData: UpdateUserInput) {
-        this.logger.log(`Donor updating profile: ${cognitoId}`)
-        
-        // Validate user exists and is a donor
-        const user = await this.userRepository.findUserById(cognitoId)
-        if (!user) {
-            DonorErrorHelper.throwDonorProfileIncomplete(["User not found"])
-        }
-
-        if (user.role !== Role.DONOR) {
-            DonorErrorHelper.throwDonorOnlyOperation("update profile")
-        }
-
-        // Update user profile directly since we no longer have separate donor_profile table
-        const updatedUser = await this.userRepository.updateUser(user.id, updateData)
-
-        return updatedUser
-    }
 
     async getProfile(cognitoId: string) {
         this.logger.log(`Getting donor profile for user: ${cognitoId}`)

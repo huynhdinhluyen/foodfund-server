@@ -1,6 +1,6 @@
 import { Resolver, Mutation, Args, ID, Query, Int } from "@nestjs/graphql"
 import { ValidationPipe } from "@nestjs/common"
-import { FundraiserProfileSchema, Role } from "libs/databases/prisma/schemas"
+import { Role, UserProfileSchema } from "libs/databases/prisma/schemas"
 import { UpdateFundraiserProfileInput } from "../../dto/profile.input"
 import { FundraiserService } from "../../services/fundraiser/fundraiser.service"
 import { CurrentUser, RequireRole, CurrentUserType } from "libs/auth"
@@ -8,7 +8,7 @@ import { OrganizationService } from "../../services"
 import { OrganizationWithMembers } from "../../types/organization-with-members.model"
 import { JoinRequestManagementResponse, JoinRequestListResponse } from "../../types/join-request-management-response.model"
 
-@Resolver(() => FundraiserProfileSchema)
+@Resolver()
 export class FundraiserProfileResolver {
     constructor(
         private readonly fundraiserService: FundraiserService,

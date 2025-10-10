@@ -373,4 +373,44 @@ export class OrganizationRepository {
         
         return userIds.map(id => orgMap.get(id)).filter(Boolean)
     }
+
+    async findActiveOrganizationsWithMembersPaginated(
+        options: { offset: number; limit: number }
+    ) {
+        const total = await this.prisma.organization.count({
+            where: {
+                status: Verification_Status.VERIFIED,
+            },
+        })
+
+        const organizations = await this.prisma.organization.findMany({
+            where: {
+                status: Verification_Status.VERIFIED,
+            },
+            include: {
+                user: true, 
+                Organization_Member: {
+                    where: {
+                        status: Verification_Status.VERIFIED, 
+                    },
+                    include: {
+                        member: true, 
+                    },
+                    orderBy: {
+                        joined_at: "desc",
+                    },
+                },
+            },
+            orderBy: {
+                created_at: "desc", // Most recent organizations first
+            },
+            skip: options.offset,
+            take: options.limit,
+        })
+
+        return {
+            organizations,
+            total,
+        }
+    }
 }

@@ -27,6 +27,12 @@ interface PaginatedJoinRequestsResponse {
     total: number
 }
 
+// Interface for paginated organizations response
+interface PaginatedOrganizationsResponse {
+    organizations: any[]
+    total: number
+}
+
 @Injectable()
 export class OrganizationService {
     constructor(
@@ -523,5 +529,16 @@ export class OrganizationService {
             user: user,
             role: Role.FUNDRAISER,
         }
+    }
+
+    async getActiveOrganizationsWithMembers(
+        options: { offset: number; limit: number }
+    ): Promise<PaginatedOrganizationsResponse> {
+        const result = await this.organizationRepository.findActiveOrganizationsWithMembersPaginated({
+            offset: options.offset,
+            limit: options.limit,
+        })
+
+        return result
     }
 }
