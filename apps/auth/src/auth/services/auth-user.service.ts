@@ -7,6 +7,7 @@ import {
 } from "@aws-sdk/client-cognito-identity-provider"
 import { AuthUser, AuthResponse, CheckPasswordResponse, GoogleAuthResponse } from "../models"
 import { AuthErrorHelper } from "../helpers"
+import { randomBytes } from "crypto"
 
 import { UpdateUserInput, ChangePasswordInput, CheckCurrentPasswordInput, GoogleAuthInput } from "../dto/auth.input"
 import { GrpcClientService } from "libs/grpc"
@@ -156,9 +157,10 @@ export class AuthUserService {
 
             // Step 3: Create new user if doesn't exist
             if (!cognitoUser) {
-                // For Google OAuth users, create with a simple secure password
+                // For Google OAuth users, create with a cryptographically secure password
                 // User won't use this password since they authenticate via Google
-                const securePassword = `GoogleUser!${Date.now()}${Math.random().toString(36).substr(2, 9)}`
+                const secureRandomSuffix = randomBytes(16).toString("hex")
+                const securePassword = `GoogleUser!${Date.now()}.${secureRandomSuffix}`
                 
                 const signUpResult = await this.awsCognitoService.signUp(
                     googleUserInfo.email,
@@ -233,7 +235,7 @@ export class AuthUserService {
         // or implement a custom token generation strategy
         
         const timestamp = Date.now()
-        const randomId = Math.random().toString(36).substr(2, 9)
+        const randomId = randomBytes(8).toString("hex")
         
         return {
             accessToken: `google-access-${username}-${timestamp}-${randomId}`,
