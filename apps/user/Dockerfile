@@ -30,6 +30,10 @@ COPY --from=build /usr/src/app/libs/grpc/proto ./libs/grpc/proto
 WORKDIR /usr/src/app/apps/user
 RUN npx prisma generate
 
+# Create symlink from custom path to default Prisma location for user
+RUN mkdir -p /usr/src/app/node_modules/.prisma && \
+    ln -sf /usr/src/app/apps/user/src/generated/user-client /usr/src/app/node_modules/.prisma/user-client
+
 # Set working directory back and add user
 WORKDIR /usr/src/app
 RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001
