@@ -88,8 +88,14 @@ export interface EnvironmentConfig {
         environment: string
         release: string
     }
+
+    google: GoogleConfig
 }
 
 export interface EnvModuleOptions {
     isGlobal?: boolean
+}
+
+export interface GoogleConfig {
+    clientId: string
 }

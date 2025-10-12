@@ -11,11 +11,6 @@ export class UserAuthSchema extends AbstractSchema {
         userId: string
 
     @Field(() => String, {
-        description: "User email for authentication",
-    })
-        email: string
-
-    @Field(() => String, {
         nullable: true,
         description: "OAuth provider (google, facebook, etc.)",
     })
@@ -64,10 +59,6 @@ export class RefreshTokenSchema extends AbstractSchema {
     description: "Verification token schema",
 })
 export class VerificationTokenSchema extends AbstractSchema {
-    @Field(() => String, {
-        description: "Email address for verification",
-    })
-        email: string
 
     @Field(() => String, {
         description: "Verification token",

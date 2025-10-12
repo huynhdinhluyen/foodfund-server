@@ -2,18 +2,26 @@ import { ObjectType, Field } from "@nestjs/graphql"
 import { Directive } from "@nestjs/graphql"
 import { AbstractSchema } from "../abstract.schema"
 import {
-    Role,
     VerificationStatus,
     AvailabilityStatus,
+    Role,
 } from "../enums/user.enums"
 
-@ObjectType("User")
+// Main User GraphQL Schema - now inherits all common fields from AbstractSchema
+@ObjectType()
+@Directive("@shareable")
 @Directive("@key(fields: \"id\")")
 export class UserProfileSchema extends AbstractSchema {
+    
     @Field(() => String, {
         description: "User's full name",
     })
         full_name: string
+
+    @Field(() => String, {
+        description: "User email address", 
+    })
+        email: string
 
     @Field(() => String, {
         description: "User's avatar URL",
@@ -22,20 +30,16 @@ export class UserProfileSchema extends AbstractSchema {
         avatar_url?: string
 
     @Field(() => String, {
-        description: "User email address",
-    })
-        email: string
-
-    @Field(() => String, {
-        description: "User's phone number",
+        description: "User's address",
         nullable: true,
     })
-        phone_number?: string
+        address?: string
 
-    @Field(() => Role, {
-        description: "User's role in the system",
+
+    @Field(() => String, {
+        description: "Unique username",
     })
-        role: Role
+        user_name: string
 
     @Field(() => Boolean, {
         description: "Whether the user is active",
@@ -43,10 +47,16 @@ export class UserProfileSchema extends AbstractSchema {
     })
         is_active: boolean
 
-    @Field(() => String, {
-        description: "Unique username",
+    @Field(() => Role, {
+        description: "User's role in the system",
     })
-        user_name: string
+        role: Role
+
+    @Field(() => String, {
+        description: "User's phone number",
+        nullable: true,
+    })
+        phone_number?: string
 
     @Field(() => String, {
         nullable: true,
@@ -59,86 +69,4 @@ export class UserProfileSchema extends AbstractSchema {
     constructor() {
         super()
     }
-}
-
-// Donor Profile Schema
-@ObjectType()
-export class DonorProfileSchema extends AbstractSchema {
-    @Field(() => String, {
-        description: "User ID reference",
-    })
-        userId: string
-
-    @Field(() => Number, {
-        description: "Total number of donations made",
-    })
-        donationCount: number
-
-    @Field(() => String, {
-        description: "Total amount donated (as string for BigInt)",
-    })
-        totalDonated: string
-}
-
-// Kitchen Staff Profile Schema
-@ObjectType()
-export class KitchenStaffProfileSchema extends AbstractSchema {
-    @Field(() => String, {
-        description: "User ID reference",
-    })
-        userId: string
-
-    @Field(() => Number, {
-        description: "Total batches prepared",
-    })
-        totalBatchPrepared: number
-}
-
-// Fundraiser Profile Schema
-@ObjectType()
-export class FundraiserProfileSchema extends AbstractSchema {
-    @Field(() => String, {
-        description: "User ID reference",
-    })
-        userId: string
-
-    @Field(() => String, {
-        description: "Organization name",
-    })
-        organizationName: string
-
-    @Field(() => String, {
-        nullable: true,
-        description: "Organization address",
-    })
-        organizationAddress?: string
-
-    @Field(() => VerificationStatus, {
-        description: "Verification status",
-    })
-        verificationStatus: VerificationStatus
-
-    @Field(() => Number, {
-        description: "Total campaigns created",
-    })
-        totalCampaignCreated: number
-}
-
-// Delivery Staff Profile Schema
-@ObjectType()
-export class DeliveryStaffProfileSchema extends AbstractSchema {
-    @Field(() => String, {
-        description: "User ID reference",
-    })
-        userId: string
-
-    @Field(() => AvailabilityStatus, {
-        description: "Current availability status",
-    })
-        availabilityStatus: AvailabilityStatus
-
-    @Field(() => Number, {
-        description: "Total deliveries completed",
-    })
-        totalDeliveries: number
 }
