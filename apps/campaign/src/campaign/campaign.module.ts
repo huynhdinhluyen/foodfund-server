@@ -21,6 +21,7 @@ import { AuthorizationService } from "../shared"
         CampaignCategoryModule,
     ],
     providers: [
+        PrismaClient,
         SpacesUploadService,
         CampaignService,
         CampaignResolver,

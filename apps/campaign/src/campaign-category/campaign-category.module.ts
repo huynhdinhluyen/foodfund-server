@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common"
 import { CampaignCategoryService } from "./campaign-category.service"
 import { CampaignCategoryRepository } from "./campaign-category.repository"
 import { CampaignCategoryResolver } from "./campaign-category.resolver"
+import { PrismaClient } from "../generated/campaign-client"
 
 @Module({
     imports: [
@@ -12,6 +13,7 @@ import { CampaignCategoryResolver } from "./campaign-category.resolver"
         }),
     ],
     providers: [
+        PrismaClient,
         CampaignCategoryService,
         CampaignCategoryRepository,
         CampaignCategoryResolver,
