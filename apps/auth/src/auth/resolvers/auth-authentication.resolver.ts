@@ -41,14 +41,17 @@ export class AuthAuthenticationResolver {
     }
 
     @Mutation(() => AuthResponse)
+    @UseGuards(CognitoGraphQLGuard)
     async verifyToken(
-        @Args("input") input: VerifyTokenInput,
+        @Context() context: any
     ): Promise<AuthResponse> {
-        const user = await this.authResolver.verifyToken(input.accessToken)
+        const token = context.req.headers.authorization?.split(" ")[1]
+        const user = await this.authResolver.verifyToken(token)
         return this.authResolver.validateUser(user)
     }
 
     @Mutation(() => RefreshTokenResponse)
+    @UseGuards(CognitoGraphQLGuard)
     async refreshToken(
         @Args("input") input: RefreshTokenInput,
     ): Promise<RefreshTokenResponse> {

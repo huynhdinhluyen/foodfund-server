@@ -1,24 +1,48 @@
 import { Module } from "@nestjs/common"
 import { GraphQLSubgraphModule } from "libs/graphql/subgraph"
-import { UserService } from "./user.service"
-import { UserRepository } from "./user.repository"
+import { PrismaClient } from "../generated/user-client"
+import { 
+    UserRepository,
+    // Role-based repositories
+    UserAdminRepository,
+    UserCommonRepository,
+    KitchenStaffRepository,
+    FundraiserRepository,
+    DeliveryStaffRepository,
+} from "./repositories"
+import { OrganizationRepository } from "./repositories/organization"
 import {
-    KitchenStaffProfileResolver,
-    FundraiserProfileResolver,
-    DeliveryStaffProfileResolver,
+    UserAdminResolver,
+
     DonorProfileResolver,
-} from "./resolvers/profile.resolver"
-import { UserQueryResolver, UserMutationResolver } from "./resolvers"
-import { UserResolver } from "./user.resolver"
-import { UserGrpcService } from "./grpc"
+    FundraiserProfileResolver,
+    KitchenStaffProfileResolver,
+    DeliveryStaffProfileResolver,
+
+    UserQueryResolver,
+    UserMutationResolver,
+} from "./resolvers"
+import {
+    UserGrpcService,
+    UserCommonGrpcService,
+    UserAdminGrpcService,
+} from "./grpc"
 import { HealthController } from "./health.controller"
 import { GrpcModule } from "libs/grpc"
 import {
-    UserCreationService,
-    UserQueryService,
-    UserUpdateService,
-    ProfileService,
+    UserAdminService,
+
+    DonorService,
+    FundraiserService,
+    KitchenStaffService,
+    DeliveryStaffService,
+
+    UserQueryService as GeneralUserQueryService,
+    UserMutationService as GeneralUserMutationService,
 } from "./services"
+import { OrganizationService } from "./services/organization/organization.service"
+import { DataLoaderFactory } from "./services/common/dataloader.factory"
+import { DataLoaderService } from "./services/common/dataloader.service"
 import { AwsCognitoModule } from "@libs/aws-cognito"
 
 @Module({
@@ -35,31 +59,45 @@ import { AwsCognitoModule } from "@libs/aws-cognito"
         }),
     ],
     providers: [
-        // Services
-        UserService,
+        PrismaClient,
+        
         UserRepository,
-        UserCreationService,
-        UserQueryService,
-        UserUpdateService,
-        ProfileService,
+        OrganizationRepository,
 
-        // Resolver facade (không có @Resolver decorators)
-        UserResolver,
+        UserAdminRepository,
+        UserCommonRepository,
+        KitchenStaffRepository,
+        FundraiserRepository,
+        DeliveryStaffRepository,
 
-        // GraphQL resolvers (có @Resolver decorators)
+        UserAdminService,
+        OrganizationService,
+        
+        DataLoaderFactory,
+        DataLoaderService,
+
+        DonorService,
+        FundraiserService,
+        KitchenStaffService,
+        DeliveryStaffService,
+
+        GeneralUserQueryService,
+        GeneralUserMutationService,
+
         UserQueryResolver,
         UserMutationResolver,
+        UserAdminResolver,
 
-        // Profile resolvers
         DonorProfileResolver,
         KitchenStaffProfileResolver,
         FundraiserProfileResolver,
         DeliveryStaffProfileResolver,
 
-        // gRPC
         UserGrpcService,
+        UserCommonGrpcService,
+        UserAdminGrpcService,
     ],
     controllers: [HealthController],
-    exports: [UserService, UserRepository, UserGrpcService],
+    exports: [UserRepository, UserGrpcService],
 })
 export class UserModule {}

@@ -3,8 +3,19 @@ import pluginJs from "@eslint/js"
 import tseslint from "typescript-eslint"
 
 export default [
-    {files: ["*/.{ts}"]},
-    {languageOptions: { globals: globals.node }},
+    {
+        ignores: [
+            "**/generated/**/*",
+            "**/node_modules/**/*", 
+            "**/dist/**/*",
+            "**/*.d.ts",
+            "**/prisma/migrations/**/*"
+        ]
+    },
+    {
+        files: ["**/*.{js,ts}"],
+        languageOptions: { globals: globals.node }
+    },
     pluginJs.configs.recommended,
     ...tseslint.configs.recommended,
     {
@@ -19,8 +30,7 @@ export default [
             "@typescript-eslint/no-explicit-any": "off",
             "@typescript-eslint/no-unused-vars": "off",
             "@typescript-eslint/no-empty-object-type": "off",
-            "@typescript-eslint/no-unsafe-function-type":"warn"
-
+            "@typescript-eslint/no-unsafe-function-type": "warn"
         },
     }
 ]

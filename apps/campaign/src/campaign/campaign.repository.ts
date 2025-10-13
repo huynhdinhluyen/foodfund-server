@@ -4,11 +4,11 @@ import {
     CampaignSortOrder,
     UpdateCampaignInput,
 } from "./dtos/request/campaign.input"
-import { PrismaClient } from "@prisma/client"
 import { Injectable, Logger } from "@nestjs/common"
 import { CampaignStatus } from "apps/campaign/src/campaign/enum/campaign.enum"
 import { sanitizeSearchTerm } from "@libs/common/utils/sanitize-search-term.util"
 import { UserRef } from "../shared/reference/user.ref"
+import { PrismaClient } from "../generated/campaign-client"
 
 export interface FindManyOptions {
     filter?: CampaignFilterInput
@@ -396,8 +396,8 @@ export class CampaignRepository {
                 title: dbCampaign.category.title,
                 description: dbCampaign.category.description,
                 isActive: dbCampaign.category.is_active,
-                createdAt: dbCampaign.category.created_at,
-                updatedAt: dbCampaign.category.updated_at,
+                created_at: dbCampaign.category.created_at,
+                updated_at: dbCampaign.category.updated_at,
                 campaigns: undefined,
             }
             : undefined
@@ -425,8 +425,8 @@ export class CampaignRepository {
             createdBy: dbCampaign.created_by,
             categoryId: dbCampaign.category_id || undefined,
             approvedAt: dbCampaign.approved_at || undefined,
-            createdAt: dbCampaign.created_at,
-            updatedAt: dbCampaign.updated_at,
+            created_at: dbCampaign.created_at,
+            updated_at: dbCampaign.updated_at,
             category: category,
             creator: creator,
             donations: undefined,

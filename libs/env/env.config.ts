@@ -122,6 +122,10 @@ export const envConfig = (): EnvironmentConfig => ({
         environment: process.env.SENTRY_ENVIRONMENT ?? "development",
         release: process.env.SENTRY_RELEASE ?? "1.0.0",
     },
+
+    google: {
+        clientId: process.env.GOOGLE_CLIENT_ID as string,
+    }
 })
 
 // Utility functions

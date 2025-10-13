@@ -115,3 +115,33 @@ export class CreateStaffAccountResponse {
     @Field()
         temporaryPasswordSent: boolean
 }
+
+@ObjectType()
+export class CheckPasswordResponse {
+    @Field()
+        isValid: boolean
+
+    @Field()
+        message: string
+}
+
+@ObjectType()
+export class GoogleAuthResponse {
+    @Field(() => AuthUser)
+        user: AuthUser
+
+    @Field()
+        accessToken: string
+
+    @Field()
+        refreshToken: string
+
+    @Field()
+        idToken: string
+
+    @Field()
+        isNewUser: boolean
+
+    @Field()
+        message: string
+}

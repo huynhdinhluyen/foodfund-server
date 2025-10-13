@@ -1,5 +1,7 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  output        = "../src/generated/user-client"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -16,65 +18,51 @@ model User {
   phone_number           String?                 @db.VarChar(20)
   role                   Role                    @default(DONOR)
   is_active              Boolean                 @default(true)
+  address                String?                 @db.Text()
   user_name              String                  @unique @db.VarChar(20)
   bio                    String?                 @db.Text()
   created_at             DateTime                @default(now())
   updated_at             DateTime                @updatedAt
-  Donor_Profile          Donor_Profile?
-  Kitchen_Staff_Profile  Kitchen_Staff_Profile?
-  Fundraiser_Profile     Fundraiser_Profile?
-  Delivery_Staff_Profile Delivery_Staff_Profile?
   User_Badge             User_Badge?
+  Organizations          Organization[]
+  Organization_Member    Organization_Member[]
 
   @@map("users")
 }
 
-model Donor_Profile {
-  id             String   @id @default(uuid())
-  user_id        String   @unique
-  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  donation_count Int      @default(0)
-  total_donated  BigInt   @default(0)
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+model Organization {
+  id                             String                   @id @default(uuid())
+  name                           String                   @db.Text()
+  activity_field                 String                   @db.Text()
+  address                        String                   @db.Text()
+  website                        String                   @db.Text()
+  description                    String                   @db.Text()
+  representative_id              String
+  user                           User                     @relation(fields: [representative_id], references: [id], onDelete: Cascade)
+  representative_name            String                   @db.Text()
+  representative_identity_number String                   @db.Text()
+  email                          String                   @db.VarChar(100)
+  phone_number                   String                   @db.VarChar(20)
+  status                         Verification_Status      @default(PENDING)
+  created_at                     DateTime                 @default(now())
+  updated_at                     DateTime                 @updatedAt
+  Organization_Member            Organization_Member[]
 
-  @@map("donor_profiles")
+  @@map("organizations")
 }
 
-model Kitchen_Staff_Profile {
-  id                   String   @id @default(uuid())
-  user_id              String   @unique
-  user                 User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  total_batch_prepared Int      @default(0)
-  created_at           DateTime @default(now())
-  updated_at           DateTime @updatedAt
+model Organization_Member {
+  id              String              @id @default(uuid())
+  organization_id String
+  organization    Organization        @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  member_id       String
+  member          User                @relation(fields: [member_id], references: [id], onDelete: Cascade)
+  status          Verification_Status @default(PENDING)
+  member_role     Role
+  joined_at       DateTime            @default(now())
+  left_at         DateTime?
 
-  @@map("kitchen_staff_profiles")
-}
-
-model Delivery_Staff_Profile {
-  id                  String              @id @default(uuid())
-  user_id             String              @unique
-  user                User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  availability_status Availability_Status @default(AVAILABLE)
-  total_deliveries    Int                 @default(0)
-  created_at          DateTime            @default(now())
-  updated_at          DateTime            @updatedAt
-
-  @@map("delivery_staff_profiles")
-}
-
-model Fundraiser_Profile {
-  id                     String              @id @default(uuid())
-  user_id                String              @unique
-  user                   User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  organization_address   String?             @db.Text()
-  verification_status    Verification_Status @default(PENDING)
-  total_campaign_created Int                 @default(0)
-  created_at             DateTime            @default(now())
-  updated_at             DateTime            @updatedAt
-
-  @@map("fundraiser_profiles")
+  @@map("organization_members")
 }
 
 model Badge {
@@ -114,6 +102,7 @@ enum Verification_Status {
   PENDING
   VERIFIED
   REJECTED
+  INACTIVE
 }
 
 enum Availability_Status {
