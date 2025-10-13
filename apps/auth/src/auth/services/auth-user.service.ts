@@ -206,7 +206,7 @@ export class AuthUserService {
         await this.awsCognitoService.adminConfirmSignUp(googleUserInfo.email)
 
         const createdUserOutput = await this.awsCognitoService.getUserByUsername(googleUserInfo.email)
-        const cognitoUser = this.convertAdminGetUserOutputToCognitoUser(createdUserOutput!)
+        const cognitoUser = this.convertAdminGetUserOutputToCognitoUser(createdUserOutput)
         
         this.logger.log(`New Google user created in Cognito: ${cognitoUser.email}`)
 
