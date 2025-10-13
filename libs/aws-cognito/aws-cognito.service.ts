@@ -23,7 +23,7 @@ import {
     AdminUpdateUserAttributesCommand,
 } from "@aws-sdk/client-cognito-identity-provider"
 import { CognitoJwtVerifier } from "aws-jwt-verify"
-import { createHmac } from "crypto"
+import { createHmac, randomBytes } from "node:crypto"
 import { envConfig } from "../env"
 import { MODULE_OPTIONS_TOKEN } from "./aws-cognito.module-definition"
 import {
@@ -718,7 +718,8 @@ export class AwsCognitoService {
         }
 
         // Immediately change password to a new secure one to invalidate the temporary password
-        const newSecurePassword = `GoogleOAuth!${Date.now()}.${Math.random().toString(36)}`
+        const secureRandomSuffix = randomBytes(16).toString("hex")
+        const newSecurePassword = `GoogleOAuth!${Date.now()}.${secureRandomSuffix}`
         await this.changePassword(username, newSecurePassword)
 
         this.logger.log(`Tokens generated successfully using fallback method for user: ${username}`)
