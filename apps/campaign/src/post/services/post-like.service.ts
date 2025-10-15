@@ -54,7 +54,9 @@ export class PostLikeService {
             userId,
         )
         if (!hasLiked) {
-            throw new BadRequestException("You have not already liked this post.")
+            throw new BadRequestException(
+                "You have not already liked this post.",
+            )
         }
 
         const result = await this.postLikeRepository.unlikePost(postId, userId)
@@ -77,9 +79,7 @@ export class PostLikeService {
     async getPostLikes(postId: string, limit: number = 20, offset: number = 0) {
         const post = await this.postRepository.findPostById(postId)
         if (!post) {
-            throw new NotFoundException(
-                `Post with ${postId} does not exists`,
-            )
+            throw new NotFoundException(`Post with ${postId} does not exists`)
         }
 
         return await this.postLikeRepository.getPostLikes(postId, limit, offset)

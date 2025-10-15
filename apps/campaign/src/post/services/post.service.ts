@@ -4,10 +4,7 @@ import {
     Logger,
     NotFoundException,
 } from "@nestjs/common"
-import {
-    CreatePostInput,
-    UpdatePostInput,
-} from "../dtos/request"
+import { CreatePostInput, UpdatePostInput } from "../dtos/request"
 import { PostRepository } from "../repositories/post.repository"
 import { SpacesUploadService } from "@libs/s3-storage/spaces-upload.service"
 import { PostLikeDataLoader } from "../dataloaders/post-like.dataloader"

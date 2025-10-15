@@ -1,9 +1,4 @@
-import {
-    Args,
-    Int,
-    Query,
-    Resolver,
-} from "@nestjs/graphql"
+import { Args, Int, Query, Resolver } from "@nestjs/graphql"
 import { PostComment } from "../../models"
 import { PostCommentService } from "../../services"
 

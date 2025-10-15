@@ -37,15 +37,11 @@ export class PostCommentService {
             }
 
             if (parentComment.depth >= this.MAX_COMMENT_DEPTH) {
-                throw new BadRequestException(
-                    `Cannot reply this comment.`,
-                )
+                throw new BadRequestException("Cannot reply this comment.")
             }
 
             if (parentComment.postId !== data.postId) {
-                throw new BadRequestException(
-                    "Parent comment not of this post",
-                )
+                throw new BadRequestException("Parent comment not of this post")
             }
         }
 
@@ -71,9 +67,7 @@ export class PostCommentService {
         }
 
         if (comment.userId !== userId) {
-            throw new ForbiddenException(
-                "You can only edit your own comment.",
-            )
+            throw new ForbiddenException("You can only edit your own comment.")
         }
 
         return await this.postCommentRepository.updateComment(commentId, data)
@@ -90,9 +84,7 @@ export class PostCommentService {
         }
 
         if (comment.userId !== userId) {
-            throw new ForbiddenException(
-                "You can only delete your own comment",
-            )
+            throw new ForbiddenException("You can only delete your own comment")
         }
 
         await this.postCommentRepository.deleteComment(
@@ -114,9 +106,7 @@ export class PostCommentService {
     ) {
         const post = await this.postRepository.findPostById(postId)
         if (!post) {
-            throw new NotFoundException(
-                `Post with ${postId} not found`,
-            )
+            throw new NotFoundException(`Post with ${postId} not found`)
         }
 
         return await this.postCommentRepository.findCommentsByPostId(
