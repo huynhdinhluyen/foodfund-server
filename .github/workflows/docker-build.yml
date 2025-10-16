@@ -245,8 +245,7 @@ jobs:
               --namespace foodfund-k8s \
               --set image.tag=$UNIQUE_TAG \
               --set image.repository=${DOCKERHUB_USERNAME}/foodfund-auth \
-              --timeout 5m \
-              --wait
+              --timeout 3m
           fi
           
           if [ "${{ needs.detect-changes.outputs.user }}" = "true" ]; then
@@ -255,8 +254,7 @@ jobs:
               --namespace foodfund-k8s \
               --set image.tag=$UNIQUE_TAG \
               --set image.repository=${DOCKERHUB_USERNAME}/foodfund-user \
-              --timeout 5m \
-              --wait
+              --timeout 3m
           fi
           
           if [ "${{ needs.detect-changes.outputs.campaign }}" = "true" ]; then
@@ -265,8 +263,7 @@ jobs:
               --namespace foodfund-k8s \
               --set image.tag=$UNIQUE_TAG \
               --set image.repository=${DOCKERHUB_USERNAME}/foodfund-campaign \
-              --timeout 5m \
-              --wait
+              --timeout 3m
           fi
           
           if [ "${{ needs.detect-changes.outputs.gateway }}" = "true" ]; then
@@ -275,8 +272,7 @@ jobs:
               --namespace foodfund-k8s \
               --set image.tag=$UNIQUE_TAG \
               --set image.repository=${DOCKERHUB_USERNAME}/foodfund-graphql-gateway \
-              --timeout 5m \
-              --wait
+              --timeout 3m
           fi
 
       - name: Final status
