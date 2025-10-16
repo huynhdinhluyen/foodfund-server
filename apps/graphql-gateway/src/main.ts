@@ -38,6 +38,9 @@ async function bootstrap() {
     const nodeEnv = process.env.NODE_ENV || "development"
     const apiDomain = process.env.API_DOMAIN || ""
 
+    // Debug logging
+    console.log(`Environment: NODE_ENV=${nodeEnv}, API_DOMAIN=${apiDomain}`)
+
     // Prefer API_DOMAIN in production, otherwise show local address
     const serverUrl = nodeEnv === "production" && apiDomain ? `${apiDomain}/graphql` : `http://localhost:${port}/graphql`
 
