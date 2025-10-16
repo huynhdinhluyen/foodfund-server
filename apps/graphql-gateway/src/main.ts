@@ -35,8 +35,16 @@ async function bootstrap() {
     const port = process.env.PORT ?? 8000
     await app.listen(port)
 
+    // Determine the correct URL based on environment
+    const nodeEnv = process.env.NODE_ENV || "development"
+    const apiDomain = process.env.API_DOMAIN || `http://localhost:${port}`
+    
+    const serverUrl = nodeEnv === "production" && apiDomain 
+        ? `${apiDomain}/graphql`
+        : `http://localhost:${port}/graphql`
+
     console.log(
-        `🚀 GraphQL Gateway is running on: http://localhost:${port}/graphql`,
+        `🚀 GraphQL Gateway is running on: ${serverUrl}`,
     )
 }
 bootstrap()
