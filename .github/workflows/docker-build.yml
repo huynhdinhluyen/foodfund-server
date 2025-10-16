@@ -216,9 +216,9 @@ jobs:
 
       - name: Ensure namespace exists
         run: |
-          kubectl create namespace foodfund --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create namespace foodfund-k8s --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Update changed deployments to pull new images
+      - name: Deploy or update services with Helm
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
@@ -231,34 +231,51 @@ jobs:
             TAG="develop"
           fi
           
-          echo "Updating changed deployments with tag: $TAG"
+          echo "Deploying/updating services with tag: $TAG"
           
-          # Update only changed services
+          # Deploy or update only changed services using Helm
           if [ "${{ needs.detect-changes.outputs.auth }}" = "true" ]; then
-            echo "Updating auth-service..."
-            kubectl set image deployment/auth-service auth-service=${DOCKERHUB_USERNAME}/foodfund-auth:${TAG} -n foodfund || true
-            kubectl rollout status deployment/auth-service -n foodfund --timeout=120s || kubectl rollout restart deployment/auth-service -n foodfund
+            echo "Deploying/updating auth-service..."
+            helm upgrade --install auth-service k8s/charts/auth-service \
+              --namespace foodfund-k8s \
+              --set image.tag=$TAG \
+              --set image.repository=${DOCKERHUB_USERNAME}/foodfund-auth \
+              --timeout 5m \
+              --wait
           fi
           
           if [ "${{ needs.detect-changes.outputs.user }}" = "true" ]; then
-            echo "Updating user-service..."
-            kubectl set image deployment/user-service user-service=${DOCKERHUB_USERNAME}/foodfund-user:${TAG} -n foodfund || true
-            kubectl rollout status deployment/user-service -n foodfund --timeout=120s || kubectl rollout restart deployment/user-service -n foodfund
+            echo "Deploying/updating user-service..."
+            helm upgrade --install user-service k8s/charts/user-service \
+              --namespace foodfund-k8s \
+              --set image.tag=$TAG \
+              --set image.repository=${DOCKERHUB_USERNAME}/foodfund-user \
+              --timeout 5m \
+              --wait
           fi
           
           if [ "${{ needs.detect-changes.outputs.campaign }}" = "true" ]; then
-            echo "Updating campaign-service..."
-            kubectl set image deployment/campaign-service campaign-service=${DOCKERHUB_USERNAME}/foodfund-campaign:${TAG} -n foodfund || true
-            kubectl rollout status deployment/campaign-service -n foodfund --timeout=120s || kubectl rollout restart deployment/campaign-service -n foodfund
+            echo "Deploying/updating campaign-service..."
+            helm upgrade --install campaign-service k8s/charts/campaign-service \
+              --namespace foodfund-k8s \
+              --set image.tag=$TAG \
+              --set image.repository=${DOCKERHUB_USERNAME}/foodfund-campaign \
+              --timeout 5m \
+              --wait
           fi
           
           if [ "${{ needs.detect-changes.outputs.gateway }}" = "true" ]; then
-            echo "Updating graphql-gateway..."
-            kubectl set image deployment/graphql-gateway graphql-gateway=${DOCKERHUB_USERNAME}/foodfund-graphql-gateway:${TAG} -n foodfund || true
-            kubectl rollout status deployment/graphql-gateway -n foodfund --timeout=120s || kubectl rollout restart deployment/graphql-gateway -n foodfund
+            echo "Deploying/updating graphql-gateway..."
+            helm upgrade --install graphql-gateway k8s/charts/graphql-gateway \
+              --namespace foodfund-k8s \
+              --set image.tag=$TAG \
+              --set image.repository=${DOCKERHUB_USERNAME}/foodfund-graphql-gateway \
+              --timeout 5m \
+              --wait
           fi
 
       - name: Final status
         run: |
-          kubectl get pods -n foodfund
-          kubectl get deployments -n foodfund
+          kubectl get pods -n foodfund-k8s
+          kubectl get deployments -n foodfund-k8s
+          kubectl get services -n foodfund-k8s
