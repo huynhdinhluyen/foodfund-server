@@ -84,6 +84,10 @@ export class UserRepository {
     }
 
     async findUserByCognitoId(cognito_id: string) {
+        if (!cognito_id) {
+            throw new Error("cognito_id is required")
+        }
+        
         return this.prisma.user.findUnique({
             where: { cognito_id },
             include: {
@@ -120,7 +124,17 @@ export class UserRepository {
         return this.prisma.organization.findFirst({
             where: {
                 representative_id: userId,
-                status: VerificationStatus.VERIFIED,
+            },
+            include: {
+                Organization_Member: true,
+            },
+        })
+    }
+
+    async findUserOrganizations(userId: string) {
+        return this.prisma.organization.findMany({
+            where: {
+                representative_id: userId,
             },
             include: {
                 Organization_Member: true,

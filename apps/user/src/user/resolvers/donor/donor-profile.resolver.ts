@@ -50,11 +50,18 @@ export class DonorProfileResolver {
     @Query(() => [OrganizationSchema], { nullable: true })
     @RequireRole(Role.DONOR, Role.FUNDRAISER)
     async myOrganizationRequest(@CurrentUser() user: CurrentUserType) {
-        const result = await this.organizationService.getUserOrganization(
-            user.cognito_id,
+        // Try multiple sources for cognito_id
+        const cognito_id = user.cognito_id || user.sub || user.id
+
+        if (!cognito_id) {
+            throw new Error("User cognito_id not found")
+        }
+
+        const result = await this.organizationService.getUserOrganizations(
+            cognito_id,
         )
 
-        return result || null
+        return result || []
     }
 
     @Mutation(() => JoinRequestResponse)
