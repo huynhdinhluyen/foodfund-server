@@ -238,6 +238,27 @@ jobs:
           
           echo "Deploying/updating services with tag: $TAG (unique: $UNIQUE_TAG)"
           
+          # Force delete old pods to free up resources for new deployment
+          echo "🔄 Cleaning up old pods to free resources..."
+          if [ "${{ needs.detect-changes.outputs.auth }}" = "true" ]; then
+            kubectl delete pods -l app.kubernetes.io/name=auth-service -n foodfund-k8s --ignore-not-found=true || true
+          fi
+          
+          if [ "${{ needs.detect-changes.outputs.user }}" = "true" ]; then
+            kubectl delete pods -l app.kubernetes.io/name=user-service -n foodfund-k8s --ignore-not-found=true || true
+          fi
+          
+          if [ "${{ needs.detect-changes.outputs.campaign }}" = "true" ]; then
+            kubectl delete pods -l app.kubernetes.io/name=campaign-service -n foodfund-k8s --ignore-not-found=true || true
+          fi
+          
+          if [ "${{ needs.detect-changes.outputs.gateway }}" = "true" ]; then
+            kubectl delete pods -l app.kubernetes.io/name=graphql-gateway -n foodfund-k8s --ignore-not-found=true || true
+          fi
+          
+          # Wait a moment for pods to terminate
+          sleep 15
+          
           # Deploy or update only changed services using Helm
           if [ "${{ needs.detect-changes.outputs.auth }}" = "true" ]; then
             echo "Deploying/updating auth-service..."
