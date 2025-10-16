@@ -74,14 +74,13 @@ ingress:
   #      - chart-example.local
 
 resources: 
-  # Optimized for small cluster (1-2 nodes, 1vCPU/2GB each)
-  # Gateway handles all external traffic, needs balanced allocation
+  # Ultra-optimized for small cluster - minimal resources
   limits:
-    cpu: 250m      # Max 25% of 1 vCPU (highest allocation)
-    memory: 350Mi  # Max 350MB for gateway operations
+    cpu: 100m      # Max 10% of 1 vCPU (reduced from 250m)
+    memory: 200Mi  # Max 200MB (reduced from 350Mi)
   requests:
-    cpu: 100m      # Min 10% of 1 vCPU  
-    memory: 175Mi  # Min 175MB for gateway operations
+    cpu: 25m       # Min 2.5% of 1 vCPU (reduced from 100m)
+    memory: 100Mi  # Min 100MB (reduced from 175Mi)
 
 # This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 startupProbe:
