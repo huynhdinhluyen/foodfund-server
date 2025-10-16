@@ -17,7 +17,6 @@ spec:
   ingressClassName: nginx
   tls:
   - hosts:
-    - minhphuoc.io.vn
     - api.minhphuoc.io.vn
     secretName: foodfund-tls-secret
   rules:
@@ -32,37 +31,3 @@ spec:
             name: graphql-gateway
             port:
               number: 8000
-  # Main domain with path-based routing (alternative access)
-  - host: minhphuoc.io.vn
-    http:
-      paths:
-      # GraphQL API
-      - path: /api
-        pathType: Prefix
-        backend:
-          service:
-            name: graphql-gateway
-            port:
-              number: 8000
-      # Individual services for debugging/health checks
-      - path: /auth
-        pathType: Prefix
-        backend:
-          service:
-            name: auth-service
-            port:
-              number: 8002
-      - path: /users
-        pathType: Prefix
-        backend:
-          service:
-            name: user-service
-            port:
-              number: 8003
-      - path: /campaigns
-        pathType: Prefix
-        backend:
-          service:
-            name: campaign-service
-            port:
-              number: 8004
