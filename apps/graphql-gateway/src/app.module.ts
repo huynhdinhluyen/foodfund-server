@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common"
 import { getHttpUrl } from "libs/common"
 import { Container, envConfig } from "libs/env"
 import { GraphQLGatewayModule } from "libs/graphql/gateway"
+import { HealthController } from "./health.controller"
 
 @Module({
     imports: [
@@ -105,7 +106,7 @@ import { GraphQLGatewayModule } from "libs/graphql/gateway"
             },
         }),
     ],
-    controllers: [],
+    controllers: [HealthController],
     providers: [],
 })
 export class ApiGatewayModule {}
