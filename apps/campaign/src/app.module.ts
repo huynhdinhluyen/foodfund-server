@@ -8,6 +8,9 @@ import { ScheduleModule } from "@nestjs/schedule"
 import { User } from "./shared/model/user.model"
 import { EnvModule } from "@libs/env/env.module"
 import { PostModule } from "./post/post.module"
+import { OpenSearchModule } from "@libs/aws-opensearch"
+import { SqsModule } from "@libs/aws-sqs"
+import { RedisModule } from "@libs/redis"
 
 @Module({
     imports: [
@@ -32,6 +35,9 @@ import { PostModule } from "./post/post.module"
         CampaignModule,
         CampaignCategoryModule,
         PostModule,
+        // SqsModule,
+        // OpenSearchModule,
+        // RedisModule.registerAsync()
     ],
     controllers: [],
     providers: [],
