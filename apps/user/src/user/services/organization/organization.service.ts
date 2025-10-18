@@ -87,8 +87,6 @@ export class OrganizationService {
             UserErrorHelper.throwPendingOrganizationRequest(cognitoId)
         }
 
-        console.log("Creating organization with representative_id:", user.id)
-
         try {
             return await this.organizationRepository.createOrganization(
                 user.id,
@@ -225,11 +223,19 @@ export class OrganizationService {
     }
 
     async getUserOrganization(cognitoId: string) {
-        const user = await this.userRepository.findUserById(cognitoId)
+        const user = await this.userRepository.findUserByCognitoId(cognitoId)
         if (!user) {
             return null
         }
         return this.userRepository.findUserOrganization(user.id)
+    }
+
+    async getUserOrganizations(cognitoId: string) {
+        const user = await this.userRepository.findUserByCognitoId(cognitoId)
+        if (!user) {
+            return []
+        }
+        return this.userRepository.findUserOrganizations(user.id)
     }
 
     async requestJoinOrganization(
@@ -310,7 +316,7 @@ export class OrganizationService {
         // Get join requests for this organization with pagination
         const result =
             await this.organizationRepository.findJoinRequestsByOrganizationWithPagination(
-                organization.id,
+                organization!.id, // Use non-null assertion since we checked above
                 {
                     offset: options?.offset || 0,
                     limit: options?.limit || 10,

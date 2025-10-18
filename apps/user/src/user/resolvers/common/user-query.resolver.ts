@@ -47,13 +47,18 @@ export class UserQueryResolver {
             throw new Error("User not authenticated")
         }
 
-        const cognito_id = user.cognito_id as string
+        // Try multiple sources for cognito_id
+        const cognito_id = user.cognito_id || user.sub || user.id
+
+        if (!cognito_id) {
+            throw new Error("User cognito_id not found")
+        }
 
         // Get user info to determine role
         const userInfo =
             await this.userQueryService.findUserByCognitoId(cognito_id)
         if (!userInfo) {
-            throw new Error("User not found")
+            throw new Error("User not found in database")
         }
 
         const role = userInfo.role
