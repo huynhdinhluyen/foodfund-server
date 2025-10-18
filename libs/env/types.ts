@@ -53,6 +53,17 @@ export interface AwsConfig {
     cognito: AwsCognitoConfig
     accessKeyId: string
     secretAccessKey: string
+    awsOpenSearchEndpoint: string
+    awsOpenSearchRegion: string
+    awsSqsQueueUrl: string
+    awsSqsRegion: string
+}
+
+export interface RedisConfig {
+    host: string
+    port: number
+    password: string
+    username: string
 }
 
 // Main environment configuration interface
@@ -89,6 +100,10 @@ export interface EnvironmentConfig {
         release: string
     }
 
+    // Redis Configuration
+    redis: RedisConfig
+
+    // Google Configuration
     google: GoogleConfig
 }
 
