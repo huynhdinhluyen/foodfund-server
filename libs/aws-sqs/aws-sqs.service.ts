@@ -39,7 +39,7 @@ export class SqsService implements OnModuleInit {
 
     async onModuleInit() {
         const env = envConfig()
-        const region = env.aws.awsSqsRegion
+        const region = env.aws.region
         const queueUrl = env.aws.awsSqsQueueUrl
 
         if (!queueUrl) {

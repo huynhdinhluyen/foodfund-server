@@ -115,9 +115,7 @@ export const envConfig = (): EnvironmentConfig => ({
         accessKeyId: process.env.AWS_ACCESS_KEY_ID as string,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY as string,
         awsOpenSearchEndpoint: process.env.AWS_OPENSEARCH_ENDPOINT as string,
-        awsOpenSearchRegion: process.env.AWS_OPENSEARCH_REGION as string,
         awsSqsQueueUrl: process.env.AWS_SQS_QUEUE_URL as string,
-        awsSqsRegion: process.env.AWS_SQS_REGION as string,
     },
 
     // Sentry Configuration

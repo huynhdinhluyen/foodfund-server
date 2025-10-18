@@ -39,7 +39,7 @@ export class OpenSearchService implements OnModuleInit {
     async onModuleInit() {
         const env = envConfig()
         const endpoint = env.aws.awsOpenSearchEndpoint
-        const region = env.aws.awsOpenSearchRegion
+        const region = env.aws.region
 
         if (!endpoint) {
             this.logger.warn(

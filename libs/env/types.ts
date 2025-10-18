@@ -54,9 +54,7 @@ export interface AwsConfig {
     accessKeyId: string
     secretAccessKey: string
     awsOpenSearchEndpoint: string
-    awsOpenSearchRegion: string
     awsSqsQueueUrl: string
-    awsSqsRegion: string
 }
 
 export interface RedisConfig {
