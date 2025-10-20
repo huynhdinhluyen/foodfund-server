@@ -87,7 +87,7 @@ model Donation {
 model Payment_Transaction {
   id              String         @id @default(uuid())
   donation_id     String
-  order_code      BigInt 
+  order_code      BigInt
   bin             String?        @db.VarChar(20)
   account_number  String?        @db.VarChar(50)
   account_name    String?        @db.VarChar(255)
@@ -163,7 +163,7 @@ model Post_Comment {
   parent_comment_id String?
   comment_path      String?  @db.Text()
   depth             Int      @default(0)
-  is_active Boolean @default(true)
+  is_active         Boolean  @default(true)
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
 
@@ -198,6 +198,7 @@ enum Campaign_Status {
 }
 
 enum Payment_Status {
+  PENDING
   SUCCESS
   FAILED
   REFUNDED

@@ -74,6 +74,7 @@
     "@sentry/node": "^10.15.0",
     "@types/ioredis": "^4.28.10",
     "aws-jwt-verify": "^4.0.1",
+    "axios": "^1.12.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "compression": "^1.8.1",

@@ -8,9 +8,9 @@ import { CampaignModule } from "../campaign/campaign.module"
 import { PrismaClient } from "../generated/campaign-client"
 import { AuthLibModule } from "@libs/auth"
 import { SqsModule } from "@libs/aws-sqs"
-
+import { PayOSModule } from "@libs/payos"
 @Module({
-    imports: [CampaignModule, AuthLibModule, SqsModule],
+    imports: [CampaignModule, AuthLibModule, SqsModule, PayOSModule],
     controllers: [],
     providers: [
         DonationService,

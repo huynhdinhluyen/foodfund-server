@@ -64,6 +64,12 @@ export interface RedisConfig {
     username: string
 }
 
+export interface PayOSConfig {
+    payosClienId: string
+    payosApiKey: string
+    payosCheckSumKey: string
+}
+
 // Main environment configuration interface
 export interface EnvironmentConfig {
     nodeEnv: NodeEnv
@@ -105,6 +111,9 @@ export interface EnvironmentConfig {
 
     // Google Configuration
     google: GoogleConfig
+
+    //Payos Configuration
+    payos: PayOSConfig
 }
 
 export interface EnvModuleOptions {

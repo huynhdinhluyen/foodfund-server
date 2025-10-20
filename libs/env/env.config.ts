@@ -136,6 +136,12 @@ export const envConfig = (): EnvironmentConfig => ({
         port: Number.parseInt(process.env.REDIS_PORT as string),
         password: process.env.REDIS_PASSWORD as string,
         username: process.env.REDIS_USERNAME as string,
+    },
+
+    payos: {
+        payosApiKey: process.env.PAYOS_API_KEY as string,
+        payosCheckSumKey: process.env.PAYOS_CHECKSUM_KEY as string,
+        payosClienId: process.env.PAYOS_CLIENT_ID as string
     }
 })
 

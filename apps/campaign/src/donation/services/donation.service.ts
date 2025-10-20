@@ -1,11 +1,14 @@
 import { Injectable, BadRequestException, NotFoundException } from "@nestjs/common"
 import { DonationRepository } from "../repositories/donation.repository"
 import { CreateDonationInput } from "../dtos/create-donation.input"
+import { DonationResponse } from "../dtos/donation-response.dto"
 import { CreateDonationRepositoryInput } from "../dtos/create-donation-repository.input"
 import { CampaignRepository } from "../../campaign/campaign.repository"
 import { CampaignStatus } from "../../campaign/enum/campaign.enum"
 import { Donation } from "../models/donation.model"
 import { SqsService } from "@libs/aws-sqs"
+import { PayOSService } from "@libs/payos"
+import { CurrentUserType } from "@libs/auth"
 import { v7 as uuidv7 } from "uuid"
 
 @Injectable()
@@ -14,12 +17,13 @@ export class DonationService {
         private readonly donationRepository: DonationRepository,
         private readonly campaignRepository: CampaignRepository,
         private readonly sqsService: SqsService,
+    private readonly payosService: PayOSService,
     ) {}
 
     async createDonation(
         input: CreateDonationInput,
-        cognitoId: string,
-    ): Promise<Donation> {
+        user: CurrentUserType | null,
+    ): Promise<DonationResponse> {
         // Basic validation first
         const campaign = await this.campaignRepository.findById(input.campaignId)
         
@@ -56,19 +60,53 @@ export class DonationService {
 
         // Generate UUIDv7 for the donation
         const donationId = uuidv7()
+        
+        // Determine user info - either authenticated user or anonymous
+        const donorId = user?.username || "anonymous"
+        const isAnonymous = !user || input.isAnonymous
 
-        // Send donation request to SQS queue for background processing
+        // Generate unique order code for tracking
+        const orderCode = Date.now()
+        
+        // Generate transfer content for bank transfer tracking
+        const transferContent = `DONATE ${donationId.slice(0, 8)} ${campaign.title.slice(0, 15)}`
+
+        // Tạo payment link qua PayOS
+        let payosResult
         try {
+            payosResult = await this.payosService.createPaymentLink({
+                amount: Number(donationAmount),
+                description: transferContent.slice(0, 25),
+                orderCode: orderCode,
+                returnUrl: "",
+                cancelUrl: "", 
+            })
+        } catch (err) {
+            console.error("PayOS createPaymentLink failed", err)
+            throw new BadRequestException("Không tạo được mã QR thanh toán. Vui lòng thử lại sau.")
+        }
+
+        const qrCode = payosResult?.qrCode || null
+        const checkoutUrl = payosResult?.checkoutUrl || null
+        const paymentLinkId = payosResult?.paymentLinkId || null
+        
+        try {
+            // Send donation request to SQS queue for background processing
             await this.sqsService.sendMessage({
                 messageBody: {
                     eventType: "DONATION_REQUEST",
                     donationId,
-                    donorId: cognitoId,
+                    donorId,
                     campaignId: input.campaignId,
                     amount: donationAmount.toString(),
                     message: input.message,
-                    isAnonymous: input.isAnonymous ?? false,
+                    isAnonymous,
+                    orderCode,
+                    transferContent,
+                    status: "PENDING", // Initial status - will be updated when payment received
                     requestedAt: new Date().toISOString(),
+                    paymentLinkId,
+                    checkoutUrl,
                 },
                 messageAttributes: {
                     eventType: {
@@ -78,24 +116,28 @@ export class DonationService {
                     campaignId: {
                         DataType: "String",
                         StringValue: input.campaignId
+                    },
+                    orderCode: {
+                        DataType: "Number",
+                        StringValue: orderCode.toString()
                     }
                 }
             })
-        } catch (error) {
-            throw new BadRequestException("Failed to queue donation request. Please try again.")
-        }
 
-        // Return a temporary donation object for immediate response
-        return {
-            id: donationId,
-            donorId: cognitoId,
-            campaignId: input.campaignId,
-            amount: donationAmount.toString(),
-            message: input.message,
-            paymentReference: undefined,
-            isAnonymous: input.isAnonymous ?? false,
-            created_at: now,
-            updated_at: now,
+            return {
+                message: user 
+                    ? `Thank you ${user.name}! Your donation request has been created. Please complete payment by scanning the QR code below.`
+                    : "Thank you for your anonymous donation! Please complete payment by scanning the QR code below.",
+                donationId,
+                checkoutUrl,
+                qrCode,
+                orderCode,
+                paymentLinkId
+            }
+
+        } catch (error) {
+            console.error("Failed to create donation request:", error)
+            throw new BadRequestException("Failed to create donation request. Please try again.")
         }
     }
 
