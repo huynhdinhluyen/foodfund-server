@@ -3,6 +3,8 @@ import { getHttpUrl } from "libs/common"
 import { Container, envConfig } from "libs/env"
 import { GraphQLGatewayModule } from "libs/graphql/gateway"
 import { HealthController } from "./health.controller"
+import { WebhookProxyController } from "./webhook-proxy.controller"
+import { EnvModule } from "@libs/env/env.module"
 
 @Module({
     imports: [
@@ -105,8 +107,9 @@ import { HealthController } from "./health.controller"
                 },
             },
         }),
+        EnvModule.forRoot()
     ],
-    controllers: [HealthController],
+    controllers: [HealthController, WebhookProxyController],
     providers: [],
 })
 export class ApiGatewayModule {}
