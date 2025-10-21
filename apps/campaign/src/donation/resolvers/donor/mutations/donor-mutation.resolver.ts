@@ -17,10 +17,8 @@ export class DonorMutationResolver {
     })
     async createDonation(
         @Args("input") input: CreateDonationInput,
-        @CurrentUser() user?: CurrentUserType,
+        @CurrentUser() user: CurrentUserType | null = null,
     ): Promise<DonationResponse> {
-        const userInfo = user || null
-        const donation = await this.donorService.createDonation(input, userInfo)
-        return donation
+        return this.donorService.createDonation(input, user)
     }
 }

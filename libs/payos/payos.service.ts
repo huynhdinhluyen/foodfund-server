@@ -197,7 +197,9 @@ export class PayOSService {
             const dataParams: string[] = []
 
             // Sort webhook data keys alphabetically and build string
-            const sortedKeys = Object.keys(webhookData).sort()
+            const sortedKeys = Object.keys(webhookData).sort((a, b) =>
+                a.localeCompare(b),
+            )
 
             for (const key of sortedKeys) {
                 if (
