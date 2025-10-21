@@ -15,6 +15,8 @@ async function bootstrap() {
         // Use CloudWatch logger in production
         if (isProduction()) {
             app.useLogger(app.get(CloudWatchLoggerService))
+        } else {
+            app.flushLogs()
         }
         const sentryService = app.get(SentryService)
 

@@ -16,6 +16,8 @@ async function bootstrap() {
     // Use CloudWatch logger in production
     if (isProduction()) {
         app.useLogger(app.get(CloudWatchLoggerService))
+    } else {
+        app.flushLogs()
     }
 
     // Get services for setup
