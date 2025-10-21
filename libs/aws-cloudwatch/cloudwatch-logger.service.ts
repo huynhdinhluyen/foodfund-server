@@ -2,6 +2,7 @@ import { Injectable, LoggerService } from "@nestjs/common"
 import * as winston from "winston"
 import WinstonCloudWatch from "winston-cloudwatch"
 import { envConfig, isProduction } from "@libs/env"
+import { randomUUID } from "node:crypto"
 
 @Injectable()
 export class CloudWatchLoggerService implements LoggerService {
@@ -21,8 +22,10 @@ export class CloudWatchLoggerService implements LoggerService {
         // Only add CloudWatch in production
         if (isProduction() && config.aws.region) {
             const logGroup = config.aws.cloudwatch.logGroup
-            const logStream = `app-${new Date().toISOString().split("T")[0]}`
-            
+            const uniqueId = process.env.HOSTNAME || randomUUID()
+            const date = new Date().toISOString().split("T")[0]
+            const logStream = `app-${date}-${uniqueId}`
+
             transports.push(
                 new WinstonCloudWatch({
                     logGroupName: logGroup,
