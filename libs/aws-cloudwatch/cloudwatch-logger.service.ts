@@ -20,11 +20,11 @@ export class CloudWatchLoggerService implements LoggerService {
         ]
 
         // Only add CloudWatch in production
-        if (isProduction() && config.aws.region) {
+        if (isProduction() && config.aws.region && config.aws.cloudwatch.logGroup) {
             const logGroup = config.aws.cloudwatch.logGroup
             const uniqueId = process.env.HOSTNAME || randomUUID()
             const date = new Date().toISOString().split("T")[0]
-            const logStream = `app-${date}-${uniqueId}`
+            const logStream = `app-${date}-${uniqueId}-${process.pid}`
 
             transports.push(
                 new WinstonCloudWatch({

@@ -60,6 +60,7 @@ export class CloudWatchMetricsService {
             this.logger.error(
                 `Failed to put CloudWatch metric: ${error.message}`,
             )
+            throw error
         }
     }
 
