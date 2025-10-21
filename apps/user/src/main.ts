@@ -6,6 +6,7 @@ import { SentryService } from "libs/observability/sentry.service"
 import { GrpcServerService } from "libs/grpc"
 import { UserGrpcService } from "./user/grpc/user-grpc.service"
 import { CloudWatchLoggerService } from "@libs/aws-cloudwatch"
+import { isProduction } from "@libs/env"
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule, {
@@ -13,7 +14,7 @@ async function bootstrap() {
     })
 
     // Use CloudWatch logger in production
-    if (process.env.NODE_ENV === "production") {
+    if (isProduction()) {
         app.useLogger(app.get(CloudWatchLoggerService))
     }
 

@@ -1,7 +1,7 @@
 import { NestFactory } from "@nestjs/core"
 import { ApiGatewayModule } from "./app.module"
 import * as compression from "compression"
-import { envConfig } from "@libs/env"
+import { envConfig, isProduction } from "@libs/env"
 import { CloudWatchLoggerService } from "@libs/aws-cloudwatch"
 
 async function bootstrap() {
@@ -10,7 +10,7 @@ async function bootstrap() {
     })
 
     // Use CloudWatch logger in production
-    if (process.env.NODE_ENV === "production") {
+    if (isProduction()) {
         app.useLogger(app.get(CloudWatchLoggerService))
     }
 

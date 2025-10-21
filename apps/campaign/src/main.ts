@@ -4,6 +4,7 @@ import { ValidationPipe } from "@nestjs/common"
 import { SentryService } from "@libs/observability/sentry.service"
 import { GraphQLExceptionFilter } from "@libs/exceptions"
 import { CloudWatchLoggerService } from "@libs/aws-cloudwatch"
+import { isProduction } from "@libs/env"
 
 async function bootstrap() {
     try {
@@ -12,7 +13,7 @@ async function bootstrap() {
         })
 
         // Use CloudWatch logger in production
-        if (process.env.NODE_ENV === "production") {
+        if (isProduction()) {
             app.useLogger(app.get(CloudWatchLoggerService))
         }
         const sentryService = app.get(SentryService)
