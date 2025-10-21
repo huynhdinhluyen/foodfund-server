@@ -22,12 +22,6 @@ export class Donation extends BaseSchema {
     })
         message?: string
 
-    @Field(() => String, {
-        nullable: true,
-        description: "Payment reference/transaction ID",
-    })
-        paymentReference?: string
-
     @Field(() => Boolean, { description: "Whether donation is anonymous" })
         isAnonymous: boolean
 

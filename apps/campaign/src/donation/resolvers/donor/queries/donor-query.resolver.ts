@@ -1,13 +1,13 @@
 import { Args, Query, Resolver } from "@nestjs/graphql"
 import { UseGuards } from "@nestjs/common"
 import { CurrentUser } from "@app/campaign/src/shared"
-import { DonationService } from "../../services/donation.service"
-import { Donation } from "../../models/donation.model"
+import { DonorService } from "../../../services/donor.service"
+import { Donation } from "../../../models/donation.model"
 import { CognitoGraphQLGuard } from "@libs/aws-cognito"
 
 @Resolver(() => Donation)
-export class DonationQueryResolver {
-    constructor(private readonly donationService: DonationService) {}
+export class DonorQueryResolver {
+    constructor(private readonly donorService: DonorService) {}
 
     @Query(() => Donation, {
         nullable: true,
@@ -16,7 +16,7 @@ export class DonationQueryResolver {
     async getDonation(
         @Args("id", { type: () => String }) id: string,
     ): Promise<Donation | null> {
-        return this.donationService.getDonationById(id)
+        return this.donorService.getDonationById(id)
     }
 
     @Query(() => [Donation], {
@@ -28,7 +28,7 @@ export class DonationQueryResolver {
         @Args("skip", { type: () => Number, nullable: true }) skip?: number,
         @Args("take", { type: () => Number, nullable: true }) take?: number,
     ): Promise<Donation[]> {
-        return this.donationService.getDonationsByDonor(userId, { skip, take })
+        return this.donorService.getDonationsByDonor(userId, { skip, take })
     }
 
     @Query(() => [Donation], {
@@ -39,6 +39,6 @@ export class DonationQueryResolver {
         @Args("skip", { type: () => Number, nullable: true }) skip?: number,
         @Args("take", { type: () => Number, nullable: true }) take?: number,
     ): Promise<Donation[]> {
-        return this.donationService.getDonationsByCampaign(campaignId, { skip, take })
+        return this.donorService.getDonationsByCampaign(campaignId, { skip, take })
     }
 }
