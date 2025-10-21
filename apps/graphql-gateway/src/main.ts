@@ -7,10 +7,10 @@ async function bootstrap() {
     const app = await NestFactory.create(ApiGatewayModule)
 
     const envOrigins = envConfig().cors_origin
-    
+
     // Convert comma-separated string to array and trim whitespace
-    const allowedOrigins = envOrigins 
-        ? envOrigins.split(",").map(origin => origin.trim())
+    const allowedOrigins = envOrigins
+        ? envOrigins.split(",").map((origin) => origin.trim())
         : ["http://localhost:3000"]
 
     app.use(compression())
@@ -56,5 +56,6 @@ async function bootstrap() {
             : `http://localhost:${port}/graphql`
 
     console.log(`🚀 GraphQL Gateway is running on: ${serverUrl}`)
+    console.log("📡 Webhook proxy available at: /webhooks/*")
 }
 bootstrap()

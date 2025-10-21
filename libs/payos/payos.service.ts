@@ -35,9 +35,9 @@ export class PayOSService {
 
     constructor() {
         const config = envConfig()
-        
+
         this.apiKey = config.payos.payosApiKey
-        this.clientId = config.payos.payosClienId 
+        this.clientId = config.payos.payosClienId
         this.checksumKey = config.payos.payosCheckSumKey
 
         this.client = axios.create({
@@ -49,27 +49,32 @@ export class PayOSService {
         })
     }
 
-    async createPaymentLink(input: CreatePaymentLinkInput): Promise<PaymentLinkResponse> {
+    async createPaymentLink(
+        input: CreatePaymentLinkInput,
+    ): Promise<PaymentLinkResponse> {
         try {
             console.debug("Creating payment link with input:", input)
-            
+
             // Validate and sanitize input according to PayOS requirements
             const sanitizedInput = this.validateAndSanitizeInput(input)
-            
+
             const signature = this.generateSignature(sanitizedInput)
-            
+
             const requestBody = {
                 orderCode: sanitizedInput.orderCode,
                 amount: sanitizedInput.amount,
                 description: sanitizedInput.description,
                 returnUrl: sanitizedInput.returnUrl,
                 cancelUrl: sanitizedInput.cancelUrl,
-                signature: signature
+                signature: signature,
             }
-            
+
             console.log("Request body:", JSON.stringify(requestBody, null, 2))
-            
-            const response = await this.client.post("/v2/payment-requests", requestBody)
+
+            const response = await this.client.post(
+                "/v2/payment-requests",
+                requestBody,
+            )
 
             this.logger.log(`Payment link created for order ${input.orderCode}`)
             console.debug("Payment link details:", response.data)
@@ -82,10 +87,14 @@ export class PayOSService {
 
     async getPaymentLinkInfo(orderCode: number): Promise<PaymentLinkResponse> {
         try {
-            const response = await this.client.get(`/v2/payment-requests/${orderCode}`)
+            const response = await this.client.get(
+                `/v2/payment-requests/${orderCode}`,
+            )
             return response.data.data
         } catch (error) {
-            this.logger.error(`Failed to get payment link info: ${error.message}`)
+            this.logger.error(
+                `Failed to get payment link info: ${error.message}`,
+            )
             throw error
         }
     }
@@ -103,41 +112,46 @@ export class PayOSService {
     /**
      * Validate and sanitize input according to PayOS requirements
      */
-    private validateAndSanitizeInput(input: CreatePaymentLinkInput): CreatePaymentLinkInput {
+    private validateAndSanitizeInput(
+        input: CreatePaymentLinkInput,
+    ): CreatePaymentLinkInput {
         // PayOS requirements:
         // - description: Maximum 25 characters
         // - amount: Must be positive integer
         // - orderCode: Must be unique integer
-        
+
         let sanitizedDescription = input.description
-        
+
         // Truncate description to 25 characters max
         if (sanitizedDescription && sanitizedDescription.length > 25) {
             sanitizedDescription = sanitizedDescription.substring(0, 25)
-            this.logger.warn(`Description truncated from ${input.description.length} to 25 characters`, {
-                original: input.description,
-                truncated: sanitizedDescription
-            })
+            this.logger.warn(
+                `Description truncated from ${input.description.length} to 25 characters`,
+                {
+                    original: input.description,
+                    truncated: sanitizedDescription,
+                },
+            )
         }
-        
+
         // Validate amount
         if (!input.amount || input.amount <= 0) {
             throw new Error("Amount must be a positive number")
         }
-        
+
         // Validate orderCode
         if (!input.orderCode) {
             throw new Error("OrderCode is required")
         }
-        
+
         const sanitizedInput: CreatePaymentLinkInput = {
             orderCode: input.orderCode,
             amount: Math.floor(input.amount), // Ensure integer
             description: sanitizedDescription,
             returnUrl: input.returnUrl,
-            cancelUrl: input.cancelUrl
+            cancelUrl: input.cancelUrl,
         }
-        
+
         console.log("Sanitized input:", sanitizedInput)
         return sanitizedInput
     }
@@ -161,9 +175,11 @@ export class PayOSService {
                 .digest("hex")
 
             return signature
-            
         } catch (error) {
-            this.logger.error("Failed to generate PayOS signature:", error.message)
+            this.logger.error(
+                "Failed to generate PayOS signature:",
+                error.message,
+            )
             throw new Error(`Signature generation failed: ${error.message}`)
         }
     }
@@ -172,41 +188,52 @@ export class PayOSService {
      * Verify webhook signature from PayOS
      * Used to validate incoming webhook requests
      */
-    verifyWebhookSignature(webhookData: any, receivedSignature: string): boolean {
+    verifyWebhookSignature(
+        webhookData: any,
+        receivedSignature: string,
+    ): boolean {
         try {
             // Generate signature for webhook data
             const dataParams: string[] = []
-            
+
             // Sort webhook data keys alphabetically and build string
             const sortedKeys = Object.keys(webhookData).sort()
-            
+
             for (const key of sortedKeys) {
-                if (webhookData[key] !== undefined && webhookData[key] !== null) {
+                if (
+                    webhookData[key] !== undefined &&
+                    webhookData[key] !== null
+                ) {
                     dataParams.push(`${key}=${webhookData[key]}`)
                 }
             }
 
             const dataString = dataParams.join("&")
-            
+
             const expectedSignature = crypto
                 .createHmac("sha256", this.checksumKey)
                 .update(dataString)
                 .digest("hex")
 
             const isValid = expectedSignature === receivedSignature
-            
+
             if (!isValid) {
-                this.logger.warn("PayOS webhook signature verification failed", {
-                    expected: expectedSignature,
-                    received: receivedSignature,
-                    dataString
-                })
+                this.logger.warn(
+                    "PayOS webhook signature verification failed",
+                    {
+                        expected: expectedSignature,
+                        received: receivedSignature,
+                        dataString,
+                    },
+                )
             }
 
             return isValid
-            
         } catch (error) {
-            this.logger.error("Failed to verify PayOS webhook signature:", error.message)
+            this.logger.error(
+                "Failed to verify PayOS webhook signature:",
+                error.message,
+            )
             return false
         }
     }

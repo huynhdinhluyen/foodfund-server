@@ -1,15 +1,15 @@
 import { Args, Mutation, Resolver } from "@nestjs/graphql"
 import { UseGuards } from "@nestjs/common"
 import { CurrentUser } from "@app/campaign/src/shared"
-import { DonationService } from "../../services/donation.service"
-import { CreateDonationInput } from "../../dtos/create-donation.input"
-import { DonationResponse } from "../../dtos/donation-response.dto"
+import { DonorService } from "../../../services/donor.service"
+import { CreateDonationInput } from "../../../dtos/create-donation.input"
+import { DonationResponse } from "../../../dtos/donation-response.dto"
 import { CurrentUserType } from "@libs/auth"
 import { OptionalJwtAuthGuard } from "@libs/auth/guards/optional-jwt-auth.guard"
 
 @Resolver(() => DonationResponse)
-export class DonationMutationResolver {
-    constructor(private readonly donationService: DonationService) {}
+export class DonorMutationResolver {
+    constructor(private readonly donorService: DonorService) {}
 
     @UseGuards(OptionalJwtAuthGuard)
     @Mutation(() => DonationResponse, {
@@ -20,7 +20,7 @@ export class DonationMutationResolver {
         @CurrentUser() user?: CurrentUserType,
     ): Promise<DonationResponse> {
         const userInfo = user || null
-        const donation = await this.donationService.createDonation(input, userInfo)
+        const donation = await this.donorService.createDonation(input, userInfo)
         return donation
     }
 }

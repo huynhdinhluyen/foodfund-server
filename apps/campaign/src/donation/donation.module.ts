@@ -1,25 +1,29 @@
 import { Module } from "@nestjs/common"
-import { DonationService } from "./services/donation.service"
+import { DonorService } from "./services/donor.service"
 import { DonationProcessorService } from "./services/donation-processor.service"
-import { DonationRepository } from "./repositories/donation.repository"
-import { DonationMutationResolver } from "./resolvers/mutations/donation-mutation.resolver"
-import { DonationQueryResolver } from "./resolvers/queries/donation-query.resolver"
+import { DonationWebhookService } from "./services/donation-webhook.service"
+import { DonorRepository } from "./repositories/donor.repository"
+import { DonorMutationResolver } from "./resolvers/donor/mutations/donor-mutation.resolver"
+import { DonorQueryResolver } from "./resolvers/donor/queries/donor-query.resolver"
+import { DonationWebhookController } from "./controllers/donation-webhook.controller"
 import { CampaignModule } from "../campaign/campaign.module"
 import { PrismaClient } from "../generated/campaign-client"
 import { AuthLibModule } from "@libs/auth"
 import { SqsModule } from "@libs/aws-sqs"
 import { PayOSModule } from "@libs/payos"
+
 @Module({
     imports: [CampaignModule, AuthLibModule, SqsModule, PayOSModule],
-    controllers: [],
+    controllers: [DonationWebhookController],
     providers: [
-        DonationService,
+        DonorService,
         DonationProcessorService,
-        DonationRepository,
-        DonationMutationResolver,
-        DonationQueryResolver,
+        DonationWebhookService,
+        DonorRepository,
+        DonorMutationResolver,
+        DonorQueryResolver,
         PrismaClient,
     ],
-    exports: [DonationService, DonationProcessorService, DonationRepository],
+    exports: [DonorService, DonationProcessorService, DonorRepository],
 })
 export class DonationModule {}

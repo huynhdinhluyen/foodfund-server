@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common"
-import { DonationRepository } from "../repositories/donation.repository"
-import { CreateDonationRepositoryInput } from "../dtos/create-donation-repository.input"
+import { DonorRepository } from "../repositories/donor.repository"
 import { SqsService } from "@libs/aws-sqs"
+import { CreateDonationRepositoryInput } from "../dtos/create-donation-repository.input"
 
 export interface DonationRequestMessage {
     eventType: "DONATION_REQUEST"
@@ -29,20 +29,25 @@ export class DonationProcessorService {
     private readonly logger = new Logger(DonationProcessorService.name)
 
     constructor(
-        private readonly donationRepository: DonationRepository,
+        private readonly DonorRepository: DonorRepository,
         private readonly sqsService: SqsService,
     ) {}
 
-    async processDonationRequest(message: DonationRequestMessage): Promise<void> {
+    async processDonationRequest(
+        message: DonationRequestMessage,
+    ): Promise<void> {
         try {
-            this.logger.log(`Processing donation request: ${message.donationId}`, {
-                donorId: message.donorId,
-                campaignId: message.campaignId,
-                amount: message.amount,
-                isAnonymous: message.isAnonymous,
-                orderCode: message.orderCode,
-                paymentLinkId: message.paymentLinkId
-            })
+            this.logger.log(
+                `Processing donation request: ${message.donationId}`,
+                {
+                    donorId: message.donorId,
+                    campaignId: message.campaignId,
+                    amount: message.amount,
+                    isAnonymous: message.isAnonymous,
+                    orderCode: message.orderCode,
+                    paymentLinkId: message.paymentLinkId,
+                },
+            )
 
             // Create donation in database with predefined ID
             const donationData: CreateDonationRepositoryInput = {
@@ -53,7 +58,10 @@ export class DonationProcessorService {
                 is_anonymous: message.isAnonymous,
             }
 
-            const createdDonation = await this.donationRepository.createWithId(message.donationId, donationData)
+            const createdDonation = await this.DonorRepository.createWithId(
+                message.donationId,
+                donationData,
+            )
 
             // Send success notification to SQS
             await this.sqsService.sendMessage({
@@ -71,32 +79,38 @@ export class DonationProcessorService {
                 messageAttributes: {
                     eventType: {
                         DataType: "String",
-                        StringValue: "DONATION_COMPLETED"
+                        StringValue: "DONATION_COMPLETED",
                     },
                     campaignId: {
                         DataType: "String",
-                        StringValue: message.campaignId
+                        StringValue: message.campaignId,
                     },
                     status: {
                         DataType: "String",
-                        StringValue: "SUCCESS"
-                    }
-                }
+                        StringValue: "SUCCESS",
+                    },
+                },
             })
 
-            this.logger.log(`Successfully processed donation: ${message.donationId}`, {
-                orderCode: message.orderCode,
-                paymentLinkId: message.paymentLinkId
-            })
+            this.logger.log(
+                `Successfully processed donation: ${message.donationId}`,
+                {
+                    orderCode: message.orderCode,
+                    paymentLinkId: message.paymentLinkId,
+                },
+            )
         } catch (error) {
-            this.logger.error(`Failed to process donation request: ${message.donationId}`, {
-                donorId: message.donorId,
-                campaignId: message.campaignId,
-                orderCode: message.orderCode,
-                paymentLinkId: message.paymentLinkId,
-                error: error.message,
-                stack: error.stack
-            })
+            this.logger.error(
+                `Failed to process donation request: ${message.donationId}`,
+                {
+                    donorId: message.donorId,
+                    campaignId: message.campaignId,
+                    orderCode: message.orderCode,
+                    paymentLinkId: message.paymentLinkId,
+                    error: error.message,
+                    stack: error.stack,
+                },
+            )
 
             // Send failure notification to SQS
             try {
@@ -116,20 +130,23 @@ export class DonationProcessorService {
                     messageAttributes: {
                         eventType: {
                             DataType: "String",
-                            StringValue: "DONATION_FAILED"
+                            StringValue: "DONATION_FAILED",
                         },
                         campaignId: {
                             DataType: "String",
-                            StringValue: message.campaignId
+                            StringValue: message.campaignId,
                         },
                         status: {
                             DataType: "String",
-                            StringValue: "FAILED"
-                        }
-                    }
+                            StringValue: "FAILED",
+                        },
+                    },
                 })
             } catch (notificationError) {
-                this.logger.error("Failed to send failure notification", notificationError)
+                this.logger.error(
+                    "Failed to send failure notification",
+                    notificationError,
+                )
             }
 
             // Re-throw error for queue retry mechanism
@@ -139,7 +156,7 @@ export class DonationProcessorService {
 
     async startQueueConsumer(): Promise<void> {
         this.logger.log("Starting donation queue consumer...")
-        
+
         while (true) {
             try {
                 const messages = await this.sqsService.receiveMessages({
@@ -151,14 +168,19 @@ export class DonationProcessorService {
                 for (const message of messages) {
                     let messageBody: any = null
                     let shouldDeleteMessage = false
-                    
+
                     try {
                         // Validate message body exists
                         if (!message.Body) {
-                            this.logger.warn("Received message with empty body", {
-                                messageId: message.MessageId,
-                                receiptHandle: message.ReceiptHandle?.slice(0, 20) + "..."
-                            })
+                            this.logger.warn(
+                                "Received message with empty body",
+                                {
+                                    messageId: message.MessageId,
+                                    receiptHandle:
+                                        message.ReceiptHandle?.slice(0, 20) +
+                                        "...",
+                                },
+                            )
                             shouldDeleteMessage = true
                             continue
                         }
@@ -167,21 +189,35 @@ export class DonationProcessorService {
                         try {
                             messageBody = JSON.parse(message.Body)
                         } catch (jsonError) {
-                            this.logger.error("Invalid JSON in SQS message - deleting from queue", {
-                                messageId: message.MessageId,
-                                body: message.Body.slice(0, 100) + (message.Body.length > 100 ? "..." : ""),
-                                error: jsonError.message
-                            })
+                            this.logger.error(
+                                "Invalid JSON in SQS message - deleting from queue",
+                                {
+                                    messageId: message.MessageId,
+                                    body:
+                                        message.Body.slice(0, 100) +
+                                        (message.Body.length > 100
+                                            ? "..."
+                                            : ""),
+                                    error: jsonError.message,
+                                },
+                            )
                             shouldDeleteMessage = true
                             continue
                         }
 
                         // Validate message structure
                         if (!messageBody.eventType) {
-                            this.logger.warn("Message missing eventType - deleting from queue", {
-                                messageId: message.MessageId,
-                                body: JSON.stringify(messageBody).slice(0, 100) + "..."
-                            })
+                            this.logger.warn(
+                                "Message missing eventType - deleting from queue",
+                                {
+                                    messageId: message.MessageId,
+                                    body:
+                                        JSON.stringify(messageBody).slice(
+                                            0,
+                                            100,
+                                        ) + "...",
+                                },
+                            )
                             shouldDeleteMessage = true
                             continue
                         }
@@ -189,52 +225,92 @@ export class DonationProcessorService {
                         // Process donation request messages
                         if (messageBody.eventType === "DONATION_REQUEST") {
                             // Validate required fields for donation request
-                            const requiredFields = ["donationId", "donorId", "campaignId", "amount"]
-                            const missingFields = requiredFields.filter(field => !messageBody[field])
-                            
+                            const requiredFields = [
+                                "donationId",
+                                "donorId",
+                                "campaignId",
+                                "amount",
+                            ]
+                            const missingFields = requiredFields.filter(
+                                (field) => !messageBody[field],
+                            )
+
                             if (missingFields.length > 0) {
-                                this.logger.error("DONATION_REQUEST missing required fields - deleting from queue", {
-                                    messageId: message.MessageId,
-                                    missingFields,
-                                    body: JSON.stringify(messageBody).slice(0, 200) + "..."
-                                })
+                                this.logger.error(
+                                    "DONATION_REQUEST missing required fields - deleting from queue",
+                                    {
+                                        messageId: message.MessageId,
+                                        missingFields,
+                                        body:
+                                            JSON.stringify(messageBody).slice(
+                                                0,
+                                                200,
+                                            ) + "...",
+                                    },
+                                )
                                 shouldDeleteMessage = true
                                 continue
                             }
 
-                            await this.processDonationRequest(messageBody as DonationRequestMessage)
+                            await this.processDonationRequest(
+                                messageBody as DonationRequestMessage,
+                            )
+                            shouldDeleteMessage = true
+                        } else if (
+                            messageBody.eventType === "DONATION_COMPLETED" ||
+                            messageBody.eventType === "DONATION_FAILED"
+                        ) {
+                            // These are notification messages we sent - delete them
+                            this.logger.debug("Deleting notification message", {
+                                eventType: messageBody.eventType,
+                                messageId: message.MessageId,
+                            })
                             shouldDeleteMessage = true
                         } else {
-                            // Log unknown event types but don't process them
-                            this.logger.debug("Ignoring message with unknown eventType", {
-                                eventType: messageBody.eventType,
-                                messageId: message.MessageId
-                            })
-                            // Don't delete unknown event types - might be for other processors
+                            // Log unknown event types but don't delete - might be for other processors
+                            this.logger.debug(
+                                "Ignoring message with unknown eventType",
+                                {
+                                    eventType: messageBody.eventType,
+                                    messageId: message.MessageId,
+                                },
+                            )
+                            // Don't delete - might be for other services
                         }
                     } catch (processingError) {
-                        this.logger.error("Error processing individual message", {
-                            messageId: message.MessageId,
-                            eventType: messageBody?.eventType,
-                            error: processingError.message,
-                            stack: processingError.stack
-                        })
-                        
+                        this.logger.error(
+                            "Error processing individual message",
+                            {
+                                messageId: message.MessageId,
+                                eventType: messageBody?.eventType,
+                                error: processingError.message,
+                                stack: processingError.stack,
+                            },
+                        )
+
                         // For processing errors (not validation errors), let SQS retry
                         // Don't set shouldDeleteMessage = true here
                     } finally {
                         // Delete message if it was processed successfully or is invalid
                         if (shouldDeleteMessage && message.ReceiptHandle) {
                             try {
-                                await this.sqsService.deleteMessage(message.ReceiptHandle)
-                                this.logger.debug("Deleted message from queue", {
-                                    messageId: message.MessageId
-                                })
+                                await this.sqsService.deleteMessage(
+                                    message.ReceiptHandle,
+                                )
+                                this.logger.debug(
+                                    "Deleted message from queue",
+                                    {
+                                        messageId: message.MessageId,
+                                    },
+                                )
                             } catch (deleteError) {
-                                this.logger.error("Failed to delete message from queue", {
-                                    messageId: message.MessageId,
-                                    error: deleteError.message
-                                })
+                                this.logger.error(
+                                    "Failed to delete message from queue",
+                                    {
+                                        messageId: message.MessageId,
+                                        error: deleteError.message,
+                                    },
+                                )
                             }
                         }
                     }
@@ -242,8 +318,9 @@ export class DonationProcessorService {
             } catch (error) {
                 this.logger.error("Error in queue consumer loop", error)
                 // Wait before retrying
-                await new Promise(resolve => setTimeout(resolve, 5000))
+                await new Promise((resolve) => setTimeout(resolve, 5000))
             }
         }
     }
 }
+

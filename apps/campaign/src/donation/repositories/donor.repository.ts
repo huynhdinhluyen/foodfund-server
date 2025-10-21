@@ -1,9 +1,10 @@
 import { Injectable } from "@nestjs/common"
 import { Donation, Prisma, PrismaClient } from "../../generated/campaign-client"
 import { CreateDonationRepositoryInput } from "../dtos/create-donation-repository.input"
+import { PaymentStatus } from "../../shared/enum/campaign.enum"
 
 @Injectable()
-export class DonationRepository {
+export class DonorRepository {
     constructor(private readonly prisma: PrismaClient) {}
 
     async create(data: CreateDonationRepositoryInput): Promise<Donation> {
@@ -11,7 +12,7 @@ export class DonationRepository {
             data: {
                 donor_id: data.donor_id,
                 campaign: {
-                    connect: { id: data.campaign_id }
+                    connect: { id: data.campaign_id },
                 },
                 amount: data.amount,
                 message: data.message,
@@ -24,13 +25,16 @@ export class DonationRepository {
         })
     }
 
-    async createWithId(id: string, data: CreateDonationRepositoryInput): Promise<Donation> {
+    async createWithId(
+        id: string,
+        data: CreateDonationRepositoryInput,
+    ): Promise<Donation> {
         return this.prisma.donation.create({
             data: {
                 id,
                 donor_id: data.donor_id,
                 campaign: {
-                    connect: { id: data.campaign_id }
+                    connect: { id: data.campaign_id },
                 },
                 amount: data.amount,
                 message: data.message,
@@ -59,7 +63,7 @@ export class DonationRepository {
             skip?: number
             take?: number
             orderBy?: Prisma.DonationOrderByWithRelationInput
-        }
+        },
     ): Promise<Donation[]> {
         return this.prisma.donation.findMany({
             where: { donor_id: donorId },
@@ -79,7 +83,7 @@ export class DonationRepository {
             skip?: number
             take?: number
             orderBy?: Prisma.DonationOrderByWithRelationInput
-        }
+        },
     ): Promise<Donation[]> {
         return this.prisma.donation.findMany({
             where: { campaign_id: campaignId },
@@ -134,16 +138,78 @@ export class DonationRepository {
         }
     }
 
-    async updatePaymentReference(
-        id: string,
-        paymentReference: string
-    ): Promise<Donation> {
-        return this.prisma.donation.update({
-            where: { id },
-            data: { payment_reference: paymentReference },
+    // Payment Transaction methods
+    async createPaymentTransaction(data: {
+        donationId: string
+        orderCode: bigint
+        amount: bigint
+        paymentLinkId: string
+        checkoutUrl: string
+        qrCode: string
+    }) {
+        return this.prisma.payment_Transaction.create({
+            data: {
+                donation_id: data.donationId,
+                order_code: data.orderCode,
+                amount: data.amount,
+                payment_link_id: data.paymentLinkId,
+                checkout_url: data.checkoutUrl,
+                qr_code: data.qrCode,
+                status: PaymentStatus.PENDING,
+            },
+        })
+    }
+
+    async findPaymentTransactionByOrderCode(orderCode: bigint) {
+        return this.prisma.payment_Transaction.findUnique({
+            where: { order_code: orderCode },
             include: {
-                campaign: true,
-                payment_transactions: true,
+                donation: {
+                    include: {
+                        campaign: true,
+                    },
+                },
+            },
+        })
+    }
+
+    async updatePaymentTransactionStatus(
+        id: string,
+        status: PaymentStatus,
+        additionalData?: {
+            accountName?: string
+            accountNumber?: string
+            description?: string
+            accountBankName?: string
+            transactionDateTime?: string
+        },
+    ) {
+        return this.prisma.payment_Transaction.update({
+            where: { id },
+            data: {
+                status,
+                account_name: additionalData?.accountName,
+                account_number: additionalData?.accountNumber,
+                account_bank_name: additionalData?.accountBankName,
+                description: additionalData?.description,
+                transaction_datetime: additionalData?.transactionDateTime
+                    ? new Date(additionalData.transactionDateTime)
+                    : undefined,
+                updated_at: new Date(),
+            },
+        })
+    }
+
+    async updateCampaignStats(campaignId: string, amount: bigint) {
+        return this.prisma.campaign.update({
+            where: { id: campaignId },
+            data: {
+                received_amount: {
+                    increment: amount,
+                },
+                donation_count: {
+                    increment: 1,
+                },
             },
         })
     }
