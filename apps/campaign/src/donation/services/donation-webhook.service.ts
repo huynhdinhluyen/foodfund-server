@@ -45,27 +45,28 @@ export class DonationWebhookService {
             throw new BadRequestException("Payment transaction not found")
         }
 
-        // Check if already processed
-        if (paymentTransaction.status === PaymentStatus.SUCCESS) {
-            this.logger.log(`Payment already processed for order ${orderCode}`)
+        const newStatus =
+            code === "00" ? PaymentStatus.SUCCESS : PaymentStatus.FAILED
+
+        // Idempotency guard: skip if already in terminal state
+        const currentStatus = paymentTransaction.status as string
+
+        if (currentStatus === PaymentStatus.SUCCESS) {
+            this.logger.log(
+                `Payment already processed successfully for order ${orderCode}`,
+            )
             return
         }
 
-        // Update payment transaction status based on webhook code
-        let newStatus: PaymentStatus
-
-        if (code === "00") {
-            // Payment successful
-            newStatus = PaymentStatus.SUCCESS
-            this.logger.log(`Payment successful for order ${orderCode}`)
-        } else {
-            // Payment failed
-            newStatus = PaymentStatus.FAILED
-            this.logger.warn(`Payment failed for order ${orderCode}: ${desc}`)
+        if ( currentStatus === PaymentStatus.FAILED &&
+            newStatus === PaymentStatus.FAILED ) {
+            this.logger.log(
+                `Ignoring duplicate FAILED webhook for ${orderCode}`,
+            )
+            return
         }
 
-        // Update payment transaction with additional data from webhook
-        await this.DonorRepository.updatePaymentTransactionStatus(
+        await this.DonorRepository.updatePaymentWithTransaction(
             paymentTransaction.id,
             newStatus,
             {
@@ -75,35 +76,12 @@ export class DonationWebhookService {
                 description: payload.data.description,
                 transactionDateTime: payload.data.transactionDateTime,
             },
+            newStatus === PaymentStatus.SUCCESS
+                ? {
+                    campaignId: paymentTransaction.donation.campaign_id,
+                    amount: paymentTransaction.amount,
+                }
+                : undefined,
         )
-
-        // If payment successful, update campaign statistics
-        if (newStatus === PaymentStatus.SUCCESS) {
-            await this.updateCampaignStats(
-                paymentTransaction.donation.campaign_id,
-                paymentTransaction.amount,
-            )
-        }
-
-        this.logger.log(`Webhook processed successfully for order ${orderCode}`)
-    }
-
-    private async updateCampaignStats(
-        campaignId: string,
-        amount: bigint,
-    ): Promise<void> {
-        try {
-            // Increment campaign received_amount and donation_count
-            await this.DonorRepository.updateCampaignStats(campaignId, amount)
-            this.logger.log(
-                `Campaign stats updated for ${campaignId}: +${amount}`,
-            )
-        } catch (error) {
-            this.logger.error(
-                `Failed to update campaign stats: ${error.message}`,
-                error.stack,
-            )
-            // Don't throw - payment is already successful
-        }
     }
 }

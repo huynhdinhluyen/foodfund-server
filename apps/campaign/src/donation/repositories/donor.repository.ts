@@ -213,4 +213,63 @@ export class DonorRepository {
             },
         })
     }
+
+    async updatePaymentWithTransaction(
+        paymentId: string,
+        status: PaymentStatus,
+        additionalData?: {
+            accountName?: string
+            accountNumber?: string
+            description?: string
+            accountBankName?: string
+            transactionDateTime?: string
+        },
+        campaignUpdate?: {
+            campaignId: string
+            amount: bigint
+        },
+    ) {
+        return this.prisma.$transaction(async (tx) => {
+            // Step 1: Update payment transaction status
+            // Only update if current status is PENDING to avoid downgrades or double-processing
+            const updatedPayment = await tx.payment_Transaction.updateMany({
+                where: { id: paymentId, status: PaymentStatus.PENDING },
+                data: {
+                    status,
+                    account_name: additionalData?.accountName,
+                    account_number: additionalData?.accountNumber,
+                    account_bank_name: additionalData?.accountBankName,
+                    description: additionalData?.description,
+                    transaction_datetime: additionalData?.transactionDateTime
+                        ? new Date(additionalData.transactionDateTime)
+                        : undefined,
+                    updated_at: new Date(),
+                },
+            })
+
+            // If no rows updated, status was not PENDING; return current record without side effects
+            if (updatedPayment.count === 0) {
+                return tx.payment_Transaction.findUnique({
+                    where: { id: paymentId },
+                })
+            }
+
+            // Only increment stats when we just transitioned to SUCCESS
+            if (campaignUpdate && status === PaymentStatus.SUCCESS) {
+                await tx.campaign.update({
+                    where: { id: campaignUpdate.campaignId },
+                    data: {
+                        received_amount: {
+                            increment: campaignUpdate.amount,
+                        },
+                        donation_count: {
+                            increment: 1,
+                        },
+                    },
+                })
+            }
+
+            return tx.payment_Transaction.findUnique({ where: { id: paymentId } })
+        })
+    }
 }
