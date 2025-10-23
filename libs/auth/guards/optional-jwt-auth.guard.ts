@@ -1,29 +1,84 @@
-import { Injectable, CanActivate, ExecutionContext, Logger } from "@nestjs/common"
+import { envConfig } from "@libs/env"
+import {
+    Injectable,
+    CanActivate,
+    ExecutionContext,
+    Logger,
+    OnModuleInit,
+} from "@nestjs/common"
+import { ConfigService } from "@nestjs/config"
 import { GqlExecutionContext } from "@nestjs/graphql"
-import { GrpcClientService } from "libs/grpc"
+import * as jwt from "jsonwebtoken"
+import { JwksClient } from "jwks-rsa"
+
+interface CognitoTokenPayload {
+    sub: string
+    email?: string
+    email_verified?: boolean
+    "cognito:username": string
+    "cognito:groups"?: string[]
+    "custom:role"?: string
+    iss: string
+    aud: string
+    token_use: "id" | "access"
+    auth_time: number
+    exp: number
+    iat: number
+}
 
 @Injectable()
-export class OptionalJwtAuthGuard implements CanActivate {
+export class OptionalJwtAuthGuard implements CanActivate, OnModuleInit {
     private readonly logger = new Logger(OptionalJwtAuthGuard.name)
+    private jwksClient: JwksClient
+    private issuer: string
 
-    constructor(private readonly grpcClient: GrpcClientService) {}
+    constructor() {}
+
+    onModuleInit() {
+        const env = envConfig()
+        const region = env.aws.region
+        const userPoolId = env.aws.cognito.userPoolId
+
+        if (!region || !userPoolId) {
+            throw new Error(
+                "AWS Cognito configuration missing. Set AWS_REGION and AWS_COGNITO_USER_POOL_ID",
+            )
+        }
+
+        // AWS Cognito JWKS endpoint
+        const jwksUri = `https://cognito-idp.${region}.amazonaws.com/${userPoolId}/.well-known/jwks.json`
+        this.issuer = `https://cognito-idp.${region}.amazonaws.com/${userPoolId}`
+
+        this.jwksClient = new JwksClient({
+            jwksUri,
+            cache: true, // Cache signing keys for 10 hours
+            cacheMaxAge: 36000000,
+            rateLimit: true,
+            jwksRequestsPerMinute: 10,
+        })
+
+        this.logger.log(`JWT verification initialized with JWKS: ${jwksUri}`)
+    }
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const gqlCtx = GqlExecutionContext.create(context)
         const req = gqlCtx.getContext().req
 
         await this.attachUserToRequest(req)
-        
+
         // Always allow request to proceed (never block)
         return true
     }
 
     private async attachUserToRequest(req: any): Promise<void> {
-        const authHeader = req.headers?.authorization || req.headers?.Authorization
-        
+        const authHeader =
+            req.headers?.authorization || req.headers?.Authorization
+
         if (!this.hasValidAuthHeader(authHeader)) {
             req.user = null
-            this.logger.debug("No authorization token - treating as anonymous user")
+            this.logger.debug(
+                "No authorization token - treating as anonymous user",
+            )
             return
         }
 
@@ -32,27 +87,90 @@ export class OptionalJwtAuthGuard implements CanActivate {
     }
 
     private hasValidAuthHeader(authHeader: any): boolean {
-        return authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+        return (
+            authHeader &&
+            typeof authHeader === "string" &&
+            authHeader.startsWith("Bearer ")
+        )
+    }
+
+    private getKey(
+        header: jwt.JwtHeader,
+        callback: jwt.SigningKeyCallback,
+    ): void {
+        if (!header.kid) {
+            return callback(new Error("Token is missing kid"), undefined)
+        }
+        this.jwksClient.getSigningKey(header.kid, (err, key) => {
+            if (err) {
+                return callback(err, undefined)
+            }
+            if (!key) {
+                return callback(new Error("Signing key not found"), undefined)
+            }
+            const signingKey = key.getPublicKey()
+            callback(null, signingKey)
+        })
     }
 
     private async validateAndGetUser(token: string): Promise<any> {
         try {
-            const authResponse = await this.grpcClient.callAuthService(
-                "ValidateToken",
-                { access_token: token },
+            // Verify JWT locally using JWKS (no network call to auth service)
+            const decoded = await new Promise<CognitoTokenPayload>(
+                (resolve, reject) => {
+                    jwt.verify(
+                        token,
+                        this.getKey.bind(this),
+                        {
+                            algorithms: ["RS256"],
+                            issuer: this.issuer,
+                        },
+                        (err, decoded) => {
+                            if (err) {
+                                return reject(err)
+                            }
+                            resolve(decoded as CognitoTokenPayload)
+                        },
+                    )
+                },
             )
 
-            if (authResponse.valid && authResponse.user) {
-                this.logger.debug(`Authenticated user: ${authResponse.user.attributes?.email || "unknown"}`)
-                return authResponse.user
+            // Validate token_use
+            if (decoded.token_use !== "id" && decoded.token_use !== "access") {
+                this.logger.warn(
+                    `Invalid token_use: ${decoded.token_use}. Expected 'id' or 'access'`,
+                )
+                return null
             }
 
-            this.logger.warn("Token validation failed - treating as anonymous user")
-            return null
-        } catch (error) {
-            this.logger.warn(
-                `Token validation error: ${error instanceof Error ? error.message : "Unknown error"} - treating as anonymous user`,
+            // Map Cognito token payload to user object
+            const user = {
+                sub: decoded.sub,
+                username: decoded["cognito:username"],
+                email: decoded.email,
+                email_verified: decoded.email_verified,
+                role: decoded["custom:role"],
+                groups: decoded["cognito:groups"] || [],
+                attributes: {
+                    email: decoded.email,
+                    role: decoded["custom:role"],
+                },
+            }
+
+            this.logger.debug(
+                `Authenticated user: ${user.email || user.username}`,
             )
+            return user
+        } catch (error) {
+            if (error instanceof jwt.TokenExpiredError) {
+                this.logger.debug("Token has expired")
+            } else if (error instanceof jwt.JsonWebTokenError) {
+                this.logger.warn(`JWT validation failed: ${error.message}`)
+            } else {
+                this.logger.warn(
+                    `Token validation error: ${error instanceof Error ? error.message : "Unknown error"}`,
+                )
+            }
             return null
         }
     }
