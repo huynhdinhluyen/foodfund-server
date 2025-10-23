@@ -12,43 +12,48 @@ export class OptionalJwtAuthGuard implements CanActivate {
         const gqlCtx = GqlExecutionContext.create(context)
         const req = gqlCtx.getContext().req
 
-        // Extract token from Authorization header
+        await this.attachUserToRequest(req)
+        
+        // Always allow request to proceed (never block)
+        return true
+    }
+
+    private async attachUserToRequest(req: any): Promise<void> {
         const authHeader = req.headers?.authorization || req.headers?.Authorization
         
-        if (!authHeader || typeof authHeader !== "string" || !authHeader.startsWith("Bearer ")) {
-            // No token provided - treat as anonymous
+        if (!this.hasValidAuthHeader(authHeader)) {
             req.user = null
             this.logger.debug("No authorization token - treating as anonymous user")
-            return true
+            return
         }
 
         const token = authHeader.substring(7)
+        req.user = await this.validateAndGetUser(token)
+    }
 
+    private hasValidAuthHeader(authHeader: any): boolean {
+        return authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+    }
+
+    private async validateAndGetUser(token: string): Promise<any> {
         try {
-            // Validate token with Auth Service via gRPC
             const authResponse = await this.grpcClient.callAuthService(
                 "ValidateToken",
                 { access_token: token },
             )
 
             if (authResponse.valid && authResponse.user) {
-                // Token is valid - attach user to context
-                req.user = authResponse.user
                 this.logger.debug(`Authenticated user: ${authResponse.user.attributes?.email || "unknown"}`)
-            } else {
-                // Token validation failed - treat as anonymous
-                req.user = null
-                this.logger.warn("Token validation failed - treating as anonymous user")
+                return authResponse.user
             }
+
+            this.logger.warn("Token validation failed - treating as anonymous user")
+            return null
         } catch (error) {
-            // Auth service call failed or token is invalid - treat as anonymous
-            req.user = null
             this.logger.warn(
                 `Token validation error: ${error instanceof Error ? error.message : "Unknown error"} - treating as anonymous user`,
             )
+            return null
         }
-
-        // Always allow request to proceed (never block)
-        return true
     }
 }

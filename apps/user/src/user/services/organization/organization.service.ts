@@ -178,8 +178,6 @@ export class OrganizationService {
             )
         }
 
-        let cognitoUpdated = false
-
         try {
             // ========================================
             // DATABASE TRANSACTION (Steps 1-3)
@@ -246,7 +244,6 @@ export class OrganizationService {
                     Role.FUNDRAISER,
                 )
 
-                cognitoUpdated = true
                 this.logger.log(
                     `[SAGA] Cognito role updated successfully for user: ${organization.user.cognito_id}`,
                 )
@@ -258,30 +255,9 @@ export class OrganizationService {
 
             return updatedOrganization
         } catch (error) {
-            // ========================================
-            // ERROR HANDLING
-            // ========================================
-            if (cognitoUpdated) {
-                // Database transaction succeeded but Cognito update failed
-                // This should not happen due to retry mechanism, but log for safety
-                this.logger.error(
-                    "[SAGA] Unexpected: Database committed but Cognito sync failed",
-                    {
-                        organizationId,
-                        cognitoId: organization.user.cognito_id,
-                        error: error instanceof Error ? error.message : error,
-                        timestamp: new Date().toISOString(),
-                        severity: "CRITICAL",
-                        action: "MANUAL_RECONCILIATION_REQUIRED",
-                    },
-                )
-            } else {
-                // Database transaction failed (will be rolled back automatically)
-                this.logger.error(
-                    `[TRANSACTION] Organization approval failed: ${error instanceof Error ? error.message : error}`,
-                )
-            }
-
+            this.logger.error(
+                `[TRANSACTION] Organization approval failed: ${error instanceof Error ? error.message : error}`,
+            )
             throw error
         }
     }
@@ -498,8 +474,6 @@ export class OrganizationService {
             )
         }
 
-        let cognitoUpdated = false
-
         try {
             // ========================================
             // DATABASE TRANSACTION (Steps 1-2)
@@ -551,7 +525,6 @@ export class OrganizationService {
                     joinRequest.member_role as Role,
                 )
 
-                cognitoUpdated = true
                 this.logger.log(
                     `[SAGA] Cognito role updated successfully for user: ${joinRequest.member.cognito_id}`,
                 )
@@ -563,30 +536,9 @@ export class OrganizationService {
 
             return updatedRequest
         } catch (error) {
-            // ========================================
-            // ERROR HANDLING
-            // ========================================
-            if (cognitoUpdated) {
-                // Database transaction succeeded but Cognito update failed
-                this.logger.error(
-                    "[SAGA] Unexpected: Database committed but Cognito sync failed",
-                    {
-                        requestId,
-                        memberId: joinRequest.member_id,
-                        cognitoId: joinRequest.member.cognito_id,
-                        error: error instanceof Error ? error.message : error,
-                        timestamp: new Date().toISOString(),
-                        severity: "CRITICAL",
-                        action: "MANUAL_RECONCILIATION_REQUIRED",
-                    },
-                )
-            } else {
-                // Database transaction failed (will be rolled back automatically)
-                this.logger.error(
-                    `[TRANSACTION] Join request approval failed: ${error instanceof Error ? error.message : error}`,
-                )
-            }
-
+            this.logger.error(
+                `[TRANSACTION] Join request approval failed: ${error instanceof Error ? error.message : error}`,
+            )
             throw error
         }
     }
@@ -824,8 +776,6 @@ export class OrganizationService {
         }
         const previousRole = user.role
 
-        let cognitoUpdated = false
-
         try {
             // ========================================
             // DATABASE TRANSACTION (Steps 1-2)
@@ -870,7 +820,6 @@ export class OrganizationService {
                     Role.DONOR,
                 )
 
-                cognitoUpdated = true
                 this.logger.log(
                     `[SAGA] Cognito role updated successfully for user: ${user.cognito_id}`,
                 )
@@ -887,29 +836,9 @@ export class OrganizationService {
                 previousRole,
             }
         } catch (error) {
-            // ========================================
-            // ERROR HANDLING
-            // ========================================
-            if (cognitoUpdated) {
-                // Database transaction succeeded but Cognito update failed
-                this.logger.error(
-                    "[SAGA] Unexpected: Database committed but Cognito sync failed",
-                    {
-                        userId: user.id,
-                        cognitoId: user.cognito_id,
-                        error: error instanceof Error ? error.message : error,
-                        timestamp: new Date().toISOString(),
-                        severity: "CRITICAL",
-                        action: "MANUAL_RECONCILIATION_REQUIRED",
-                    },
-                )
-            } else {
-                // Database transaction failed (will be rolled back automatically)
-                this.logger.error(
-                    `[TRANSACTION] Self-leave failed: ${error instanceof Error ? error.message : error}`,
-                )
-            }
-
+            this.logger.error(
+                `[TRANSACTION] Self-leave failed: ${error instanceof Error ? error.message : error}`,
+            )
             throw error
         }
     }
@@ -931,45 +860,8 @@ export class OrganizationService {
             role: string
         }
     }> {
-        const fundraiserUser =
-            await this.userRepository.findUserById(fundraiserCognitoId)
-        if (!fundraiserUser) {
-            UserErrorHelper.throwUserNotFound(fundraiserCognitoId)
-        }
-
-        if (fundraiserUser.role !== Role.FUNDRAISER) {
-            FundraiserErrorHelper.throwFundraiserOnlyOperation(
-                "remove staff members",
-            )
-        }
-
-        // Find the organization member record
-        const memberRecord =
-            await this.organizationRepository.findJoinRequestById(memberId)
-        if (!memberRecord) {
-            throw new NotFoundException("Staff member not found")
-        }
-
-        // Verify that the fundraiser is the representative of this organization
-        if (memberRecord.organization.representative_id !== fundraiserUser.id) {
-            throw new BadRequestException(
-                "You are not authorized to remove members from this organization",
-            )
-        }
-
-        // Cannot remove yourself (the fundraiser/representative)
-        if (memberRecord.member_id === fundraiserUser.id) {
-            throw new BadRequestException(
-                "Cannot remove yourself from the organization. Transfer ownership first.",
-            )
-        }
-
-        // Only allow removing verified members
-        if (memberRecord.status !== VerificationStatus.VERIFIED) {
-            throw new BadRequestException(
-                "Can only remove verified members. Use reject for pending requests.",
-            )
-        }
+        const fundraiserUser = await this.validateFundraiserUser(fundraiserCognitoId)
+        const memberRecord = await this.validateMemberRemoval(memberId, fundraiserUser.id)
 
         const removedMemberInfo = {
             id: memberRecord.member.id,
@@ -978,56 +870,11 @@ export class OrganizationService {
             role: memberRecord.member_role,
         }
 
-        let cognitoUpdated = false
-
         try {
-            // ========================================
-            // DATABASE TRANSACTION (Steps 1-2)
-            // ========================================
-            this.logger.log(
-                `[TRANSACTION] Starting staff removal for member: ${memberId}`,
-            )
-
-            await this.prisma.$transaction(async (tx) => {
-                // Step 1: Delete organization member record
-                this.logger.debug(
-                    "[TRANSACTION] Step 1: Removing member from organization",
-                )
-                await tx.organization_Member.delete({
-                    where: { id: memberId },
-                })
-
-                // Step 2: Update user role back to DONOR
-                this.logger.debug(
-                    "[TRANSACTION] Step 2: Updating user role back to DONOR",
-                )
-                await tx.user.update({
-                    where: { id: memberRecord.member_id },
-                    data: { role: Role.DONOR },
-                })
-
-                this.logger.log(
-                    "[TRANSACTION] Database operations completed successfully",
-                )
-            })
-
-            // ========================================
-            // EXTERNAL SERVICE (Step 3) - Outside transaction
-            // ========================================
+            await this.performMemberRemovalTransaction(memberId, memberRecord.member_id)
+            
             if (memberRecord.member.cognito_id) {
-                this.logger.debug(
-                    "[SAGA] Step 3: Updating Cognito custom:role attribute back to DONOR",
-                )
-
-                await this.updateCognitoRoleWithRetry(
-                    memberRecord.member.cognito_id,
-                    Role.DONOR,
-                )
-
-                cognitoUpdated = true
-                this.logger.log(
-                    `[SAGA] Cognito role updated successfully for user: ${memberRecord.member.cognito_id}`,
-                )
+                await this.syncCognitoRoleForRemoval(memberRecord.member.cognito_id)
             }
 
             this.logger.log(
@@ -1040,31 +887,73 @@ export class OrganizationService {
                 removedMember: removedMemberInfo,
             }
         } catch (error) {
-            // ========================================
-            // ERROR HANDLING
-            // ========================================
-            if (cognitoUpdated) {
-                // Database transaction succeeded but Cognito update failed
-                this.logger.error(
-                    "[SAGA] Unexpected: Database committed but Cognito sync failed",
-                    {
-                        memberId,
-                        memberUserId: memberRecord.member_id,
-                        cognitoId: memberRecord.member.cognito_id,
-                        error: error instanceof Error ? error.message : error,
-                        timestamp: new Date().toISOString(),
-                        severity: "CRITICAL",
-                        action: "MANUAL_RECONCILIATION_REQUIRED",
-                    },
-                )
-            } else {
-                // Database transaction failed (will be rolled back automatically)
-                this.logger.error(
-                    `[TRANSACTION] Staff removal failed: ${error instanceof Error ? error.message : error}`,
-                )
-            }
-
+            this.logger.error(
+                `[TRANSACTION] Staff removal failed: ${error instanceof Error ? error.message : error}`,
+            )
             throw error
         }
+    }
+
+    private async validateFundraiserUser(fundraiserCognitoId: string) {
+        const fundraiserUser = await this.userRepository.findUserById(fundraiserCognitoId)
+        if (!fundraiserUser) {
+            UserErrorHelper.throwUserNotFound(fundraiserCognitoId)
+        }
+
+        if (fundraiserUser.role !== Role.FUNDRAISER) {
+            FundraiserErrorHelper.throwFundraiserOnlyOperation("remove staff members")
+        }
+
+        return fundraiserUser
+    }
+
+    private async validateMemberRemoval(memberId: string, fundraiserId: string) {
+        const memberRecord = await this.organizationRepository.findJoinRequestById(memberId)
+        if (!memberRecord) {
+            throw new NotFoundException("Staff member not found")
+        }
+
+        if (memberRecord.organization.representative_id !== fundraiserId) {
+            throw new BadRequestException(
+                "You are not authorized to remove members from this organization",
+            )
+        }
+
+        if (memberRecord.member_id === fundraiserId) {
+            throw new BadRequestException(
+                "Cannot remove yourself from the organization. Transfer ownership first.",
+            )
+        }
+
+        if (memberRecord.status !== VerificationStatus.VERIFIED) {
+            throw new BadRequestException(
+                "Can only remove verified members. Use reject for pending requests.",
+            )
+        }
+
+        return memberRecord
+    }
+
+    private async performMemberRemovalTransaction(memberId: string, memberUserId: string) {
+        this.logger.log(`[TRANSACTION] Starting staff removal for member: ${memberId}`)
+
+        await this.prisma.$transaction(async (tx) => {
+            this.logger.debug("[TRANSACTION] Step 1: Removing member from organization")
+            await tx.organization_Member.delete({ where: { id: memberId } })
+
+            this.logger.debug("[TRANSACTION] Step 2: Updating user role back to DONOR")
+            await tx.user.update({
+                where: { id: memberUserId },
+                data: { role: Role.DONOR },
+            })
+
+            this.logger.log("[TRANSACTION] Database operations completed successfully")
+        })
+    }
+
+    private async syncCognitoRoleForRemoval(cognitoId: string) {
+        this.logger.debug("[SAGA] Step 3: Updating Cognito custom:role attribute back to DONOR")
+        await this.updateCognitoRoleWithRetry(cognitoId, Role.DONOR)
+        this.logger.log(`[SAGA] Cognito role updated successfully for user: ${cognitoId}`)
     }
 }

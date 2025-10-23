@@ -33,9 +33,74 @@ export class DonorService {
         input: CreateDonationInput,
         user: CurrentUserType | null,
     ): Promise<DonationResponse> {
-        const campaign = await this.campaignRepository.findById(
+        const campaign = await this.validateCampaignForDonation(
             input.campaignId,
         )
+        const donationAmount = this.validateDonationAmount(input.amount)
+
+        const donationId = uuidv7()
+        const donorId = user?.username || "anonymous"
+        const isAnonymous = !user || (input.isAnonymous ?? false)
+        const orderCode = Date.now()
+        const transferContent = `DONATE ${donationId.slice(0, 8)} ${campaign.title.slice(0, 15)}`
+
+        const payosResult = await this.createPaymentLink(
+            donationAmount,
+            transferContent,
+            orderCode,
+        )
+
+        try {
+            await this.createDonationTransaction(
+                donationId,
+                donorId,
+                input.campaignId,
+                donationAmount,
+                input.message,
+                isAnonymous,
+                orderCode,
+                payosResult,
+            )
+        } catch (error) {
+            await this.handleDonationCreationFailure(
+                error,
+                donationId,
+                orderCode,
+                payosResult.paymentLinkId,
+            )
+        }
+
+        await this.sendDonationNotification(
+            donationId,
+            donorId,
+            input.campaignId,
+            donationAmount,
+            input.message,
+            isAnonymous,
+            orderCode,
+            transferContent,
+            payosResult.paymentLinkId,
+            payosResult.checkoutUrl,
+        )
+
+        this.logger.log(
+            `[TRANSACTION] Donation creation completed successfully: ${donationId}`,
+        )
+
+        return {
+            message: user
+                ? "Thank you! Your donation request has been created. Please complete payment by scanning the QR code below."
+                : "Thank you for your anonymous donation! Please complete payment by scanning the QR code below.",
+            donationId,
+            checkoutUrl: payosResult.checkoutUrl ?? undefined,
+            qrCode: payosResult.qrCode ?? undefined,
+            orderCode,
+            paymentLinkId: payosResult.paymentLinkId ?? undefined,
+        }
+    }
+
+    private async validateCampaignForDonation(campaignId: string) {
+        const campaign = await this.campaignRepository.findById(campaignId)
 
         if (!campaign) {
             throw new NotFoundException("Campaign not found")
@@ -51,7 +116,6 @@ export class DonorService {
             )
         }
 
-        // Check if campaign fundraising is within date range
         const now = new Date()
         if (now < campaign.fundraisingStartDate) {
             throw new BadRequestException("Fundraising has not started yet")
@@ -61,27 +125,30 @@ export class DonorService {
             throw new BadRequestException("Fundraising period has ended")
         }
 
-        // Validate donation amount
-        const donationAmount = BigInt(input.amount)
+        return campaign
+    }
+
+    private validateDonationAmount(amount: number): bigint {
+        const donationAmount = BigInt(amount)
         if (donationAmount <= 0) {
             throw new BadRequestException(
                 "Donation amount must be greater than 0",
             )
         }
+        return donationAmount
+    }
 
-        const donationId = uuidv7()
-        const donorId = user?.username || "anonymous"
-        const isAnonymous = !user || (input.isAnonymous ?? false)
-        const orderCode = Date.now()
-        const transferContent = `DONATE ${donationId.slice(0, 8)} ${campaign.title.slice(0, 15)}`
-
-        let payosResult: any
+    private async createPaymentLink(
+        donationAmount: bigint,
+        transferContent: string,
+        orderCode: number,
+    ) {
         try {
             this.logger.log(
                 `[SAGA] Step 1: Creating PayOS payment link for order ${orderCode}`,
             )
 
-            payosResult = await this.payosService.createPaymentLink({
+            const payosResult = await this.payosService.createPaymentLink({
                 amount: Number(donationAmount),
                 description: transferContent.slice(0, 25),
                 orderCode: orderCode,
@@ -92,6 +159,12 @@ export class DonorService {
             this.logger.log(
                 `[SAGA] PayOS payment link created: ${payosResult.paymentLinkId}`,
             )
+
+            return {
+                qrCode: payosResult?.qrCode || null,
+                checkoutUrl: payosResult?.checkoutUrl || null,
+                paymentLinkId: payosResult?.paymentLinkId || null,
+            }
         } catch (error) {
             this.logger.error("[SAGA] Failed to create PayOS payment link", {
                 orderCode,
@@ -101,71 +174,94 @@ export class DonorService {
                 "Failed to create payment link. Please try again later.",
             )
         }
+    }
 
-        const qrCode = payosResult?.qrCode || null
-        const checkoutUrl = payosResult?.checkoutUrl || null
-        const paymentLinkId = payosResult?.paymentLinkId || null
+    private async createDonationTransaction(
+        donationId: string,
+        donorId: string,
+        campaignId: string,
+        donationAmount: bigint,
+        message: string | undefined,
+        isAnonymous: boolean,
+        orderCode: number,
+        payosResult: {
+            qrCode: string | null
+            checkoutUrl: string | null
+            paymentLinkId: string | null
+        },
+    ) {
+        this.logger.log(
+            `[TRANSACTION] Starting donation creation for ${donationId}`,
+        )
 
-        try {
-            this.logger.log(
-                `[TRANSACTION] Starting donation creation for ${donationId}`,
-            )
-
-            await this.prisma.$transaction(async (tx) => {
-                // Step 2: Create donation record
-                this.logger.debug(
-                    "[TRANSACTION] Step 2: Creating donation record",
-                )
-                await tx.donation.create({
-                    data: {
-                        id: donationId,
-                        donor_id: donorId,
-                        campaign_id: input.campaignId,
-                        amount: donationAmount,
-                        message: input.message ?? "",
-                        is_anonymous: isAnonymous,
-                    },
-                })
-
-                // Step 3: Create payment transaction record
-                this.logger.debug(
-                    "[TRANSACTION] Step 3: Creating payment transaction",
-                )
-                await tx.payment_Transaction.create({
-                    data: {
-                        donation_id: donationId,
-                        order_code: BigInt(orderCode),
-                        amount: donationAmount,
-                        payment_link_id: paymentLinkId || "",
-                        checkout_url: checkoutUrl || "",
-                        qr_code: qrCode || "",
-                        status: PaymentStatus.PENDING,
-                    },
-                })
-
-                this.logger.log(
-                    "[TRANSACTION] Database operations completed successfully",
-                )
-            })
-        } catch (error) {
-            this.logger.error(
-                "[TRANSACTION] Donation creation failed, attempting to rollback PayOS payment link",
-                {
-                    donationId,
-                    orderCode,
-                    paymentLinkId,
-                    error: error instanceof Error ? error.message : error,
+        await this.prisma.$transaction(async (tx) => {
+            this.logger.debug("[TRANSACTION] Step 2: Creating donation record")
+            await tx.donation.create({
+                data: {
+                    id: donationId,
+                    donor_id: donorId,
+                    campaign_id: campaignId,
+                    amount: donationAmount,
+                    message: message ?? "",
+                    is_anonymous: isAnonymous,
                 },
+            })
+
+            this.logger.debug(
+                "[TRANSACTION] Step 3: Creating payment transaction",
             )
+            await tx.payment_Transaction.create({
+                data: {
+                    donation_id: donationId,
+                    order_code: BigInt(orderCode),
+                    amount: donationAmount,
+                    payment_link_id: payosResult.paymentLinkId || "",
+                    checkout_url: payosResult.checkoutUrl || "",
+                    qr_code: payosResult.qrCode || "",
+                    status: PaymentStatus.PENDING,
+                },
+            })
 
-            // Compensating transaction: Cancel PayOS payment link
-            await this.cancelPayOSPaymentLinkWithRetry(orderCode, paymentLinkId)
-
-            throw new BadRequestException(
-                "Failed to create donation request. Please try again.",
+            this.logger.log(
+                "[TRANSACTION] Database operations completed successfully",
             )
-        }
+        })
+    }
 
+    private async handleDonationCreationFailure(
+        error: unknown,
+        donationId: string,
+        orderCode: number,
+        paymentLinkId: string | null,
+    ) {
+        this.logger.error(
+            "[TRANSACTION] Donation creation failed, attempting to rollback PayOS payment link",
+            {
+                donationId,
+                orderCode,
+                paymentLinkId,
+                error: error instanceof Error ? error.message : error,
+            },
+        )
+
+        await this.cancelPayOSPaymentLinkWithRetry(orderCode, paymentLinkId)
+        throw new BadRequestException(
+            "Failed to create donation request. Please try again.",
+        )
+    }
+
+    private async sendDonationNotification(
+        donationId: string,
+        donorId: string,
+        campaignId: string,
+        donationAmount: bigint,
+        message: string | undefined,
+        isAnonymous: boolean,
+        orderCode: number,
+        transferContent: string,
+        paymentLinkId: string | null,
+        checkoutUrl: string | null,
+    ) {
         try {
             this.logger.debug("[NOTIFICATION] Sending donation request to SQS")
 
@@ -174,9 +270,9 @@ export class DonorService {
                     eventType: "DONATION_REQUEST",
                     donationId,
                     donorId,
-                    campaignId: input.campaignId,
+                    campaignId,
                     amount: donationAmount.toString(),
-                    message: input.message,
+                    message,
                     isAnonymous,
                     orderCode,
                     transferContent,
@@ -192,7 +288,7 @@ export class DonorService {
                     },
                     campaignId: {
                         DataType: "String",
-                        StringValue: input.campaignId,
+                        StringValue: campaignId,
                     },
                     orderCode: {
                         DataType: "Number",
@@ -203,8 +299,6 @@ export class DonorService {
 
             this.logger.log("[NOTIFICATION] SQS message sent successfully")
         } catch (sqsError) {
-            // Don't fail the whole operation if SQS fails
-            // Donation and payment transaction are already created
             this.logger.warn(
                 "[NOTIFICATION] Failed to send SQS message, but donation created successfully",
                 {
@@ -214,21 +308,6 @@ export class DonorService {
                         sqsError instanceof Error ? sqsError.message : sqsError,
                 },
             )
-        }
-
-        this.logger.log(
-            `[TRANSACTION] Donation creation completed successfully: ${donationId}`,
-        )
-
-        return {
-            message: user
-                ? "Thank you! Your donation request has been created. Please complete payment by scanning the QR code below."
-                : "Thank you for your anonymous donation! Please complete payment by scanning the QR code below.",
-            donationId,
-            checkoutUrl,
-            qrCode,
-            orderCode,
-            paymentLinkId,
         }
     }
 
