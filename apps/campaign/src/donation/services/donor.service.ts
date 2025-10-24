@@ -12,6 +12,7 @@ import { CampaignStatus } from "../../campaign/enum/campaign.enum"
 import { Donation } from "../models/donation.model"
 import { SqsService } from "@libs/aws-sqs"
 import { PayOSService } from "@libs/payos"
+import { VietQRService } from "@libs/vietqr"
 import { CurrentUserType } from "@libs/auth"
 import { formatPaymentDescription } from "@libs/common"
 import { v7 as uuidv7 } from "uuid"
@@ -25,6 +26,7 @@ export class DonorService {
         private readonly campaignRepository: CampaignRepository,
         private readonly sqsService: SqsService,
         private readonly payosService: PayOSService,
+        private readonly vietqrService: VietQRService,
     ) {}
 
     async createDonation(
@@ -106,7 +108,15 @@ export class DonorService {
             )
         }
 
-        // Step 5: Return payment details immediately to user
+        // Step 5: Get bank name from BIN code
+        let bankName: string | undefined
+        if (payosResult.bin) {
+            const bankNameFromCache =
+                await this.vietqrService.getBankNameByBin(payosResult.bin)
+            bankName = bankNameFromCache ?? payosResult.bin
+        }
+
+        // Step 6: Return payment details immediately to user
         return {
             message: user
                 ? "Thank you! Your donation request has been created. Please complete payment by scanning the QR code or transfer manually using the bank details below."
@@ -116,7 +126,7 @@ export class DonorService {
             orderCode,
             paymentLinkId: payosResult.paymentLinkId ?? undefined,
             // Bank transfer information from PayOS response
-            bankName: payosResult.bin ?? undefined,
+            bankName,
             accountNumber: payosResult.accountNumber ?? undefined,
             accountName: payosResult.accountName ?? undefined,
             amount: Number(donationAmount),

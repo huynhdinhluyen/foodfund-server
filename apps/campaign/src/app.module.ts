@@ -13,6 +13,7 @@ import { OpenSearchModule } from "@libs/aws-opensearch"
 import { SqsModule } from "@libs/aws-sqs"
 import { RedisModule } from "@libs/redis"
 import { GrpcModule } from "@libs/grpc"
+import { VietQRModule } from "@libs/vietqr"
 import { QueueWorkerService } from "./workers/queue-worker.service"
 
 @Module({
@@ -42,7 +43,8 @@ import { QueueWorkerService } from "./workers/queue-worker.service"
         DonationModule,
         SqsModule,
         OpenSearchModule,
-        RedisModule.registerAsync()
+        RedisModule.registerAsync(),
+        VietQRModule
     ],
     controllers: [],
     providers: [QueueWorkerService],
