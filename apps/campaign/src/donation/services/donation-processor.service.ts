@@ -1,27 +1,22 @@
 import { Injectable, Logger } from "@nestjs/common"
 import { DonorRepository } from "../repositories/donor.repository"
 import { SqsService } from "@libs/aws-sqs"
-import { CreateDonationRepositoryInput } from "../dtos/create-donation-repository.input"
+import { PaymentStatus } from "../../shared/enum/campaign.enum"
+import { PrismaClient } from "../../generated/campaign-client"
 
-export interface DonationRequestMessage {
-    eventType: "DONATION_REQUEST"
+export interface DonationCreateRequestMessage {
+    eventType: "DONATION_CREATE_REQUEST"
     donationId: string
     donorId: string
     campaignId: string
     amount: string
     message?: string
     isAnonymous: boolean
+    orderCode: number
+    paymentLinkId: string
+    checkoutUrl: string
+    qrCode: string
     requestedAt: string
-    // PayOS tracking fields
-    orderCode?: number
-    paymentLinkId?: string
-    payosTransactionData?: {
-        bin: string
-        accountNumber: string
-        accountName: string
-        checkoutUrl: string
-        status: string
-    }
 }
 
 @Injectable()
@@ -31,69 +26,52 @@ export class DonationProcessorService {
     constructor(
         private readonly DonorRepository: DonorRepository,
         private readonly sqsService: SqsService,
+        private readonly prisma: PrismaClient,
     ) {}
 
-    async processDonationRequest(
-        message: DonationRequestMessage,
+    async processDonationCreateRequest(
+        message: DonationCreateRequestMessage,
     ): Promise<void> {
+        this.logger.log(
+            `[QUEUE] Processing donation DB creation: ${message.donationId}`,
+            {
+                donorId: message.donorId,
+                campaignId: message.campaignId,
+                amount: message.amount,
+                orderCode: message.orderCode,
+                paymentLinkId: message.paymentLinkId,
+            },
+        )
+
         try {
-            this.logger.log(
-                `Processing donation request: ${message.donationId}`,
-                {
-                    donorId: message.donorId,
-                    campaignId: message.campaignId,
-                    amount: message.amount,
-                    isAnonymous: message.isAnonymous,
-                    orderCode: message.orderCode,
-                    paymentLinkId: message.paymentLinkId,
-                },
-            )
-
-            // Create donation in database with predefined ID
-            const donationData: CreateDonationRepositoryInput = {
-                donor_id: message.donorId,
-                campaign_id: message.campaignId,
-                amount: BigInt(message.amount),
-                message: message.message,
-                is_anonymous: message.isAnonymous,
-            }
-
-            await this.DonorRepository.createWithId(
-                message.donationId,
-                donationData,
-            )
-
-            // Send success notification to SQS
-            await this.sqsService.sendMessage({
-                messageBody: {
-                    eventType: "DONATION_COMPLETED",
-                    donationId: message.donationId,
-                    campaignId: message.campaignId,
-                    donorId: message.donorId,
-                    amount: message.amount,
-                    status: "SUCCESS",
-                    orderCode: message.orderCode,
-                    paymentLinkId: message.paymentLinkId,
-                    completedAt: new Date().toISOString(),
-                },
-                messageAttributes: {
-                    eventType: {
-                        DataType: "String",
-                        StringValue: "DONATION_COMPLETED",
+            // PayOS payment link already created - just save to DB
+            await this.prisma.$transaction(async (tx) => {
+                await tx.donation.create({
+                    data: {
+                        id: message.donationId,
+                        donor_id: message.donorId,
+                        campaign_id: message.campaignId,
+                        amount: BigInt(message.amount),
+                        message: message.message ?? "",
+                        is_anonymous: message.isAnonymous,
                     },
-                    campaignId: {
-                        DataType: "String",
-                        StringValue: message.campaignId,
+                })
+
+                await tx.payment_Transaction.create({
+                    data: {
+                        donation_id: message.donationId,
+                        order_code: BigInt(message.orderCode),
+                        amount: BigInt(message.amount),
+                        payment_link_id: message.paymentLinkId,
+                        checkout_url: message.checkoutUrl,
+                        qr_code: message.qrCode,
+                        status: PaymentStatus.PENDING,
                     },
-                    status: {
-                        DataType: "String",
-                        StringValue: "SUCCESS",
-                    },
-                },
+                })
             })
 
             this.logger.log(
-                `Successfully processed donation: ${message.donationId}`,
+                `[QUEUE] Donation saved to DB successfully: ${message.donationId}`,
                 {
                     orderCode: message.orderCode,
                     paymentLinkId: message.paymentLinkId,
@@ -101,56 +79,14 @@ export class DonationProcessorService {
             )
         } catch (error) {
             this.logger.error(
-                `Failed to process donation request: ${message.donationId}`,
+                `[QUEUE] Failed to save donation to DB: ${message.donationId}`,
                 {
-                    donorId: message.donorId,
-                    campaignId: message.campaignId,
+                    error: error instanceof Error ? error.message : error,
                     orderCode: message.orderCode,
-                    paymentLinkId: message.paymentLinkId,
-                    error: error.message,
-                    stack: error.stack,
                 },
             )
 
-            // Send failure notification to SQS
-            try {
-                await this.sqsService.sendMessage({
-                    messageBody: {
-                        eventType: "DONATION_FAILED",
-                        donationId: message.donationId,
-                        campaignId: message.campaignId,
-                        donorId: message.donorId,
-                        amount: message.amount,
-                        status: "FAILED",
-                        error: error.message,
-                        orderCode: message.orderCode,
-                        paymentLinkId: message.paymentLinkId,
-                        failedAt: new Date().toISOString(),
-                    },
-                    messageAttributes: {
-                        eventType: {
-                            DataType: "String",
-                            StringValue: "DONATION_FAILED",
-                        },
-                        campaignId: {
-                            DataType: "String",
-                            StringValue: message.campaignId,
-                        },
-                        status: {
-                            DataType: "String",
-                            StringValue: "FAILED",
-                        },
-                    },
-                })
-            } catch (notificationError) {
-                this.logger.error(
-                    "Failed to send failure notification",
-                    notificationError,
-                )
-            }
-
-            // Re-throw error for queue retry mechanism
-            throw error
+            throw error // Re-throw to trigger SQS retry
         }
     }
 
@@ -188,20 +124,32 @@ export class DonationProcessorService {
         return true
     }
 
-    private validateDonationRequest(
+    private validateDonationCreateRequest(
         messageBody: any,
         messageId: string,
     ): boolean {
-        const requiredFields = ["donationId", "donorId", "campaignId", "amount"]
+        const requiredFields = [
+            "donationId",
+            "donorId",
+            "campaignId",
+            "amount",
+            "orderCode",
+            "paymentLinkId",
+            "checkoutUrl",
+            "qrCode",
+        ]
         const missingFields = requiredFields.filter(
             (field) => !messageBody[field],
         )
 
         if (missingFields.length > 0) {
-            this.logger.error("DONATION_REQUEST missing required fields", {
-                messageId,
-                missingFields,
-            })
+            this.logger.error(
+                "DONATION_CREATE_REQUEST missing required fields",
+                {
+                    messageId,
+                    missingFields,
+                },
+            )
             return false
         }
         return true
@@ -219,24 +167,18 @@ export class DonationProcessorService {
             return true
         }
 
-        if (messageBody.eventType === "DONATION_REQUEST") {
-            if (!this.validateDonationRequest(messageBody, message.MessageId)) {
+        if (messageBody.eventType === "DONATION_CREATE_REQUEST") {
+            if (
+                !this.validateDonationCreateRequest(
+                    messageBody,
+                    message.MessageId,
+                )
+            ) {
                 return true
             }
-            await this.processDonationRequest(
-                messageBody as DonationRequestMessage,
+            await this.processDonationCreateRequest(
+                messageBody as DonationCreateRequestMessage,
             )
-            return true
-        }
-
-        if (
-            messageBody.eventType === "DONATION_COMPLETED" ||
-            messageBody.eventType === "DONATION_FAILED"
-        ) {
-            this.logger.debug("Deleting notification message", {
-                eventType: messageBody.eventType,
-                messageId: message.MessageId,
-            })
             return true
         }
 
