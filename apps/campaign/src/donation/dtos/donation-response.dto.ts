@@ -11,6 +11,9 @@ export class DonationResponse {
     @Field(() => String, { nullable: true, description: "QR code for bank transfer" })
         qrCode?: string
 
+    @Field(() => String, { nullable: true, description: "PayOS checkout URL for web payment" })
+        checkoutUrl?: string
+
     @Field(() => Number, { nullable: true, description: "Order code for transaction tracking" })
         orderCode?: number
 

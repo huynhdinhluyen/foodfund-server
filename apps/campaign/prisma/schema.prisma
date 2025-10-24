@@ -84,32 +84,38 @@ model Donation {
 }
 
 model Payment_Transaction {
-  id                   String         @id @default(uuid())
-  donation_id          String
-  order_code           BigInt
-  bin                  String?        @db.VarChar(20)
-  account_number       String?        @db.VarChar(50)
-  account_name         String?        @db.VarChar(255)
-  account_bank_name    String?        @db.VarChar(255)
+  id          String @id @default(uuid())
+  donation_id String
+  order_code  BigInt @unique
+  reference            String?   @db.VarChar(100)
   transaction_datetime DateTime?
   amount               BigInt
-  currency             String         @default("VND") @db.VarChar(10)
-  description          String?        @db.Text()
-  payment_link_id      String?        @db.Text()
-  checkout_url         String?        @db.Text()
-  qr_code              String?        @db.Text()
-  status               Payment_Status
-  created_at           DateTime       @default(now())
-  updated_at           DateTime       @updatedAt
-  refunded_at          DateTime?
+  currency             String    @default("VND") @db.VarChar(10)
+  description          String?   @db.Text()
+  payment_link_id String? @db.Text()
+  checkout_url    String? @db.Text()
+  qr_code         String? @db.Text()
+  counter_account_bank_id   String? @db.VarChar(20)
+  counter_account_bank_name String? @db.VarChar(255)
+  counter_account_name      String? @db.VarChar(255)
+  counter_account_number    String? @db.VarChar(50)
+  virtual_account_name   String? @db.VarChar(255)
+  virtual_account_number String? @db.VarChar(50)
+  error_code        String? @db.VarChar(50)
+  error_description String? @db.Text()
+  status      Payment_Status
+  created_at  DateTime       @default(now())
+  updated_at  DateTime       @updatedAt
+  refunded_at DateTime?
 
   donation Donation @relation(fields: [donation_id], references: [id], onDelete: Cascade)
 
-  @@unique([order_code])
   @@index([donation_id])
   @@index([status])
   @@index([created_at])
   @@index([status, created_at])
+  @@index([reference])
+  @@index([counter_account_number])
   @@map("payment_transactions")
 }
 

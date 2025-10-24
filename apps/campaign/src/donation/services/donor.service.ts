@@ -111,8 +111,9 @@ export class DonorService {
         // Step 5: Get bank name from BIN code
         let bankName: string | undefined
         if (payosResult.bin) {
-            const bankNameFromCache =
-                await this.vietqrService.getBankNameByBin(payosResult.bin)
+            const bankNameFromCache = await this.vietqrService.getBankNameByBin(
+                payosResult.bin,
+            )
             bankName = bankNameFromCache ?? payosResult.bin
         }
 
@@ -123,6 +124,7 @@ export class DonorService {
                 : "Thank you for your anonymous donation! Please complete payment by scanning the QR code or transfer manually using the bank details below.",
             donationId,
             qrCode: payosResult.qrCode ?? undefined,
+            checkoutUrl: payosResult.checkoutUrl ?? undefined,
             orderCode,
             paymentLinkId: payosResult.paymentLinkId ?? undefined,
             // Bank transfer information from PayOS response

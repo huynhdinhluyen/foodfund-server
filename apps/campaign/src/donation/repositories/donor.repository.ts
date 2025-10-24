@@ -177,10 +177,10 @@ export class DonorRepository {
         id: string,
         status: PaymentStatus,
         additionalData?: {
-            accountName?: string
-            accountNumber?: string
+            customerAccountName?: string
+            customerAccountNumber?: string
+            customerBankName?: string
             description?: string
-            accountBankName?: string
             transactionDateTime?: string
         },
     ) {
@@ -188,9 +188,9 @@ export class DonorRepository {
             where: { id },
             data: {
                 status,
-                account_name: additionalData?.accountName,
-                account_number: additionalData?.accountNumber,
-                account_bank_name: additionalData?.accountBankName,
+                counter_account_name: additionalData?.customerAccountName,
+                counter_account_number: additionalData?.customerAccountNumber,
+                counter_account_bank_name: additionalData?.customerBankName,
                 description: additionalData?.description,
                 transaction_datetime: additionalData?.transactionDateTime
                     ? new Date(additionalData.transactionDateTime)
@@ -218,11 +218,16 @@ export class DonorRepository {
         paymentId: string,
         status: PaymentStatus,
         additionalData?: {
-            accountName?: string
-            accountNumber?: string
+            customerAccountName?: string
+            customerAccountNumber?: string
+            customerBankName?: string
+            customerBankId?: string
             description?: string
-            accountBankName?: string
             transactionDateTime?: string
+            reference?: string
+            errorCode?: string
+            errorDescription?: string
+            actualAmount?: number
         },
         campaignUpdate?: {
             campaignId: string
@@ -236,13 +241,21 @@ export class DonorRepository {
                 where: { id: paymentId, status: PaymentStatus.PENDING },
                 data: {
                     status,
-                    account_name: additionalData?.accountName,
-                    account_number: additionalData?.accountNumber,
-                    account_bank_name: additionalData?.accountBankName,
+                    // Transaction details
+                    reference: additionalData?.reference,
                     description: additionalData?.description,
                     transaction_datetime: additionalData?.transactionDateTime
                         ? new Date(additionalData.transactionDateTime)
                         : undefined,
+                    // Customer account info (who made the payment)
+                    counter_account_bank_id: additionalData?.customerBankId,
+                    counter_account_bank_name: additionalData?.customerBankName,
+                    counter_account_name: additionalData?.customerAccountName,
+                    counter_account_number:
+                        additionalData?.customerAccountNumber,
+                    // Error handling
+                    error_code: additionalData?.errorCode,
+                    error_description: additionalData?.errorDescription,
                     updated_at: new Date(),
                 },
             })
@@ -269,7 +282,9 @@ export class DonorRepository {
                 })
             }
 
-            return tx.payment_Transaction.findUnique({ where: { id: paymentId } })
+            return tx.payment_Transaction.findUnique({
+                where: { id: paymentId },
+            })
         })
     }
 }

@@ -39,7 +39,8 @@ export class DonationWebhookController {
     ): Promise<{ success: boolean; message: string }> {
         this.logger.log(`Received PayOS webhook for order ${payload.data?.orderCode}`)
         
-        try {            
+        try {    
+            console.debug(payload)        
             // Verify webhook signature
             const signature = payload.signature
             if (!signature) {

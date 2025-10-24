@@ -30,7 +30,7 @@ export class DonationWebhookService {
             throw new BadRequestException("Invalid webhook signature")
         }
 
-        const { orderCode, code, desc } = payload.data
+        const { orderCode, code, desc, amount, description } = payload.data
 
         // Find payment transaction by order code
         const paymentTransaction =
@@ -45,8 +45,38 @@ export class DonationWebhookService {
             throw new BadRequestException("Payment transaction not found")
         }
 
-        const newStatus =
-            code === "00" ? PaymentStatus.SUCCESS : PaymentStatus.FAILED
+        // Validate payment details
+        const validation = this.validatePaymentDetails(
+            paymentTransaction,
+            amount,
+            description,
+        )
+
+        let newStatus: PaymentStatus
+        let errorDescription: string | undefined
+
+        if (code === "00") {
+            // Payment successful from PayOS perspective
+            if (validation.isValid) {
+                newStatus = PaymentStatus.SUCCESS
+            } else {
+                // Payment received but has issues
+                newStatus = PaymentStatus.FAILED
+                errorDescription = validation.errors.join("; ")
+                this.logger.warn(
+                    `Payment validation failed for order ${orderCode}`,
+                    {
+                        errors: validation.errors,
+                        expected: validation.expected,
+                        actual: validation.actual,
+                    },
+                )
+            }
+        } else {
+            // Payment failed from PayOS
+            newStatus = PaymentStatus.FAILED
+            errorDescription = desc
+        }
 
         // Idempotency guard: skip if already in terminal state
         const currentStatus = paymentTransaction.status as string
@@ -58,8 +88,10 @@ export class DonationWebhookService {
             return
         }
 
-        if ( currentStatus === PaymentStatus.FAILED &&
-            newStatus === PaymentStatus.FAILED ) {
+        if (
+            currentStatus === PaymentStatus.FAILED &&
+            newStatus === PaymentStatus.FAILED
+        ) {
             this.logger.log(
                 `Ignoring duplicate FAILED webhook for ${orderCode}`,
             )
@@ -70,11 +102,16 @@ export class DonationWebhookService {
             paymentTransaction.id,
             newStatus,
             {
-                accountName: payload.data.counterAccountName,
-                accountNumber: payload.data.counterAccountNumber,
-                accountBankName: payload.data.counterAccountBankName,
+                customerAccountName: payload.data.counterAccountName,
+                customerAccountNumber: payload.data.counterAccountNumber,
+                customerBankName: payload.data.counterAccountBankName,
+                customerBankId: payload.data.counterAccountBankId,
                 description: payload.data.description,
                 transactionDateTime: payload.data.transactionDateTime,
+                reference: payload.data.reference,
+                errorCode: code !== "00" ? code : undefined,
+                errorDescription: errorDescription,
+                actualAmount: amount,
             },
             newStatus === PaymentStatus.SUCCESS
                 ? {
@@ -83,5 +120,65 @@ export class DonationWebhookService {
                 }
                 : undefined,
         )
+    }
+
+    /**
+     * Validate payment details against expected values
+     * Returns validation result with detailed errors
+     */
+    private validatePaymentDetails(
+        paymentTransaction: any,
+        actualAmount: number,
+        actualDescription: string,
+    ): {
+        isValid: boolean
+        errors: string[]
+        expected: { amount: string; description: string }
+        actual: { amount: number; description: string }
+    } {
+        const errors: string[] = []
+        const expectedAmount = Number(paymentTransaction.amount)
+        const expectedDescription = paymentTransaction.description || ""
+
+        // Validate amount (must match exactly)
+        if (actualAmount !== expectedAmount) {
+            if (actualAmount < expectedAmount) {
+                errors.push(
+                    `Số tiền chuyển thiếu: Cần ${expectedAmount} VND, nhận được ${actualAmount} VND`,
+                )
+            } else {
+                errors.push(
+                    `Số tiền chuyển thừa: Cần ${expectedAmount} VND, nhận được ${actualAmount} VND`,
+                )
+            }
+        }
+
+        // Validate description (should contain order code or match expected)
+        const orderCodeStr = paymentTransaction.order_code.toString()
+        const descriptionMatch =
+            actualDescription.includes(expectedDescription) ||
+            actualDescription.includes(orderCodeStr) ||
+            actualDescription
+                .toUpperCase()
+                .includes(orderCodeStr.toString(36).toUpperCase())
+
+        if (!descriptionMatch) {
+            errors.push(
+                `Nội dung chuyển khoản không đúng: Cần "${expectedDescription}", nhận được "${actualDescription}"`,
+            )
+        }
+
+        return {
+            isValid: errors.length === 0,
+            errors,
+            expected: {
+                amount: expectedAmount.toString(),
+                description: expectedDescription,
+            },
+            actual: {
+                amount: actualAmount,
+                description: actualDescription,
+            },
+        }
     }
 }
