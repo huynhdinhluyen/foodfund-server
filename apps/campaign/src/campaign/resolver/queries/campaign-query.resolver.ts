@@ -1,7 +1,7 @@
 import { Args, Int, Query, Resolver, ResolveReference } from "@nestjs/graphql"
 import { Campaign } from "../../models/campaign.model"
 import { SentryInterceptor } from "@libs/observability/sentry.interceptor"
-import { Logger, UseGuards, UseInterceptors } from "@nestjs/common"
+import { UseGuards, UseInterceptors } from "@nestjs/common"
 import { CampaignService } from "../../campaign.service"
 import {
     CampaignFilterInput,
@@ -14,8 +14,6 @@ import { CurrentUser } from "@app/campaign/src/shared"
 @Resolver(() => Campaign)
 @UseInterceptors(SentryInterceptor)
 export class CampaignQueryResolver {
-    private readonly logger = new Logger(CampaignQueryResolver.name)
-
     constructor(private readonly campaignService: CampaignService) {}
 
     @Query(() => [Campaign], {

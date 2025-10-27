@@ -44,7 +44,7 @@ import { QueueWorkerService } from "./workers/queue-worker.service"
         DonationModule,
         SqsModule,
         OpenSearchModule,
-        RedisModule.registerAsync()
+        RedisModule.registerAsync(),
     ],
     controllers: [],
     providers: [QueueWorkerService],

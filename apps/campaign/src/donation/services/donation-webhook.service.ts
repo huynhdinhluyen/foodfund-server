@@ -58,8 +58,10 @@ export class DonationWebhookService {
             return
         }
 
-        if ( currentStatus === PaymentStatus.FAILED &&
-            newStatus === PaymentStatus.FAILED ) {
+        if (
+            currentStatus === PaymentStatus.FAILED &&
+            newStatus === PaymentStatus.FAILED
+        ) {
             this.logger.log(
                 `Ignoring duplicate FAILED webhook for ${orderCode}`,
             )

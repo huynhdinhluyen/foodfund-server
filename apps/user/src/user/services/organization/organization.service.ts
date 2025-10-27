@@ -361,8 +361,9 @@ export class OrganizationService {
         if (!user) {
             return []
         }
-        const organizations =
-            await this.userRepository.findUserOrganizations(user.id)
+        const organizations = await this.userRepository.findUserOrganizations(
+            user.id,
+        )
 
         // Map user field to representative field for GraphQL response
         return organizations.map((org) => ({

@@ -269,7 +269,9 @@ export class DonorRepository {
                 })
             }
 
-            return tx.payment_Transaction.findUnique({ where: { id: paymentId } })
+            return tx.payment_Transaction.findUnique({
+                where: { id: paymentId },
+            })
         })
     }
 }
