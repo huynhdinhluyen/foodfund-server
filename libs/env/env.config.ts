@@ -121,7 +121,7 @@ export const envConfig = (): EnvironmentConfig => ({
         cloudwatch: {
             namespace: "FoodFund",
             logGroup: process.env.AWS_CLOUDWATCH_LOG_GROUP as string,
-        }
+        },
     },
 
     // Sentry Configuration
@@ -145,8 +145,8 @@ export const envConfig = (): EnvironmentConfig => ({
     payos: {
         payosApiKey: process.env.PAYOS_API_KEY as string,
         payosCheckSumKey: process.env.PAYOS_CHECKSUM_KEY as string,
-        payosClienId: process.env.PAYOS_CLIENT_ID as string
-    }
+        payosClienId: process.env.PAYOS_CLIENT_ID as string,
+    },
 })
 
 // Utility functions

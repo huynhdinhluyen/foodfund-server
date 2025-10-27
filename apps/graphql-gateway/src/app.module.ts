@@ -109,7 +109,7 @@ import { CloudWatchModule } from "@libs/aws-cloudwatch"
                 },
             },
         }),
-        EnvModule.forRoot()
+        EnvModule.forRoot(),
     ],
     controllers: [HealthController, WebhookProxyController],
     providers: [],

@@ -1,4 +1,4 @@
+export * from "./redis.module-definition"
 export * from "./redis.module"
 export * from "./redis.service"
 export * from "./redis.types"
-export * from "./redis.module-definition"

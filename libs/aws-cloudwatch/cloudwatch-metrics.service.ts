@@ -72,7 +72,11 @@ export class CloudWatchMetricsService {
         metricName: string,
         milliseconds: number,
     ): Promise<void> {
-        await this.putMetric(metricName, milliseconds, StandardUnit.Milliseconds)
+        await this.putMetric(
+            metricName,
+            milliseconds,
+            StandardUnit.Milliseconds,
+        )
     }
 
     async recordValue(metricName: string, value: number): Promise<void> {

@@ -1,4 +1,11 @@
-import { Controller, Post, Body, Logger, HttpCode, HttpStatus } from "@nestjs/common"
+import {
+    Controller,
+    Post,
+    Body,
+    Logger,
+    HttpCode,
+    HttpStatus,
+} from "@nestjs/common"
 import { DonationWebhookService } from "../services/donation-webhook.service"
 
 export interface PayOSWebhookPayload {
@@ -37,33 +44,38 @@ export class DonationWebhookController {
     async handlePaymentWebhook(
         @Body() payload: PayOSWebhookPayload,
     ): Promise<{ success: boolean; message: string }> {
-        this.logger.log(`Received PayOS webhook for order ${payload.data?.orderCode}`)
-        
-        try {            
+        this.logger.log(
+            `Received PayOS webhook for order ${payload.data?.orderCode}`,
+        )
+
+        try {
             // Verify webhook signature
             const signature = payload.signature
             if (!signature) {
                 this.logger.error("Missing signature in webhook payload")
                 return {
                     success: false,
-                    message: "Missing signature"
+                    message: "Missing signature",
                 }
             }
-            
+
             await this.webhookService.handlePaymentWebhook(payload, signature)
-            
+
             return {
                 success: true,
-                message: "Webhook processed successfully"
+                message: "Webhook processed successfully",
             }
         } catch (error) {
-            this.logger.error(`Failed to process webhook: ${error.message}`, error.stack)
-            
+            this.logger.error(
+                `Failed to process webhook: ${error.message}`,
+                error.stack,
+            )
+
             // Return success to PayOS even if processing fails
             // to prevent retries for invalid data
             return {
                 success: false,
-                message: error.message
+                message: error.message,
             }
         }
     }

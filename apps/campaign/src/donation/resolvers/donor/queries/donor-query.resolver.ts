@@ -11,7 +11,7 @@ export class DonorQueryResolver {
 
     @Query(() => Donation, {
         nullable: true,
-        description: "Get a donation by ID"
+        description: "Get a donation by ID",
     })
     async getDonation(
         @Args("id", { type: () => String }) id: string,
@@ -20,7 +20,7 @@ export class DonorQueryResolver {
     }
 
     @Query(() => [Donation], {
-        description: "Get donations for current user"
+        description: "Get donations for current user",
     })
     @UseGuards(CognitoGraphQLGuard)
     async getMyDonations(
@@ -32,13 +32,16 @@ export class DonorQueryResolver {
     }
 
     @Query(() => [Donation], {
-        description: "Get donations for a specific campaign"
+        description: "Get donations for a specific campaign",
     })
     async getCampaignDonations(
         @Args("campaignId", { type: () => String }) campaignId: string,
         @Args("skip", { type: () => Number, nullable: true }) skip?: number,
         @Args("take", { type: () => Number, nullable: true }) take?: number,
     ): Promise<Donation[]> {
-        return this.donorService.getDonationsByCampaign(campaignId, { skip, take })
+        return this.donorService.getDonationsByCampaign(campaignId, {
+            skip,
+            take,
+        })
     }
 }

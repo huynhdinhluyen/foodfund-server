@@ -1,12 +1,7 @@
 import { Args, Mutation, Resolver } from "@nestjs/graphql"
 import { Campaign } from "../../models/campaign.model"
 import { SentryInterceptor } from "@libs/observability/sentry.interceptor"
-import {
-    Logger,
-    UseGuards,
-    UseInterceptors,
-    ValidationPipe,
-} from "@nestjs/common"
+import { UseGuards, UseInterceptors, ValidationPipe } from "@nestjs/common"
 import { CampaignService } from "../../campaign.service"
 import { SignedUrlResponse } from "../../dtos/response/signed-url.response"
 import { CognitoGraphQLGuard } from "@libs/aws-cognito"
@@ -22,8 +17,6 @@ import { CurrentUser } from "@app/campaign/src/shared"
 @Resolver(() => Campaign)
 @UseInterceptors(SentryInterceptor)
 export class CampaignMutationResolver {
-    private readonly logger = new Logger(CampaignMutationResolver.name)
-
     constructor(private readonly campaignService: CampaignService) {}
 
     @Mutation(() => SignedUrlResponse, {
@@ -65,7 +58,7 @@ export class CampaignMutationResolver {
     }
 
     @Mutation(() => Campaign, {
-        description: "Update campaign (only creator, before approval)",
+        description: "Update campaign",
     })
     @UseGuards(CognitoGraphQLGuard)
     async updateCampaign(
