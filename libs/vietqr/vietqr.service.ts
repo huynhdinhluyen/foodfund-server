@@ -22,7 +22,7 @@ export interface VietQRBanksResponse {
 export class VietQRService implements OnModuleInit {
     private readonly logger = new Logger(VietQRService.name)
     private readonly client: AxiosInstance
-    private banksCache: Map<string, BankInfo> = new Map()
+    private readonly banksCache: Map<string, BankInfo> = new Map()
     private lastFetchTime: number = 0
     private readonly CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
 

@@ -14,6 +14,7 @@ import { AuthLibModule } from "@libs/auth"
 import { SqsModule } from "@libs/aws-sqs"
 import { GrpcModule } from "@libs/grpc"
 import { UserClientService } from "../shared/services/user-client.service"
+import { UserDataLoader } from "../shared/dataloaders/user.dataloader"
 
 @Module({
     imports: [CampaignModule, AuthLibModule, SqsModule, GrpcModule],
@@ -29,6 +30,7 @@ import { UserClientService } from "../shared/services/user-client.service"
         AdminQueryResolver,
         AdminMutationResolver,
         UserClientService,
+        UserDataLoader,
         PrismaClient,
     ],
     exports: [DonorService, DonationProcessorService, DonorRepository],

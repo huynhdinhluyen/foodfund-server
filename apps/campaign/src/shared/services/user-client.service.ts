@@ -103,4 +103,36 @@ export class UserClientService {
         const user = await this.getUserByCognitoId(cognitoId)
         return user?.fullName || user?.username || null
     }
+
+    /**
+     * Batch fetch users by IDs (for optimization)
+     * Returns a map of userId -> userName
+     */
+    async getUserNamesByIds(
+        userIds: string[],
+    ): Promise<Map<string, string>> {
+        const userNameMap = new Map<string, string>()
+
+        if (userIds.length === 0) return userNameMap
+
+        // Fetch users in parallel (batch)
+        const userPromises = userIds.map((userId) =>
+            this.getUserById(userId).catch((error) => {
+                this.logger.warn(`Failed to fetch user ${userId}:`, error)
+                return null
+            }),
+        )
+
+        const users = await Promise.all(userPromises)
+
+        // Build map
+        users.forEach((user, index) => {
+            if (user) {
+                const userName = user.fullName || user.username || "Unknown Donor"
+                userNameMap.set(userIds[index], userName)
+            }
+        })
+
+        return userNameMap
+    }
 }

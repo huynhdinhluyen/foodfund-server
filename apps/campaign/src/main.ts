@@ -3,8 +3,6 @@ import { AppModule } from "./app.module"
 import { ValidationPipe } from "@nestjs/common"
 import { SentryService } from "@libs/observability/sentry.service"
 import { GraphQLExceptionFilter } from "@libs/exceptions"
-import { CloudWatchLoggerService } from "@libs/aws-cloudwatch"
-import { isProduction } from "@libs/env"
 
 async function bootstrap() {
     try {
@@ -12,12 +10,6 @@ async function bootstrap() {
             bufferLogs: true,
         })
 
-        // Use CloudWatch logger in production
-        if (isProduction()) {
-            app.useLogger(app.get(CloudWatchLoggerService))
-        } else {
-            app.flushLogs()
-        }
         const sentryService = app.get(SentryService)
 
         app.useGlobalPipes(
@@ -45,6 +37,7 @@ async function bootstrap() {
             res.removeHeader("X-Powered-By")
             next()
         })
+        
 
         // app.enableCors({
         //     origin:

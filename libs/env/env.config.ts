@@ -118,11 +118,7 @@ export const envConfig = (): EnvironmentConfig => ({
         accessKeyId: process.env.AWS_ACCESS_KEY_ID as string,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY as string,
         awsOpenSearchEndpoint: process.env.AWS_OPENSEARCH_ENDPOINT as string,
-        awsSqsQueueUrl: process.env.AWS_SQS_QUEUE_URL as string,
-        cloudwatch: {
-            namespace: "FoodFund",
-            logGroup: process.env.AWS_CLOUDWATCH_LOG_GROUP as string,
-        },
+        awsSqsQueueUrl: process.env.AWS_SQS_QUEUE_URL as string
     },
 
     // Sentry Configuration

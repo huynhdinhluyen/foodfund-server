@@ -14,6 +14,7 @@ import { Donation } from "../models/donation.model"
 import { SqsService } from "@libs/aws-sqs"
 import { CurrentUserType } from "@libs/auth"
 import { UserClientService } from "../../shared/services/user-client.service"
+import { UserDataLoader } from "../../shared/dataloaders/user.dataloader"
 import { PayOS } from "@payos/node"
 import { envConfig } from "@libs/env"
 
@@ -27,6 +28,7 @@ export class DonorService {
         private readonly campaignRepository: CampaignRepository,
         private readonly sqsService: SqsService,
         private readonly userClientService: UserClientService,
+        private readonly userDataLoader: UserDataLoader,
     ) {}
 
     private getPayOS(): PayOS {
@@ -63,7 +65,7 @@ export class DonorService {
             const field62Index = qrCode.indexOf("62")
             if (field62Index === -1) return null
 
-            const field62Length = parseInt(
+            const field62Length = Number.parseInt(
                 qrCode.substring(field62Index + 2, field62Index + 4),
                 10,
             )
@@ -76,7 +78,7 @@ export class DonorService {
             const subfield08Index = field62Content.indexOf("08")
             if (subfield08Index === -1) return null
 
-            const descriptionLength = parseInt(
+            const descriptionLength = Number.parseInt(
                 field62Content.substring(
                     subfield08Index + 2,
                     subfield08Index + 4,
@@ -322,33 +324,53 @@ export class DonorService {
             return true
         })
 
-        // Populate donor_name for valid donations
-        const donationsWithNames = await Promise.all(
-            validDonations.map(async (donation) => {
-                // If donor_name is null, populate it
-                if (!donation.donor_name) {
-                    // Anonymous donations
-                    if (
-                        donation.is_anonymous ||
-                        donation.donor_id === "anonymous"
-                    ) {
-                        return {
-                            ...donation,
-                            donor_name: "Người dùng ẩn danh",
-                        }
-                    }
-                    // Non-anonymous donations - fetch from user service
-                    const userName = await this.userClientService.getUserName(
-                        donation.donor_id,
-                    )
-                    return {
-                        ...donation,
-                        donor_name: userName || "Unknown Donor",
-                    }
+        // Use DataLoader to batch fetch donor names (automatic batching & caching)
+        // Collect donor IDs that need to be fetched
+        const donorIdsToFetch = validDonations
+            .filter(
+                (d: any) =>
+                    !d.donor_name &&
+                    !d.is_anonymous &&
+                    d.donor_id !== "anonymous",
+            )
+            .map((d: any) => d.donor_id)
+
+        // Get unique donor IDs
+        const uniqueDonorIds = [...new Set(donorIdsToFetch)]
+
+        // Batch fetch using DataLoader (automatically batches and caches)
+        const users =
+            uniqueDonorIds.length > 0
+                ? await this.userDataLoader.loadMany(uniqueDonorIds)
+                : []
+
+        // Build map for quick lookup
+        const userNameMap = new Map<string, string>()
+        users.forEach((user, index) => {
+            if (user) {
+                const userName =
+                    user.fullName || user.username || "Unknown Donor"
+                userNameMap.set(uniqueDonorIds[index], userName)
+            }
+        })
+
+        // Populate donor_name for all donations
+        const donationsWithNames = validDonations.map((donation: any) => {
+            if (!donation.donor_name) {
+                // Anonymous donations
+                if (
+                    donation.is_anonymous ||
+                    donation.donor_id === "anonymous"
+                ) {
+                    donation.donor_name = "Người dùng ẩn danh"
+                } else {
+                    // Get from DataLoader fetched map
+                    donation.donor_name =
+                        userNameMap.get(donation.donor_id) || "Unknown Donor"
                 }
-                return donation
-            }),
-        )
+            }
+            return donation
+        })
 
         return donationsWithNames.map(this.mapDonationToGraphQLModel)
     }
