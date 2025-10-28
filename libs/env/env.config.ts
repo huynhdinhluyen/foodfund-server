@@ -153,14 +153,6 @@ export const envConfig = (): EnvironmentConfig => ({
         payosBankFullName: process.env.PAYOS_BANK_FULLNAME as string,
         payosBankLogo: process.env.PAYOS_BANK_LOGO as string,
     },
-
-    sepay: {
-        sepayApiKey: process.env.SEPAY_API_KEY as string,
-        sepayAccountNumber: process.env.SEPAY_ACCOUNT_NUMBER as string,
-        sepayAccountName: process.env.SEPAY_ACCOUNT_NAME as string,
-        sepayBankName: process.env.SEPAY_BANK_NAME as string,
-        sepayShortBankName: process.env.SEPAY_BANK_SHORT_NAME as string,
-    },
 })
 
 // Utility functions
