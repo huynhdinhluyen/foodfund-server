@@ -13,8 +13,7 @@ export class DonorMutationResolver {
 
     @UseGuards(OptionalJwtAuthGuard)
     @Mutation(() => DonationResponse, {
-        description:
-            "Create a new donation and generate PayOS payment link for a campaign",
+        description: "Create a new donation for a campaign",
     })
     async createDonation(
         @Args("input") input: CreateDonationInput,

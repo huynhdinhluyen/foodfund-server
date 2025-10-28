@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common"
+import { CampaignStatus } from "../enum"
 
 export class CampaignNotFoundException extends NotFoundException {
     constructor(id: string) {
@@ -13,9 +14,11 @@ export class CampaignValidationException extends BadRequestException {
 }
 
 export class CampaignCannotBeDeletedException extends BadRequestException {
-    constructor(status: string) {
+    constructor(status: CampaignStatus) {
         super(
-            `Cannot delete campaign with status ${status}. Only campaigns with PENDING status can be deleted.`,
+            `Cannot delete campaign with status "${status}". ` +
+                "Only campaigns with PENDING or REJECTED status can be deleted. " +
+                "This protects campaigns that have received donations or are in progress.",
         )
     }
 }

@@ -2,7 +2,6 @@ import {
     BadRequestException,
     ForbiddenException,
     Injectable,
-    Logger,
 } from "@nestjs/common"
 import {
     CampaignFilterInput,
@@ -19,15 +18,14 @@ import {
     CampaignNotFoundException,
 } from "./exceptions/campaign.exception"
 import { GenerateUploadUrlInput } from "./dtos/request/generate-upload-url.input"
-import { CampaignCategoryRepository } from "../campaign-category/campaign-category.repository"
 import { Campaign } from "./models/campaign.model"
 import { Decimal } from "@prisma/client/runtime/library"
 import { AuthorizationService } from "../shared/services/authorization.service"
 import { UserContext } from "../shared/types/user-context.type"
+import { CampaignCategoryRepository } from "../campaign-category"
 
 @Injectable()
 export class CampaignService {
-    private readonly logger = new Logger(CampaignService.name)
     private readonly SPACES_CDN_ENDPOINT = process.env.SPACES_CDN_ENDPOINT
     private readonly resource = "campaigns"
 
@@ -78,11 +76,6 @@ export class CampaignService {
                     "Upload your image file to the uploadUrl using PUT method with Content-Type: image/jpeg. Then use the fileKey in createCampaign mutation.",
             }
         } catch (error) {
-            this.logger.error(
-                `Failed to generate upload URL for user ${userContext.username}:`,
-                error,
-            )
-
             this.sentryService.captureError(error as Error, {
                 operation: "generateCampaignImageUploadUrl",
                 user: {
@@ -96,120 +89,115 @@ export class CampaignService {
     }
 
     async createCampaign(input: CreateCampaignInput, userContext: UserContext) {
-        try {
-            this.authorizationService.requireAuthentication(
-                userContext,
-                "create campaign",
-            )
+        this.authorizationService.requireAuthentication(
+            userContext,
+            "create campaign",
+        )
 
-            if (input.categoryId) {
-                await this.validateCategoryExists(input.categoryId)
-            }
+        if (input.categoryId) {
+            await this.validateCategoryExists(input.categoryId)
+        }
 
-            const fileValidation =
-                await this.spacesUploadService.validateUploadedFile(
-                    input.coverImageFileKey,
-                )
-
-            if (!fileValidation.exists) {
-                throw new BadRequestException(
-                    "Cover image file not found. Please upload the file first using generateUploadUrl.",
-                )
-            }
-
-            this.validateCampaignDates(
-                input.fundraisingStartDate,
-                input.fundraisingEndDate,
-            )
-            this.validateTargetAmount(input.targetAmount)
-            this.validateBudgetPercentages(
-                input.ingredientBudgetPercentage,
-                input.cookingBudgetPercentage,
-                input.deliveryBudgetPercentage,
-            )
-
-            const fileKey = this.spacesUploadService.extractFileKeyFromUrl(
-                this.resource,
+        const fileValidation =
+            await this.spacesUploadService.validateUploadedFile(
                 input.coverImageFileKey,
             )
-            if (!fileKey || !fileKey.startsWith(`${this.resource}/`)) {
-                throw new BadRequestException(
-                    "Invalid file key. Please use a valid file key from generateCampaignImageUploadUrl.",
-                )
-            }
 
-            const cdnUrl = `${this.SPACES_CDN_ENDPOINT}/${fileKey}`
-
-            const campaign = await this.campaignRepository.create({
-                title: input.title,
-                description: input.description,
-                coverImage: cdnUrl,
-                location: input.location,
-                targetAmount: input.targetAmount,
-                ingredientBudgetPercentage: new Decimal(
-                    input.ingredientBudgetPercentage,
-                ),
-                cookingBudgetPercentage: new Decimal(
-                    input.cookingBudgetPercentage,
-                ),
-                deliveryBudgetPercentage: new Decimal(
-                    input.deliveryBudgetPercentage,
-                ),
-                fundraisingStartDate: input.fundraisingStartDate,
-                fundraisingEndDate: input.fundraisingEndDate,
-                ingredientPurchaseDate: input.ingredientPurchaseDate,
-                cookingDate: input.cookingDate,
-                deliveryDate: input.deliveryDate,
-                createdBy: userContext.userId,
-                status: CampaignStatus.PENDING,
-                coverImageFileKey: fileKey,
-                categoryId: input.categoryId,
-            })
-
-            this.sentryService.addBreadcrumb(
-                "Campaign created with extended flow",
-                "campaign",
-                {
-                    campaignId: campaign.id,
-                    creator: {
-                        id: userContext.userId,
-                        username: userContext.username,
-                        role: userContext.role,
-                    },
-                    status: CampaignStatus.PENDING,
-                    title: input.title,
-                    fileKey,
-                },
+        if (!fileValidation.exists) {
+            throw new BadRequestException(
+                "Cover image file not found. Please upload the file first using generateUploadUrl.",
             )
+        }
 
-            return campaign
-        } catch (error) {
-            if (input.coverImageFileKey) {
-                try {
-                    await this.spacesUploadService.deleteResourceImage(
-                        input.coverImageFileKey,
-                    )
-                } catch (cleanupError) {
-                    this.logger.error(
-                        `Failed to cleanup uploaded file: ${input.coverImageFileKey}`,
-                        cleanupError,
-                    )
-                }
-            }
+        this.validateCampaignDates(
+            input.fundraisingStartDate,
+            input.fundraisingEndDate,
+        )
+        this.parseAndValidateTargetAmount(input.targetAmount)
+        this.validateBudgetPercentages(
+            input.ingredientBudgetPercentage,
+            input.cookingBudgetPercentage,
+            input.deliveryBudgetPercentage,
+        )
 
-            this.sentryService.captureError(error as Error, {
-                operation: "createCampaign",
-                user: {
+        const fileKey = this.spacesUploadService.extractFileKeyFromUrl(
+            this.resource,
+            input.coverImageFileKey,
+        )
+        if (!fileKey || !fileKey.startsWith(`${this.resource}/`)) {
+            throw new BadRequestException(
+                "Invalid file key. Please use a valid file key from generateCampaignImageUploadUrl.",
+            )
+        }
+
+        const cdnUrl = `${this.SPACES_CDN_ENDPOINT}/${fileKey}`
+
+        const campaign = await this.campaignRepository.create({
+            title: input.title,
+            description: input.description,
+            coverImage: cdnUrl,
+            location: input.location,
+            targetAmount: input.targetAmount,
+            ingredientBudgetPercentage: new Decimal(
+                input.ingredientBudgetPercentage,
+            ),
+            cookingBudgetPercentage: new Decimal(input.cookingBudgetPercentage),
+            deliveryBudgetPercentage: new Decimal(
+                input.deliveryBudgetPercentage,
+            ),
+            fundraisingStartDate: input.fundraisingStartDate,
+            fundraisingEndDate: input.fundraisingEndDate,
+            ingredientPurchaseDate: input.ingredientPurchaseDate,
+            cookingDate: input.cookingDate,
+            deliveryDate: input.deliveryDate,
+            createdBy: userContext.userId,
+            status: CampaignStatus.PENDING,
+            coverImageFileKey: fileKey,
+            categoryId: input.categoryId,
+        })
+
+        this.sentryService.addBreadcrumb(
+            "Campaign created with extended flow",
+            "campaign",
+            {
+                campaignId: campaign.id,
+                creator: {
                     id: userContext.userId,
                     username: userContext.username,
                     role: userContext.role,
                 },
-                input: {
-                    title: input.title,
-                    targetAmount: input.targetAmount,
-                    location: input.location,
-                    fileKey: input.coverImageFileKey,
-                },
+                status: CampaignStatus.PENDING,
+                title: input.title,
+                fileKey,
+            },
+        )
+
+        return campaign
+    }
+
+    async getCampaigns(
+        filter?: CampaignFilterInput,
+        search?: string,
+        sortBy: CampaignSortOrder = CampaignSortOrder.ACTIVE_FIRST,
+        limit: number = 10,
+        offset: number = 0,
+    ) {
+        try {
+            return await this.campaignRepository.findMany({
+                filter,
+                search,
+                sortBy,
+                limit,
+                offset,
+            })
+        } catch (error) {
+            this.sentryService.captureError(error as Error, {
+                operation: "getCampaigns",
+                filter,
+                search,
+                sortBy,
+                limit,
+                offset,
             })
             throw error
         }
@@ -220,144 +208,153 @@ export class CampaignService {
         input: UpdateCampaignInput,
         userContext: UserContext,
     ) {
-        try {
-            this.authorizationService.requireAuthentication(
-                userContext,
-                "update campaign",
-            )
+        this.authorizationService.requireAuthentication(
+            userContext,
+            "update campaign",
+        )
 
-            const campaign = await this.findCampaignById(id)
-            this.authorizationService.requireOwnership(
-                campaign.createdBy,
-                userContext,
-                "campaign",
-                "update",
-            )
-            this.validateCampaignForUpdate(campaign)
+        const campaign = await this.findCampaignById(id)
 
-            if (input.categoryId) {
-                await this.validateCategoryExists(input.categoryId)
-            }
+        this.authorizationService.requireOwnership(
+            campaign.createdBy,
+            userContext,
+            "campaign",
+            "update",
+        )
 
-            if (input.fundraisingStartDate || input.fundraisingEndDate) {
-                const startDate =
-                    input.fundraisingStartDate || campaign.fundraisingStartDate
-                const endDate =
-                    input.fundraisingEndDate || campaign.fundraisingEndDate
-                this.validateCampaignDates(startDate, endDate)
-            }
+        this.validateCampaignForUpdate(campaign)
 
-            if (input.targetAmount) {
-                this.validateTargetAmount(input.targetAmount)
-            }
+        if (input.categoryId) {
+            await this.validateCategoryExists(input.categoryId)
+        }
 
-            if (
+        if (input.fundraisingStartDate || input.fundraisingEndDate) {
+            const startDate =
+                input.fundraisingStartDate || campaign.fundraisingStartDate
+            const endDate =
+                input.fundraisingEndDate || campaign.fundraisingEndDate
+            this.validateCampaignDates(startDate, endDate)
+        }
+
+        if (
+            input.ingredientBudgetPercentage ||
+            input.cookingBudgetPercentage ||
+            input.deliveryBudgetPercentage
+        ) {
+            this.validateBudgetPercentages(
                 input.ingredientBudgetPercentage ||
+                    campaign.ingredientBudgetPercentage,
                 input.cookingBudgetPercentage ||
-                input.deliveryBudgetPercentage
-            ) {
-                this.validateBudgetPercentages(
-                    input.ingredientBudgetPercentage ||
-                        campaign.ingredientBudgetPercentage,
-                    input.cookingBudgetPercentage ||
-                        campaign.cookingBudgetPercentage,
-                    input.deliveryBudgetPercentage ||
-                        campaign.deliveryBudgetPercentage,
+                    campaign.cookingBudgetPercentage,
+                input.deliveryBudgetPercentage ||
+                    campaign.deliveryBudgetPercentage,
+            )
+        }
+
+        const updateData: any = {}
+
+        if (input.title !== undefined) updateData.title = input.title
+        if (input.description !== undefined)
+            updateData.description = input.description
+        if (input.location !== undefined) updateData.location = input.location
+
+        if (input.targetAmount !== undefined) {
+            try {
+                updateData.targetAmount = this.parseAndValidateTargetAmount(
+                    input.targetAmount,
+                )
+            } catch (error) {
+                throw new BadRequestException(
+                    "Target amount must be a valid number greater than 0",
+                )
+            }
+        }
+
+        if (input.ingredientBudgetPercentage) {
+            updateData.ingredientBudgetPercentage = new Decimal(
+                input.ingredientBudgetPercentage,
+            )
+        }
+        if (input.cookingBudgetPercentage) {
+            updateData.cookingBudgetPercentage = new Decimal(
+                input.cookingBudgetPercentage,
+            )
+        }
+        if (input.deliveryBudgetPercentage) {
+            updateData.deliveryBudgetPercentage = new Decimal(
+                input.deliveryBudgetPercentage,
+            )
+        }
+
+        if (input.fundraisingStartDate !== undefined)
+            updateData.fundraisingStartDate = input.fundraisingStartDate
+        if (input.fundraisingEndDate !== undefined)
+            updateData.fundraisingEndDate = input.fundraisingEndDate
+        if (input.ingredientPurchaseDate !== undefined)
+            updateData.ingredientPurchaseDate = input.ingredientPurchaseDate
+        if (input.cookingDate !== undefined)
+            updateData.cookingDate = input.cookingDate
+        if (input.deliveryDate !== undefined)
+            updateData.deliveryDate = input.deliveryDate
+
+        let oldFileKeyToDelete: string | null = null
+
+        if (input.coverImageFileKey) {
+            const newFileKey = this.spacesUploadService.extractFileKeyFromUrl(
+                this.resource,
+                input.coverImageFileKey,
+            )
+
+            if (!newFileKey || !newFileKey.startsWith(`${this.resource}/`)) {
+                throw new BadRequestException(
+                    "Invalid file key. Please use a valid file key from generateUploadUrl.",
                 )
             }
 
-            const updateData: any = { ...input }
-            let oldFileKeyToDelete: string | null = null
-
-            // Convert budget percentages to Decimal
-            if (input.ingredientBudgetPercentage) {
-                updateData.ingredientBudgetPercentage = new Decimal(
-                    input.ingredientBudgetPercentage,
-                )
-            }
-            if (input.cookingBudgetPercentage) {
-                updateData.cookingBudgetPercentage = new Decimal(
-                    input.cookingBudgetPercentage,
-                )
-            }
-            if (input.deliveryBudgetPercentage) {
-                updateData.deliveryBudgetPercentage = new Decimal(
-                    input.deliveryBudgetPercentage,
-                )
-            }
-
-            if (input.coverImageFileKey) {
-                const newFileKey =
-                    this.spacesUploadService.extractFileKeyFromUrl(
-                        this.resource,
+            if (campaign.coverImageFileKey !== newFileKey) {
+                const fileValidation =
+                    await this.spacesUploadService.validateUploadedFile(
                         input.coverImageFileKey,
                     )
 
-                if (
-                    !newFileKey ||
-                    !newFileKey.startsWith(`${this.resource}/`)
-                ) {
+                if (!fileValidation.exists) {
                     throw new BadRequestException(
-                        "Invalid file key. Please use a valid file key from generateUploadUrl.",
+                        "Cover image file not found. Please upload the file first using generateUploadUrl.",
                     )
                 }
 
-                if (campaign.coverImageFileKey === newFileKey) {
-                    delete updateData.coverImageFileKey
-                } else {
-                    const fileValidation =
-                        await this.spacesUploadService.validateUploadedFile(
-                            input.coverImageFileKey,
-                        )
-
-                    if (!fileValidation.exists) {
-                        throw new BadRequestException(
-                            "Cover image file not found. Please upload the file first using generateUploadUrl.",
-                        )
-                    }
-
-                    if (campaign.coverImageFileKey) {
-                        oldFileKeyToDelete = campaign.coverImageFileKey
-                    }
-
-                    updateData.coverImage = `${this.SPACES_CDN_ENDPOINT}/${newFileKey}`
-                    updateData.coverImageFileKey = newFileKey
-
-                    delete updateData.coverImageFileKey
+                if (campaign.coverImageFileKey) {
+                    oldFileKeyToDelete = campaign.coverImageFileKey
                 }
+
+                updateData.coverImage = `${this.SPACES_CDN_ENDPOINT}/${newFileKey}`
+                updateData.coverImageFileKey = newFileKey
             }
-
-            const updatedCampaign = await this.campaignRepository.update(
-                id,
-                updateData,
-            )
-
-            if (oldFileKeyToDelete) {
-                try {
-                    await this.spacesUploadService.deleteResourceImage(
-                        oldFileKeyToDelete,
-                    )
-                } catch (cleanupError) {
-                    this.logger.error(
-                        `Failed to delete old image ${oldFileKeyToDelete}, but campaign update succeeded:`,
-                        cleanupError,
-                    )
-                }
-            }
-
-            return updatedCampaign
-        } catch (error) {
-            this.sentryService.captureError(error as Error, {
-                operation: "updateCampaign",
-                campaignId: id,
-                user: {
-                    id: userContext.userId,
-                    username: userContext.username,
-                    role: userContext.role,
-                },
-            })
-            throw error
         }
+
+        const updatedCampaign = await this.campaignRepository.update(
+            id,
+            updateData,
+        )
+
+        if (oldFileKeyToDelete) {
+            await this.spacesUploadService.deleteResourceImage(
+                oldFileKeyToDelete,
+            )
+        }
+
+        this.sentryService.addBreadcrumb("Campaign updated", "campaign", {
+            campaignId: id,
+            user: {
+                id: userContext.userId,
+                username: userContext.username,
+                role: userContext.role,
+            },
+            updatedFields: Object.keys(input),
+            coverImageReplaced: !!oldFileKeyToDelete,
+        })
+
+        return updatedCampaign
     }
 
     async changeStatus(
@@ -470,35 +467,6 @@ export class CampaignService {
         }
     }
 
-    async getCampaigns(
-        filter?: CampaignFilterInput,
-        search?: string,
-        sortBy: CampaignSortOrder = CampaignSortOrder.ACTIVE_FIRST,
-        limit: number = 10,
-        offset: number = 0,
-    ) {
-        try {
-            return await this.campaignRepository.findMany({
-                filter,
-                search,
-                sortBy,
-                limit,
-                offset,
-            })
-        } catch (error) {
-            this.logger.error("Failed to get campaigns:", error)
-            this.sentryService.captureError(error as Error, {
-                operation: "getCampaigns",
-                filter,
-                search,
-                sortBy,
-                limit,
-                offset,
-            })
-            throw error
-        }
-    }
-
     async findCampaignById(id: string) {
         const campaign = await this.campaignRepository.findById(id)
         if (campaign == null) {
@@ -526,7 +494,12 @@ export class CampaignService {
                 "delete",
             )
 
-            if (campaign.status !== CampaignStatus.PENDING) {
+            const deletableStatuses = [
+                CampaignStatus.PENDING,
+                CampaignStatus.REJECTED,
+            ]
+
+            if (!deletableStatuses.includes(campaign.status)) {
                 throw new CampaignCannotBeDeletedException(campaign.status)
             }
 
@@ -541,11 +514,21 @@ export class CampaignService {
                     await this.spacesUploadService.deleteResourceImage(
                         campaign.coverImageFileKey,
                     )
-                } catch (cleanupError) {
-                    this.logger.error(
-                        `Failed to delete campaign cover image ${campaign.coverImageFileKey}, but campaign deletion succeeded:`,
-                        cleanupError,
+                    this.sentryService.addBreadcrumb(
+                        "Campaign cover image deleted",
+                        "file-cleanup",
+                        {
+                            campaignId: id,
+                            fileKey: campaign.coverImageFileKey,
+                        },
                     )
+                } catch (cleanupError) {
+                    this.sentryService.captureError(cleanupError as Error, {
+                        operation: "deleteCampaignCoverImage",
+                        campaignId: id,
+                        fileKey: campaign.coverImageFileKey,
+                        note: "Campaign deleted but file cleanup failed",
+                    })
                 }
             }
 
@@ -559,6 +542,10 @@ export class CampaignService {
                 campaignTitle: campaign.title,
                 campaignStatus: campaign.status,
                 hadCoverImage: !!campaign.coverImageFileKey,
+                reason:
+                    campaign.status === CampaignStatus.PENDING
+                        ? "deleted_before_approval"
+                        : "deleted_after_rejection",
             })
 
             return result
@@ -647,37 +634,30 @@ export class CampaignService {
         }
     }
 
-    private validateTargetAmount(targetAmount: string): void {
-        try {
-            if (!targetAmount || typeof targetAmount !== "string") {
-                throw new BadRequestException(
-                    "Target amount is required and must be a string",
-                )
-            }
+    private parseAndValidateTargetAmount(targetAmountStr: string): number {
+        const trimmed = targetAmountStr.trim()
 
-            const amount = BigInt(targetAmount)
-            const minAmount = BigInt("10000")
-            const maxAmount = BigInt("10000000000")
-
-            if (amount < minAmount) {
-                throw new BadRequestException(
-                    "Target amount must be at least 10,000 VND",
-                )
-            }
-
-            if (amount > maxAmount) {
-                throw new BadRequestException(
-                    "Target amount cannot exceed 10 billion VND",
-                )
-            }
-        } catch (error) {
-            if (error instanceof BadRequestException) {
-                throw error
-            }
+        if (!trimmed || isNaN(Number(trimmed))) {
             throw new BadRequestException(
-                "Invalid target amount format. Please provide a valid numeric string.",
+                "Target amount must be a valid numeric string",
             )
         }
+
+        const amount = Number(trimmed)
+
+        if (amount <= 0) {
+            throw new BadRequestException(
+                "Target amount must be greater than 0",
+            )
+        }
+
+        if (amount > Number.MAX_SAFE_INTEGER) {
+            throw new BadRequestException(
+                `Target amount cannot exceed ${Number.MAX_SAFE_INTEGER}`,
+            )
+        }
+
+        return amount
     }
 
     private validateBudgetPercentages(
@@ -804,11 +784,6 @@ export class CampaignService {
             if (error instanceof BadRequestException) {
                 throw error
             }
-
-            this.logger.error(
-                `Failed to validate category ${categoryId}:`,
-                error,
-            )
             this.sentryService.captureError(error as Error, {
                 operation: "validateCategoryExists",
                 categoryId,
