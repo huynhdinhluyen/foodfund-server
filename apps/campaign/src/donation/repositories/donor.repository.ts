@@ -11,16 +11,39 @@ export class DonorRepository {
         return this.prisma.donation.create({
             data: {
                 donor_id: data.donor_id,
+                donor_name: data.donor_name,
                 campaign: {
                     connect: { id: data.campaign_id },
                 },
                 amount: data.amount,
-                message: data.message,
                 is_anonymous: data.is_anonymous,
             },
             include: {
                 campaign: true,
                 payment_transactions: true,
+            },
+        })
+    }
+
+    async createPaymentTransaction(data: {
+        donation_id: string
+        order_code: bigint
+        amount: bigint
+        description: string
+        checkout_url: string
+        qr_code: string
+        payment_link_id: string
+    }) {
+        return this.prisma.payment_Transaction.create({
+            data: {
+                donation_id: data.donation_id,
+                order_code: data.order_code,
+                amount: data.amount,
+                description: data.description,
+                checkout_url: data.checkout_url,
+                qr_code: data.qr_code,
+                payment_link_id: data.payment_link_id,
+                status: PaymentStatus.PENDING,
             },
         })
     }
@@ -33,11 +56,11 @@ export class DonorRepository {
             data: {
                 id,
                 donor_id: data.donor_id,
+                donor_name: data.donor_name,
                 campaign: {
                     connect: { id: data.campaign_id },
                 },
                 amount: data.amount,
-                message: data.message,
                 is_anonymous: data.is_anonymous,
             },
             include: {
@@ -218,69 +241,67 @@ export class DonorRepository {
      */
     async findPaymentTransactionByReference(referenceNumber: string) {
         return this.prisma.payment_Transaction.findFirst({
-            where: { reference_number: referenceNumber },
+            where: { reference: referenceNumber },
         })
     }
 
     /**
-     * Create donation from dynamic QR payment (auto-created by Sepay webhook)
-     * This is for payments made via dynamic QR code with encoded user info
+     * Find payment transaction by order code
      */
-    async createDonationFromDynamicQR(data: {
-        campaignId: string
-        donorId: string // Can be userId or "anonymous"
-        donorName?: string // Donor name (fetched from user service)
-        sepayTransactionId: number // Sepay transaction ID
-        gateway: string // Bank name
-        transactionDate: string // Transaction timestamp
-        accountNumber: string // Receiving account
-        subAccount?: string
-        amountIn: bigint // Amount received
-        amountOut: bigint // Amount sent (usually 0)
-        accumulated: bigint // Account balance
-        code?: string // Bank transaction code
-        transactionContent: string // Transfer description
-        referenceNumber: string // Unique reference
-        body?: string // Additional data
+    async findPaymentTransactionByOrderCode(orderCode: bigint) {
+        return this.prisma.payment_Transaction.findUnique({
+            where: { order_code: orderCode },
+            include: {
+                donation: {
+                    include: {
+                        campaign: true,
+                    },
+                },
+            },
+        })
+    }
+
+    /**
+     * Update payment transaction to SUCCESS status
+     */
+    async updatePaymentTransactionSuccess(data: {
+        order_code: bigint
+        reference: string
+        transaction_datetime: Date
+        counter_account_bank_id?: string
+        counter_account_bank_name?: string
+        counter_account_name?: string
+        counter_account_number?: string
+        virtual_account_name?: string
+        virtual_account_number?: string
     }) {
         return this.prisma.$transaction(async (tx) => {
-            // Create donation with donor info
-            const donation = await tx.donation.create({
+            // Update payment transaction
+            const payment = await tx.payment_Transaction.update({
+                where: { order_code: data.order_code },
                 data: {
-                    donor_id: data.donorId,
-                    donor_name: data.donorName,
-                    campaign_id: data.campaignId,
-                    amount: data.amountIn, // Use amount_in from Sepay
-                    message: null,
-                    is_anonymous: data.donorId === "anonymous",
-                },
-            })
-
-            // Create payment transaction with Sepay data
-            await tx.payment_Transaction.create({
-                data: {
-                    donation_id: donation.id,
-                    gateway: data.gateway,
-                    transaction_date: new Date(data.transactionDate),
-                    account_number: data.accountNumber,
-                    sub_account: data.subAccount,
-                    amount_in: data.amountIn,
-                    amount_out: data.amountOut,
-                    accumulated: data.accumulated,
-                    code: data.code,
-                    transaction_content: data.transactionContent,
-                    reference_number: data.referenceNumber,
-                    body: data.body,
                     status: PaymentStatus.SUCCESS,
+                    reference: data.reference,
+                    transaction_datetime: data.transaction_datetime,
+                    counter_account_bank_id: data.counter_account_bank_id,
+                    counter_account_bank_name: data.counter_account_bank_name,
+                    counter_account_name: data.counter_account_name,
+                    counter_account_number: data.counter_account_number,
+                    virtual_account_name: data.virtual_account_name,
+                    virtual_account_number: data.virtual_account_number,
+                    updated_at: new Date(),
+                },
+                include: {
+                    donation: true,
                 },
             })
 
             // Update campaign stats
             await tx.campaign.update({
-                where: { id: data.campaignId },
+                where: { id: payment.donation.campaign_id },
                 data: {
                     received_amount: {
-                        increment: data.amountIn,
+                        increment: payment.amount,
                     },
                     donation_count: {
                         increment: 1,
@@ -288,7 +309,26 @@ export class DonorRepository {
                 },
             })
 
-            return donation
+            return payment
+        })
+    }
+
+    /**
+     * Update payment transaction to FAILED status
+     */
+    async updatePaymentTransactionFailed(data: {
+        order_code: bigint
+        error_code: string
+        error_description: string
+    }) {
+        return this.prisma.payment_Transaction.update({
+            where: { order_code: data.order_code },
+            data: {
+                status: PaymentStatus.FAILED,
+                error_code: data.error_code,
+                error_description: data.error_description,
+                updated_at: new Date(),
+            },
         })
     }
 }

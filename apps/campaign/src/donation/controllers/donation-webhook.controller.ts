@@ -7,9 +7,30 @@ import {
     HttpStatus,
 } from "@nestjs/common"
 import { DonationWebhookService } from "../services/donation-webhook.service"
-import { SepayWebhookPayload } from "@libs/sepay"
 
-@Controller("webhooks/sepay")
+interface PayOSWebhookPayload {
+    data: {
+        orderCode: number
+        amount: number
+        description: string
+        accountNumber: string
+        reference: string
+        transactionDateTime: string
+        currency: string
+        paymentLinkId: string
+        code: string
+        desc: string
+        counterAccountBankId?: string
+        counterAccountBankName?: string
+        counterAccountName?: string
+        counterAccountNumber?: string
+        virtualAccountName?: string
+        virtualAccountNumber?: string
+    }
+    signature: string
+}
+
+@Controller("webhooks/payos")
 export class DonationWebhookController {
     private readonly logger = new Logger(DonationWebhookController.name)
 
@@ -18,14 +39,12 @@ export class DonationWebhookController {
     @Post("payment")
     @HttpCode(HttpStatus.OK)
     async handlePaymentWebhook(
-        @Body() payload: SepayWebhookPayload,
+        @Body() payload: PayOSWebhookPayload,
     ): Promise<{ success: boolean; message: string }> {
-        this.logger.log(`Received Sepay webhook for transaction ${payload.id}`)
+        this.logger.log(`Received PayOS webhook for order ${payload.data.orderCode}`)
 
         try {
-            console.debug(payload)
-
-            await this.webhookService.handlePaymentWebhook(payload)
+            await this.webhookService.handlePaymentWebhook(payload.data)
 
             return {
                 success: true,
@@ -37,8 +56,8 @@ export class DonationWebhookController {
                 error.stack,
             )
 
-            // IMPORTANT: Always return 200 OK to Sepay
-            // This prevents Sepay from retrying the webhook
+            // IMPORTANT: Always return 200 OK to PayOS
+            // This prevents PayOS from retrying the webhook
             // We log the error for manual review instead
             return {
                 success: true,

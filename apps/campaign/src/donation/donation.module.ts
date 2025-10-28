@@ -12,12 +12,11 @@ import { CampaignModule } from "../campaign/campaign.module"
 import { PrismaClient } from "../generated/campaign-client"
 import { AuthLibModule } from "@libs/auth"
 import { SqsModule } from "@libs/aws-sqs"
-import { SepayModule } from "@libs/sepay"
 import { GrpcModule } from "@libs/grpc"
 import { UserClientService } from "../shared/services/user-client.service"
 
 @Module({
-    imports: [CampaignModule, AuthLibModule, SqsModule, SepayModule, GrpcModule],
+    imports: [CampaignModule, AuthLibModule, SqsModule, GrpcModule],
     controllers: [DonationWebhookController],
     providers: [
         DonorService,

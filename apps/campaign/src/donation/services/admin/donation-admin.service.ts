@@ -16,8 +16,8 @@ export class DonationAdminService {
 
     /**
      * Admin manually approve a FAILED donation
-     * Use case: Donation received but validation failed
-     * Note: With Sepay, most donations are auto-approved. This is for edge cases.
+     * Use case: Payment failed but admin wants to manually approve it
+     * Note: With PayOS webhook, most donations are auto-approved. This is for edge cases.
      */
     async approveManualDonation(
         input: ApproveManualDonationInput,
@@ -74,7 +74,7 @@ export class DonationAdminService {
         await this.donorRepository.manualApprovePayment(
             paymentTx.id,
             payment.campaign_id,
-            paymentTx.amount_in, // Use amount_in from Sepay
+            paymentTx.amount, // Use amount from PayOS
             adminNote,
         )
 
@@ -82,14 +82,14 @@ export class DonationAdminService {
             `[ADMIN] Donation ${payment.id} manually approved by ${adminUsername}`,
             {
                 paymentId: paymentTx.id,
-                amount: paymentTx.amount_in.toString(),
+                amount: paymentTx.amount.toString(),
                 campaignId: payment.campaign_id,
             },
         )
 
         return {
             success: true,
-            message: `Donation approved successfully. Campaign stats updated with ${paymentTx.amount_in} VND.`,
+            message: `Donation approved successfully. Campaign stats updated with ${paymentTx.amount} VND.`,
             donationId: payment.id,
         }
     }
@@ -108,12 +108,12 @@ export class DonationAdminService {
 
         return payments.map((payment) => ({
             id: payment.id,
-            referenceNumber: payment.reference_number,
-            gateway: payment.gateway,
-            amountIn: payment.amount_in.toString(),
-            transactionContent: payment.transaction_content,
+            orderCode: payment.order_code?.toString(),
+            paymentLinkId: payment.payment_link_id,
+            amount: payment.amount.toString(),
+            description: payment.description,
             errorDescription: payment.error_description,
-            transactionDate: payment.transaction_date,
+            transactionDate: payment.transaction_datetime,
             campaignId: payment.donation.campaign_id,
             campaignTitle: payment.donation.campaign.title,
             createdAt: payment.created_at,
@@ -138,19 +138,25 @@ export class DonationAdminService {
         return {
             id: donation.id,
             donorId: donation.donor_id,
+            donorName: donation.donor_name,
             campaignId: donation.campaign_id,
             amount: donation.amount.toString(),
             isAnonymous: donation.is_anonymous,
-            // Payment transaction info
+            // Payment transaction info (PayOS)
             paymentId: paymentTx.id,
-            gateway: paymentTx.gateway,
-            transactionDate: paymentTx.transaction_date,
-            accountNumber: paymentTx.account_number,
-            amountIn: paymentTx.amount_in.toString(),
-            amountOut: paymentTx.amount_out.toString(),
-            transactionContent: paymentTx.transaction_content,
-            referenceNumber: paymentTx.reference_number,
+            orderCode: paymentTx.order_code?.toString(),
+            paymentAmount: paymentTx.amount.toString(),
+            description: paymentTx.description,
+            checkoutUrl: paymentTx.checkout_url,
+            qrCode: paymentTx.qr_code,
+            paymentLinkId: paymentTx.payment_link_id,
+            reference: paymentTx.reference,
+            transactionDatetime: paymentTx.transaction_datetime,
+            counterAccountNumber: paymentTx.counter_account_number,
+            counterAccountName: paymentTx.counter_account_name,
+            counterAccountBankName: paymentTx.counter_account_bank_name,
             status: paymentTx.status,
+            errorCode: paymentTx.error_code,
             errorDescription: paymentTx.error_description,
             // Timestamps
             createdAt: donation.created_at,

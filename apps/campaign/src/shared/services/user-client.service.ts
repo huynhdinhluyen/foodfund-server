@@ -3,7 +3,8 @@ import { GrpcClientService } from "@libs/grpc"
 
 interface UserProfile {
     id: string
-    name?: string
+    fullName?: string
+    username?: string
     email?: string
 }
 
@@ -38,7 +39,8 @@ export class UserClientService {
 
             return {
                 id: response.user.id,
-                name: response.user.full_name || response.user.username,
+                fullName: response.user.full_name,
+                username: response.user.username,
                 email: response.user.email,
             }
         } catch (error) {
@@ -49,6 +51,56 @@ export class UserClientService {
 
     async getUserName(userId: string): Promise<string | null> {
         const user = await this.getUserById(userId)
-        return user?.name || null
+        return user?.fullName || user?.username || null
+    }
+
+    async getUserByCognitoId(cognitoId: string): Promise<UserProfile | null> {
+        try {
+            // Use GetUser method with cognito_id parameter
+            // According to user.proto: GetUserRequest has optional cognito_id field
+            const response = await this.grpcClient.callUserService<
+                { id?: string; cognito_id?: string },
+                {
+                    success: boolean
+                    user?: {
+                        id: string
+                        cognito_id: string
+                        full_name: string
+                        username: string
+                        email: string
+                    }
+                    error?: string
+                }
+            >(
+                "GetUser",
+                { cognito_id: cognitoId },
+                { timeout: 3000, retries: 2 },
+            )
+
+            if (!response.success || !response.user) {
+                this.logger.warn(
+                    `Failed to fetch user by Cognito ID ${cognitoId}: ${response.error || "User not found"}`,
+                )
+                return null
+            }
+
+            return {
+                id: response.user.id,
+                fullName: response.user.full_name,
+                username: response.user.username,
+                email: response.user.email,
+            }
+        } catch (error) {
+            this.logger.error(
+                `Error fetching user by Cognito ID ${cognitoId}:`,
+                error,
+            )
+            return null
+        }
+    }
+
+    async getUserNameByCognitoId(cognitoId: string): Promise<string | null> {
+        const user = await this.getUserByCognitoId(cognitoId)
+        return user?.fullName || user?.username || null
     }
 }

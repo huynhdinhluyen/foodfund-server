@@ -68,6 +68,11 @@ export interface PayOSConfig {
     payosClienId: string
     payosApiKey: string
     payosCheckSumKey: string
+    payosBankNumber: string
+    payosBankName: string
+    payosBankAccountName: string
+    payosBankFullName: string
+    payosBankLogo: string
 }
 
 export interface SepayConfig {

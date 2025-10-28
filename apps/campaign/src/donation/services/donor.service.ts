@@ -12,34 +12,222 @@ import { CampaignRepository } from "../../campaign/campaign.repository"
 import { CampaignStatus } from "../../campaign/enum/campaign.enum"
 import { Donation } from "../models/donation.model"
 import { SqsService } from "@libs/aws-sqs"
-import { SepayService } from "@libs/sepay"
 import { CurrentUserType } from "@libs/auth"
-import { encodeDonationDescription } from "@libs/common"
-import { v7 as uuidv7 } from "uuid"
+import { UserClientService } from "../../shared/services/user-client.service"
+import { PayOS } from "@payos/node"
+import { envConfig } from "@libs/env"
 
 @Injectable()
 export class DonorService {
     private readonly logger = new Logger(DonorService.name)
+    private payOS: PayOS | null = null
 
     constructor(
         private readonly donorRepository: DonorRepository,
         private readonly campaignRepository: CampaignRepository,
         private readonly sqsService: SqsService,
-        private readonly sepayService: SepayService,
+        private readonly userClientService: UserClientService,
     ) {}
 
+    private getPayOS(): PayOS {
+        if (!this.payOS) {
+            const config = envConfig().payos
+            if (
+                !config.payosClienId ||
+                !config.payosApiKey ||
+                !config.payosCheckSumKey
+            ) {
+                throw new BadRequestException(
+                    "PayOS is not configured. Please contact administrator.",
+                )
+            }
+            this.payOS = new PayOS({
+                clientId: config.payosClienId,
+                apiKey: config.payosApiKey,
+                checksumKey: config.payosCheckSumKey,
+            })
+        }
+        return this.payOS
+    }
+
     /**
-     * DEPRECATED: This method is no longer used
-     * Use getCampaignDonationInfo to get static QR code instead
-     * Donations are auto-created by Sepay webhook
+     * Extract description from VietQR EMV QR code
+     * QR format: field 62 contains additional data with description
+     */
+    private extractDescriptionFromQR(qrCode: string): string | null {
+        try {
+            // VietQR EMV format: field 62 (Additional Data Field Template)
+            // Example QR: ...62360832CS7T2L64YT0 Donate 1761660076555630463A4
+            // Field 62: length=36, subfield 08: length=32, content="CS7T2L64YT0 Donate 1761660076555"
+
+            const field62Index = qrCode.indexOf("62")
+            if (field62Index === -1) return null
+
+            const field62Length = parseInt(
+                qrCode.substring(field62Index + 2, field62Index + 4),
+                10,
+            )
+            const field62Content = qrCode.substring(
+                field62Index + 4,
+                field62Index + 4 + field62Length,
+            )
+
+            // Find subfield 08 (Bill Number / Description)
+            const subfield08Index = field62Content.indexOf("08")
+            if (subfield08Index === -1) return null
+
+            const descriptionLength = parseInt(
+                field62Content.substring(
+                    subfield08Index + 2,
+                    subfield08Index + 4,
+                ),
+                10,
+            )
+            const fullDescription = field62Content.substring(
+                subfield08Index + 4,
+                subfield08Index + 4 + descriptionLength,
+            )
+
+            // Return the full description (no "Donate" text since we removed it from source)
+            // Example: "CS7T2L64YT0 1761660076555"
+            return fullDescription.trim()
+        } catch (error) {
+            this.logger.warn(
+                "Failed to extract description from QR code",
+                error,
+            )
+            return null
+        }
+    }
+
+    /**
+     * Create a donation and generate PayOS payment link
      */
     async createDonation(
         input: CreateDonationInput,
         user: CurrentUserType | null,
     ): Promise<DonationResponse> {
-        throw new BadRequestException(
-            "This endpoint is deprecated. Please use getCampaignDonationInfo to get QR code and scan to donate.",
+        // Validate campaign
+        const campaign = await this.validateCampaignForDonation(
+            input.campaignId,
         )
+
+        // Validate amount
+        const donationAmount = this.validateDonationAmount(input.amount)
+
+        // Determine donor info
+        const donorId = user?.sub || "Người dùng ẩn danh"
+        const isAnonymous = input.isAnonymous || !user
+
+        // Fetch donor name if authenticated and not anonymous
+        let donorName: string | undefined
+        if (user && !isAnonymous) {
+            this.logger.log(
+                `[DONOR] Fetching donor name for cognito_id: ${user.sub}`,
+            )
+            const fetchedName =
+                await this.userClientService.getUserNameByCognitoId(
+                    user.sub as string,
+                )
+            this.logger.log(
+                `[DONOR] Fetched donor name: ${fetchedName || "null"}`,
+            )
+            donorName = fetchedName || undefined
+        } else if (isAnonymous) {
+            donorName = "Người dùng ẩn danh"
+        }
+
+        this.logger.log(
+            `[DONOR] Creating donation with donor_name: ${donorName || "null"}`,
+        )
+
+        // Create donation record
+        const donation = await this.donorRepository.create({
+            donor_id: donorId,
+            donor_name: donorName,
+            campaign_id: input.campaignId,
+            amount: donationAmount,
+            is_anonymous: isAnonymous,
+        })
+
+        // Generate unique order code (timestamp-based)
+        const orderCode = Number(Date.now())
+
+        // Create PayOS payment link
+        // Note: returnUrl and cancelUrl are required by PayOS but not used in our flow
+        // Payment status is handled via webhook
+        const paymentData = {
+            orderCode,
+            amount: Number(donationAmount),
+            description: `${orderCode}`, // Just order code, max 25 chars
+            returnUrl: "",
+            cancelUrl: "",
+        }
+
+        try {
+            const payOS = this.getPayOS()
+            const paymentLinkResponse =
+                await payOS.paymentRequests.create(paymentData)
+
+            // Create payment transaction record
+            await this.donorRepository.createPaymentTransaction({
+                donation_id: donation.id,
+                order_code: BigInt(orderCode),
+                amount: donationAmount,
+                description: paymentData.description,
+                checkout_url: paymentLinkResponse.checkoutUrl,
+                qr_code: paymentLinkResponse.qrCode,
+                payment_link_id: paymentLinkResponse.paymentLinkId,
+            })
+
+            this.logger.log(
+                `[PayOS] Payment link created for donation ${donation.id}`,
+                {
+                    orderCode,
+                    amount: donationAmount.toString(),
+                    donorId,
+                },
+            )
+
+            // Send to SQS for async processing (optional - for background tasks)
+            try {
+                await this.sqsService.sendMessage({
+                    messageBody: {
+                        donationId: donation.id,
+                        orderCode,
+                        campaignId: input.campaignId,
+                        amount: donationAmount.toString(),
+                    },
+                })
+            } catch (sqsError) {
+                this.logger.warn("Failed to send SQS message", sqsError)
+                // Don't fail the request if SQS fails
+            }
+
+            // Get PayOS bank account info from config
+            const config = envConfig().payos
+
+            // Extract description from QR code (VietQR EMV format)
+            // QR code contains the actual transfer description that will be used
+            const qrDescription = this.extractDescriptionFromQR(
+                paymentLinkResponse.qrCode,
+            )
+
+            return {
+                donationId: donation.id,
+                qrCode: paymentLinkResponse.qrCode,
+                bankName: config.payosBankName,
+                bankNumber: config.payosBankNumber,
+                bankAccountName: config.payosBankAccountName,
+                bankFullName: config.payosBankFullName,
+                bankLogo: config.payosBankLogo,
+                description: qrDescription || paymentData.description,
+                amount: Number(donationAmount),
+            }
+        } catch (error) {
+            this.logger.error("[PayOS] Failed to create payment link", error)
+            throw new BadRequestException("Failed to create payment link")
+        }
     }
 
     private async validateCampaignForDonation(campaignId: string) {
@@ -114,7 +302,36 @@ export class DonorService {
             campaignId,
             options,
         )
-        return donations.map(this.mapDonationToGraphQLModel)
+
+        // Populate donor_name for donations that don't have it
+        const donationsWithNames = await Promise.all(
+            donations.map(async (donation) => {
+                // If donor_name is null, populate it
+                if (!donation.donor_name) {
+                    // Anonymous donations
+                    if (
+                        donation.is_anonymous ||
+                        donation.donor_id === "anonymous"
+                    ) {
+                        return {
+                            ...donation,
+                            donor_name: "Người dùng ẩn danh",
+                        }
+                    }
+                    // Non-anonymous donations - fetch from user service
+                    const userName = await this.userClientService.getUserName(
+                        donation.donor_id,
+                    )
+                    return {
+                        ...donation,
+                        donor_name: userName || "Unknown Donor",
+                    }
+                }
+                return donation
+            }),
+        )
+
+        return donationsWithNames.map(this.mapDonationToGraphQLModel)
     }
 
     async getDonationStats(donorId: string): Promise<{
@@ -155,41 +372,17 @@ export class DonorService {
         }
     }
 
+    /**
+     * DEPRECATED: This method is no longer used with PayOS
+     * Use createDonation to generate payment link instead
+     */
     async getCampaignDonationInfo(
         campaignId: string,
         user: CurrentUserType | null,
         isAnonymous?: boolean,
     ): Promise<CampaignDonationInfo> {
-        // Validate campaign
-        await this.validateCampaignForDonation(campaignId)
-
-        const shouldIncludeUserId = !!user && !isAnonymous
-
-        const transferDescription = encodeDonationDescription({
-            campaignId,
-            userId: shouldIncludeUserId ? user.sub : undefined,
-        })
-
-        // Get Sepay account info
-        const accountInfo = this.sepayService.getAccountInfo()
-
-        this.logger.log(
-            `[SEPAY] Generated donation info for campaign ${campaignId}`,
-            {
-                isAuthenticated: !!user,
-                isAnonymous: !shouldIncludeUserId,
-                userId: shouldIncludeUserId ? user.sub : "anonymous",
-                description: transferDescription,
-            },
+        throw new BadRequestException(
+            "This endpoint is deprecated. Please use createDonation mutation to generate payment link.",
         )
-
-        return {
-            bankAccountNumber: accountInfo.account_number,
-            bankAccountName: accountInfo.account_name,
-            bankName: accountInfo.bank_name,
-            bankCode: accountInfo.bank_code,
-            transferDescription,
-            isAuthenticated: !!user,
-        }
     }
 }

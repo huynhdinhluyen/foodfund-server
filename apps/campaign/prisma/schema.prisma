@@ -70,7 +70,6 @@ model Donation {
   donor_name   String?
   campaign_id  String
   amount       BigInt   @default(0)
-  message      String?  @db.Text()
   is_anonymous Boolean  @default(false)
   created_at   DateTime @default(now())
 
@@ -85,22 +84,26 @@ model Donation {
 }
 
 model Payment_Transaction {
-  id                  String   @id @default(uuid())
-  gateway             String   @db.VarChar(100)
-  transaction_date    DateTime @db.Timestamp()
-  account_number      String?  @db.VarChar(100)
-  sub_account         String?  @db.VarChar(250)
-  amount_in           BigInt   @default(0)
-  amount_out          BigInt   @default(0)
-  accumulated         BigInt   @default(0)
-  code                String?  @db.VarChar(250)
-  transaction_content String?  @db.Text
-  reference_number    String?  @unique @db.VarChar(255)
-  body                String?  @db.Text
-
+  id          String   @id @default(uuid())
   donation_id String
+  order_code  BigInt?  @unique
+  amount      BigInt   @default(0)
+  description String?  @db.Text()
   status      Payment_Status @default(PENDING)
   currency    String         @default("VND") @db.VarChar(10)
+
+  // PayOS payment link info
+  checkout_url            String? @db.Text()
+  qr_code                 String? @db.Text()
+  payment_link_id         String? @db.VarChar(255)
+  counter_account_bank_id String? @db.VarChar(50)
+  counter_account_bank_name String? @db.VarChar(255)
+  counter_account_name    String? @db.VarChar(255)
+  counter_account_number  String? @db.VarChar(50)
+  virtual_account_name    String? @db.VarChar(255)
+  virtual_account_number  String? @db.VarChar(50)
+  reference               String? @db.VarChar(255)
+  transaction_datetime    DateTime? @db.Timestamp()
 
   error_code        String? @db.VarChar(50)
   error_description String? @db.Text()
@@ -114,9 +117,9 @@ model Payment_Transaction {
   @@index([donation_id])
   @@index([status])
   @@index([created_at])
-  @@index([reference_number])
-  @@index([transaction_date])
-  @@index([gateway])
+  @@index([order_code])
+  @@index([payment_link_id])
+  @@index([reference])
   @@map("payment_transactions")
 }
 
