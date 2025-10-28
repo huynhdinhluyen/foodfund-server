@@ -23,4 +23,10 @@ export class Donation extends BaseSchema {
 
     @Field(() => Boolean, { description: "Whether donation is anonymous" })
         isAnonymous: boolean
+
+    @Field(() => Date, {
+        nullable: true,
+        description: "Transaction datetime from payment gateway",
+    })
+        transactionDatetime?: Date
 }

@@ -109,10 +109,22 @@ export class DonorRepository {
         },
     ): Promise<Donation[]> {
         return this.prisma.donation.findMany({
-            where: { campaign_id: campaignId },
+            where: {
+                campaign_id: campaignId,
+                // Only get donations with successful payment transactions
+                payment_transactions: {
+                    some: {
+                        status: PaymentStatus.SUCCESS,
+                    },
+                },
+            },
             include: {
                 campaign: true,
-                payment_transactions: true,
+                payment_transactions: {
+                    where: {
+                        status: PaymentStatus.SUCCESS,
+                    },
+                },
             },
             skip: options?.skip,
             take: options?.take,

@@ -303,9 +303,28 @@ export class DonorService {
             options,
         )
 
-        // Populate donor_name for donations that don't have it
+        // Filter and validate donations
+        const validDonations = donations.filter((donation: any) => {
+            // Must have at least one successful payment transaction
+            const successfulTx = donation.payment_transactions?.find(
+                (tx: any) => tx.status === "SUCCESS",
+            )
+            if (!successfulTx) return false
+
+            // Validate amount matches between donation and transaction
+            if (donation.amount !== successfulTx.amount) {
+                this.logger.warn(
+                    `Donation ${donation.id} amount mismatch: donation=${donation.amount}, transaction=${successfulTx.amount}`,
+                )
+                return false
+            }
+
+            return true
+        })
+
+        // Populate donor_name for valid donations
         const donationsWithNames = await Promise.all(
-            donations.map(async (donation) => {
+            validDonations.map(async (donation) => {
                 // If donor_name is null, populate it
                 if (!donation.donor_name) {
                     // Anonymous donations
@@ -360,6 +379,11 @@ export class DonorService {
     }
 
     private mapDonationToGraphQLModel(donation: any): Donation {
+        // Get transaction_datetime from successful payment transaction
+        const successfulTx = donation.payment_transactions?.find(
+            (tx: any) => tx.status === "SUCCESS",
+        )
+
         return {
             id: donation.id,
             donorId: donation.donor_id,
@@ -367,6 +391,7 @@ export class DonorService {
             campaignId: donation.campaign_id,
             amount: donation.amount.toString(),
             isAnonymous: donation.is_anonymous ?? false,
+            transactionDatetime: successfulTx?.transaction_datetime || null,
             created_at: donation.created_at,
             updated_at: donation.updated_at,
         }
