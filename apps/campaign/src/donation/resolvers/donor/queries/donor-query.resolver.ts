@@ -3,11 +3,34 @@ import { UseGuards } from "@nestjs/common"
 import { CurrentUser } from "@app/campaign/src/shared"
 import { DonorService } from "../../../services/donor.service"
 import { Donation } from "../../../models/donation.model"
+import { CampaignDonationInfo } from "../../../dtos/campaign-donation-info.dto"
 import { CognitoGraphQLGuard } from "@libs/aws-cognito"
+import { CurrentUserType } from "@libs/auth"
+import { OptionalJwtAuthGuard } from "@libs/auth/guards/optional-jwt-auth.guard"
 
 @Resolver(() => Donation)
 export class DonorQueryResolver {
     constructor(private readonly donorService: DonorService) {}
+
+    // @UseGuards(OptionalJwtAuthGuard)
+    // @Query(() => CampaignDonationInfo, {
+    //     description:
+    //         "Get campaign donation info with dynamic QR code (DEPRECATED - use createDonation mutation instead)",
+    //     deprecationReason:
+    //         "Use createDonation mutation to generate PayOS payment link instead",
+    // })
+    // async getCampaignDonationInfo(
+    //     @Args("campaignId", { type: () => String }) campaignId: string,
+    //     @Args("isAnonymous", { type: () => Boolean, nullable: true })
+    //         isAnonymous?: boolean,
+    //     @CurrentUser() user: CurrentUserType | null = null,
+    // ): Promise<CampaignDonationInfo> {
+    //     return this.donorService.getCampaignDonationInfo(
+    //         campaignId,
+    //         user,
+    //         isAnonymous,
+    //     )
+    // }
 
     @Query(() => Donation, {
         nullable: true,
