@@ -83,9 +83,10 @@ describe("AuthRegistrationService", () => {
     })
 
     describe("signUp", () => {
+        const MOCK_PASSWORD = "TestPassword123!" // Mock password for testing only
         const signUpInput = {
             email: mockEmail,
-            password: "Password123!",
+            password: MOCK_PASSWORD,
             name: "Test User",
             bio: "Test bio",
         }
@@ -110,7 +111,7 @@ describe("AuthRegistrationService", () => {
             })
             expect(awsCognitoService.signUp).toHaveBeenCalledWith(
                 mockEmail,
-                "Password123!",
+                MOCK_PASSWORD,
                 {
                     name: "Test User",
                     "custom:role": Role.DONOR,

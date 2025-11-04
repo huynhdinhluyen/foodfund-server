@@ -50,9 +50,10 @@ describe("AuthAuthenticationService", () => {
     })
 
     describe("signIn", () => {
+        const MOCK_PASSWORD = "TestPassword123!" // Mock password for testing only
         const signInInput = {
             email: mockEmail,
-            password: "Password123!",
+            password: MOCK_PASSWORD,
         }
 
         const mockCognitoResponse = {

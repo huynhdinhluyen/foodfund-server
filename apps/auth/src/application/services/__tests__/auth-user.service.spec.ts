@@ -18,6 +18,8 @@ describe("AuthUserService", () => {
 
     const mockUserId = "cognito-123"
     const mockEmail = "test@example.com"
+    const MOCK_PASSWORD = "TestPassword123!" // Mock password for testing only
+    const MOCK_NEW_PASSWORD = "NewTestPassword456!" // Mock new password for testing only
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
@@ -93,8 +95,8 @@ describe("AuthUserService", () => {
 
     describe("changePassword", () => {
         const changePasswordInput = {
-            newPassword: "NewPassword123!",
-            confirmNewPassword: "NewPassword123!",
+            newPassword: MOCK_NEW_PASSWORD,
+            confirmNewPassword: MOCK_NEW_PASSWORD,
         }
 
         it("should change password successfully", async () => {
@@ -108,14 +110,14 @@ describe("AuthUserService", () => {
             expect(result).toBe(true)
             expect(awsCognitoService.changePassword).toHaveBeenCalledWith(
                 mockUserId,
-                "NewPassword123!",
+                MOCK_NEW_PASSWORD,
             )
         })
 
         it("should throw error if passwords do not match", async () => {
             const input = {
-                newPassword: "NewPassword123!",
-                confirmNewPassword: "DifferentPassword123!",
+                newPassword: MOCK_NEW_PASSWORD,
+                confirmNewPassword: "DifferentMockPassword789!",
             }
 
             await expect(
@@ -133,7 +135,7 @@ describe("AuthUserService", () => {
             })
 
             const result = await service.checkCurrentPassword(mockUserId, {
-                currentPassword: "Password123!",
+                currentPassword: MOCK_PASSWORD,
             })
 
             expect(result).toEqual({
@@ -148,7 +150,7 @@ describe("AuthUserService", () => {
             )
 
             const result = await service.checkCurrentPassword(mockUserId, {
-                currentPassword: "WrongPassword",
+                currentPassword: "WrongMockPassword",
             })
 
             expect(result).toEqual({
