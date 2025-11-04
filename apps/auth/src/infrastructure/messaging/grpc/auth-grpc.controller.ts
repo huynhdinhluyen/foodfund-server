@@ -26,14 +26,15 @@ interface GetUserFromTokenResponse {
 }
 
 interface RefreshTokenRequest {
-    refresh_token: string
+    refreshToken: string
+    userName?: string // Optional: can be extracted from token
 }
 
 interface RefreshTokenResponse {
     success: boolean
-    access_token: string | null
-    refresh_token: string | null
-    expires_in: number
+    accessToken: string | null
+    refreshToken: string | null
+    expiresIn: number
     error: string | null
 }
 
@@ -171,28 +172,78 @@ export class AuthGrpcController {
         data: RefreshTokenRequest,
     ): Promise<RefreshTokenResponse> {
         try {
-            const { refresh_token } = data
+            const { refreshToken } = data
 
-            // TODO: Implement refresh token logic with Cognito
-            // This is a placeholder implementation
+            if (!refreshToken) {
+                return {
+                    success: false,
+                    accessToken: null,
+                    refreshToken: null,
+                    expiresIn: 0,
+                    error: "Refresh token is required",
+                }
+            }
+
+            // Decode refresh token to get username (without verification)
+            const decodedToken = this.decodeTokenWithoutVerification(refreshToken)
+            const userName = decodedToken["cognito:username"] || decodedToken.username
+
+            if (!userName) {
+                return {
+                    success: false,
+                    accessToken: null,
+                    refreshToken: null,
+                    expiresIn: 0,
+                    error: "Unable to extract username from refresh token",
+                }
+            }
+
+            // Call AWS Cognito to refresh token
+            const result = await this.cognitoService.refreshToken(
+                refreshToken,
+                userName,
+            )
+
+            this.logger.log(`Token refreshed successfully for user: ${userName}`)
 
             return {
-                success: false,
-                access_token: null,
-                refresh_token: null,
-                expires_in: 0,
-                error: "Refresh token not implemented yet",
+                success: true,
+                accessToken: result.AccessToken || null,
+                refreshToken: result.RefreshToken || refreshToken, // Return new or original
+                expiresIn: result.ExpiresIn || 3600,
+                error: null,
             }
         } catch (error) {
             this.logger.error("Refresh token failed:", error)
 
             return {
                 success: false,
-                access_token: null,
-                refresh_token: null,
-                expires_in: 0,
-                error: error.message,
+                accessToken: null,
+                refreshToken: null,
+                expiresIn: 0,
+                error: error.message || "Token refresh failed",
             }
+        }
+    }
+
+    /**
+     * Decode JWT token without verification (for extracting username)
+     * Note: This is safe because we're only reading the payload, not trusting it
+     * The actual verification happens in Cognito's refreshToken call
+     */
+    private decodeTokenWithoutVerification(token: string): any {
+        try {
+            const parts = token.split(".")
+            if (parts.length !== 3) {
+                throw new Error("Invalid token format")
+            }
+
+            const payload = parts[1]
+            const decoded = Buffer.from(payload, "base64").toString("utf-8")
+            return JSON.parse(decoded)
+        } catch (error) {
+            this.logger.error("Failed to decode token:", error)
+            return {}
         }
     }
 
