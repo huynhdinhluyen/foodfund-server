@@ -1,16 +1,16 @@
 import { Injectable, Logger } from "@nestjs/common"
 import { AwsCognitoService } from "libs/aws-cognito"
-import { ConfirmSignUpInput, SignUpInput } from "../dto"
+import { ConfirmSignUpInput, SignUpInput } from "../dtos"
 import {
     SignUpResponse,
     ConfirmSignUpResponse,
     ForgotPasswordResponse,
     ResetPasswordResponse,
-} from "../models"
-import { AuthErrorHelper } from "../helpers"
+} from "../../domain/entities"
+import { AuthErrorHelper } from "../../shared/helpers"
 import { GrpcClientService } from "libs/grpc"
 import { generateUniqueUsername, SagaOrchestrator } from "libs/common"
-import { Role } from "../enum/role.enum"
+import { Role } from "../../domain/enums/role.enum"
 import { SentryService } from "libs/observability"
 
 @Injectable()

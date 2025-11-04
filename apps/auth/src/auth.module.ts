@@ -1,34 +1,44 @@
 import { Module } from "@nestjs/common"
 import { GraphQLSubgraphModule } from "libs/graphql/subgraph"
 import { AwsCognitoModule } from "libs/aws-cognito"
-import { HealthController } from "./health.controller"
-import { AuthGrpcService } from "./grpc"
 import { GrpcModule } from "libs/grpc"
 import { AuthLibModule } from "libs/auth/auth.module"
+
+// Presentation Layer
+import { HealthController } from "./presentation/http/controllers"
 import {
     AuthRegistrationResolver,
     AuthAuthenticationResolver,
     AuthUserResolver,
-} from "./resolvers"
+    AdminResolver,
+} from "./presentation/graphql/resolvers"
+
+// Application Layer
 import {
     AuthRegistrationService,
     AuthAuthenticationService,
     AuthUserService,
-} from "./services"
+    AuthAdminService,
+} from "./application/use-cases"
+
+// Infrastructure Layer
+import { AuthGrpcService } from "./infrastructure/grpc"
 
 @Module({
     providers: [
-        // Resolvers
+        // Resolvers (Presentation Layer)
         AuthRegistrationResolver,
         AuthAuthenticationResolver,
         AuthUserResolver,
+        AdminResolver,
 
-        // Services
+        // Services (Application Layer)
         AuthRegistrationService,
         AuthAuthenticationService,
         AuthUserService,
+        AuthAdminService,
 
-        // gRPC
+        // gRPC (Infrastructure Layer)
         AuthGrpcService,
     ],
     imports: [
@@ -40,9 +50,9 @@ import {
         }),
         AwsCognitoModule.forRoot({
             isGlobal: true,
-            mockMode: false, // Enable for development without AWS credentials
+            mockMode: false,
         }),
     ],
     controllers: [HealthController],
 })
-export class AuthSubgraphModule {}
+export class AuthModule {}

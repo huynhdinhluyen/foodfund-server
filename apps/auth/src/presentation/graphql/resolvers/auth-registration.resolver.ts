@@ -6,15 +6,15 @@ import {
     ResetPasswordResponse,
     ResendCodeResponse,
     AuthHealthResponse,
-} from "../models"
-import { AuthRegistrationService } from "../services"
+} from "../../../domain/entities"
+import { AuthRegistrationService } from "../../../application/use-cases"
 import {
     SignUpInput,
     ConfirmSignUpInput,
     ForgotPasswordInput,
     ConfirmForgotPasswordInput,
     ResendCodeInput,
-} from "../dto"
+} from "../../../application/dtos"
 
 @Resolver()
 export class AuthRegistrationResolver {

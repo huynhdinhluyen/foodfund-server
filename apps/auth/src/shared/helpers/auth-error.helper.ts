@@ -16,7 +16,7 @@ import {
     CognitoServiceException,
     EmailServiceException,
     SuspiciousActivityException,
-} from "../exceptions"
+} from "../../domain/exceptions"
 
 export class AuthErrorHelper {
     // Validation helpers

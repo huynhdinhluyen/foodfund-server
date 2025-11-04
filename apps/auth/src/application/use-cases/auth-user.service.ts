@@ -7,18 +7,18 @@ import {
     AuthResponse,
     CheckPasswordResponse,
     GoogleAuthResponse,
-} from "../models"
-import { AuthErrorHelper } from "../helpers"
+} from "../../domain/entities"
+import { AuthErrorHelper } from "../../shared/helpers"
 import { randomBytes } from "node:crypto"
 
 import {
     ChangePasswordInput,
     CheckCurrentPasswordInput,
     GoogleAuthInput,
-} from "../dto/auth.input"
+} from "../dtos/auth.input"
 import { GrpcClientService } from "libs/grpc"
 import { envConfig } from "@libs/env"
-import { Role } from "../enum/role.enum"
+import { Role } from "../../domain/enums/role.enum"
 
 @Injectable()
 export class AuthUserService {

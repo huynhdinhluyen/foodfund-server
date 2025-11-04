@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common"
 import { GrpcServerService } from "libs/grpc"
-import { AuthAuthenticationService } from "../services"
+import { AuthAuthenticationService } from "../../application/use-cases"
 import { AwsCognitoService } from "libs/aws-cognito"
 import { envConfig } from "libs/env"
 

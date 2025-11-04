@@ -11,16 +11,16 @@ import {
     CheckPasswordResponse,
     GoogleAuthResponse,
     ChangePasswordResponse,
-} from "../models"
+} from "../../../domain/entities"
 import {
     ChangePasswordInput,
     CheckCurrentPasswordInput,
     GoogleAuthInput,
-} from "../dto/auth.input"
+} from "../../../application/dtos/auth.input"
 import { CognitoGraphQLGuard } from "@libs/aws-cognito"
 import { UseGuards } from "@nestjs/common"
 import { CurrentUser } from "libs/auth"
-import { AuthUserService } from "../services"
+import { AuthUserService } from "../../../application/use-cases"
 
 @Resolver(() => AuthUser)
 export class AuthUserResolver {

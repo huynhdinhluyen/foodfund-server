@@ -2,9 +2,9 @@ import { Injectable, Logger, UnauthorizedException } from "@nestjs/common"
 import { AwsCognitoService } from "libs/aws-cognito"
 import { CognitoUser } from "libs/aws-cognito/aws-cognito.types"
 import { GetUserCommandOutput } from "@aws-sdk/client-cognito-identity-provider"
-import { SignInInput, RefreshTokenInput } from "../dto"
-import { AuthUser, SignInResponse, RefreshTokenResponse } from "../models"
-import { AuthErrorHelper } from "../helpers"
+import { SignInInput, RefreshTokenInput } from "../dtos"
+import { AuthUser, SignInResponse, RefreshTokenResponse } from "../../domain/entities"
+import { AuthErrorHelper } from "../../shared/helpers"
 import { GrpcClientService } from "libs/grpc"
 
 @Injectable()
