@@ -9,7 +9,6 @@ import { UserProfileSchema, OrganizationSchema } from "@app/user/src/domain/enti
 import { OrganizationActionResponse, JoinRequestResponse, CancelJoinRequestResponse } from "@app/user/src/shared/types"
 import { Role } from "@libs/databases"
 
-
 @Resolver(() => UserProfileSchema)
 export class DonorProfileResolver {
     constructor(

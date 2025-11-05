@@ -10,7 +10,6 @@ import { UserProfileSchema, OrganizationSchema } from "@app/user/src/domain/enti
 import { OrganizationActionResponse } from "@app/user/src/shared/types"
 import { Role } from "@libs/databases"
 
-
 @Resolver()
 export class UserAdminResolver {
     constructor(

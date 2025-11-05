@@ -9,7 +9,6 @@ import { UserProfileSchema } from "@app/user/src/domain/entities"
 import { LeaveOrganizationResponse } from "@app/user/src/shared/types"
 import { Role } from "@libs/databases"
 
-
 @Resolver(() => UserProfileSchema)
 export class UserMutationResolver {
     private readonly logger = new Logger(UserMutationResolver.name)
