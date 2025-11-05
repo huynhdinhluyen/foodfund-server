@@ -1,4 +1,4 @@
-import { FundraiserService, OrganizationService } from "@app/user/src/application/use-cases"
+import { FundraiserService, OrganizationService } from "@app/user/src/application/services"
 import { OrganizationWithMembers, JoinRequestListResponse, JoinRequestManagementResponse, StaffRemovalResponse } from "@app/user/src/shared/types"
 import { RequireRole, CurrentUser, CurrentUserType } from "@libs/auth"
 import { Role } from "@libs/databases"

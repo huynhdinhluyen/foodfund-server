@@ -17,7 +17,7 @@ import {
     DeliveryStaffService,
     UserQueryService,
     UserMutationService
-} from "./application/use-cases"
+} from "./application/services"
 import { UserRepository, OrganizationRepository, UserAdminRepository, UserCommonRepository, KitchenStaffRepository, FundraiserRepository, DeliveryStaffRepository } from "./domain/repositories"
 import { PrismaUserService } from "./infrastructure/database"
 import { UserGrpcController } from "./infrastructure/grpc/user-grpc.controller"
