@@ -10,6 +10,11 @@ import { DataLoaderService } from "../../common"
 import { Role } from "@libs/databases"
 import { VerificationStatus } from "@libs/databases"
 import { JoinOrganizationRole } from "../../../dtos"
+import { PrismaClient } from "@app/user/src/generated/user-client"
+import {
+    OrganizationRequestNotFoundException,
+    OrganizationRequestNotPendingException,
+} from "@app/user/src/domain/exceptions/admin/admin.exceptions"
 
 describe("OrganizationService", () => {
     let service: OrganizationService
@@ -90,7 +95,7 @@ describe("OrganizationService", () => {
                     },
                 },
                 {
-                    provide: "PrismaClient",
+                    provide: PrismaClient,
                     useValue: {
                         $transaction: jest.fn(),
                         organization: {
@@ -114,7 +119,7 @@ describe("OrganizationService", () => {
         userRepository = module.get(UserRepository)
         awsCognitoService = module.get(AwsCognitoService)
         dataLoaderService = module.get(DataLoaderService)
-        prismaClient = module.get("PrismaClient")
+        prismaClient = module.get(PrismaClient)
     })
 
     afterEach(() => {
@@ -221,7 +226,7 @@ describe("OrganizationService", () => {
 
             await expect(
                 service.approveOrganizationRequest("org-123"),
-            ).rejects.toThrow(NotFoundException)
+            ).rejects.toThrow(OrganizationRequestNotFoundException)
         })
 
         it("should throw error if organization not pending", async () => {
@@ -231,7 +236,7 @@ describe("OrganizationService", () => {
 
             await expect(
                 service.approveOrganizationRequest("org-123"),
-            ).rejects.toThrow()
+            ).rejects.toThrow(OrganizationRequestNotPendingException)
         })
     })
 
@@ -400,7 +405,7 @@ describe("OrganizationService", () => {
         } as any
 
         it("should cancel join request successfully", async () => {
-            userRepository.findUserById.mockResolvedValue(mockUser)
+            userRepository.findUserByCognitoId.mockResolvedValue(mockUser)
             organizationRepository.findPendingJoinRequest.mockResolvedValue(
                 mockPendingRequest,
             )
@@ -417,7 +422,7 @@ describe("OrganizationService", () => {
         })
 
         it("should throw error if no pending request found", async () => {
-            userRepository.findUserById.mockResolvedValue(mockUser)
+            userRepository.findUserByCognitoId.mockResolvedValue(mockUser)
             organizationRepository.findPendingJoinRequest.mockResolvedValue(
                 null,
             )

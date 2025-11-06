@@ -58,7 +58,7 @@ export class DonorProfileResolver {
     @RequireRole(Role.DONOR, Role.FUNDRAISER)
     async myOrganizationRequest(@CurrentUser() user: CurrentUserType) {
         // Try multiple sources for cognito_id
-        const cognito_id = user.cognito_id || user.sub || user.id
+        const cognito_id = user.cognitoId || user.sub || user.id
 
         if (!cognito_id) {
             throw new Error("User cognito_id not found")
@@ -75,8 +75,11 @@ export class DonorProfileResolver {
         @CurrentUser() user: CurrentUserType,
         @Args("input") input: JoinOrganizationInput,
     ) {
+        console.debug(user.cognitoId)
+        console.debug(input)
+
         const result = await this.organizationService.requestJoinOrganization(
-            user.cognito_id,
+            user.cognitoId,
             input,
         )
 
@@ -92,10 +95,9 @@ export class DonorProfileResolver {
 
         return {
             id: result.id,
-            organization: result.organization,
             requested_role: input.requested_role,
             status: result.status,
-            message: `Join request to "${result.organization.name}" as ${roleMessage} has been submitted successfully. Waiting for approval.`,
+            message: `Join request as ${roleMessage} has been submitted successfully. Waiting for approval.`,
             success: true,
         }
     }
@@ -104,7 +106,7 @@ export class DonorProfileResolver {
     @RequireRole(Role.DONOR, Role.DELIVERY_STAFF, Role.KITCHEN_STAFF)
     async myJoinRequest(@CurrentUser() user: CurrentUserType) {
         const results = await this.organizationService.getMyJoinRequests(
-            user.cognito_id,
+            user.cognitoId,
         )
         if (!results || results.length === 0) return []
 
@@ -119,9 +121,8 @@ export class DonorProfileResolver {
     }
 
     @Mutation(() => CancelJoinRequestResponse)
-    @UseGuards(CognitoGraphQLGuard)
     @RequireRole(Role.DONOR)
     async cancelJoinRequestOrganization(@CurrentUser() user: CurrentUserType) {
-        return this.organizationService.cancelJoinRequest(user.cognito_id)
+        return this.organizationService.cancelJoinRequest(user.cognitoId)
     }
 }
