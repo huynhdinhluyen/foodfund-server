@@ -6,6 +6,7 @@ import { GraphQLExceptionFilter } from "@libs/exceptions"
 import { GrpcServerService } from "@libs/grpc"
 import { CampaignGrpcService } from "./campaign/grpc"
 import { envConfig } from "@libs/env"
+import { DatadogInterceptor } from "@libs/observability"
 
 async function bootstrap() {
     try {
@@ -14,6 +15,7 @@ async function bootstrap() {
         })
 
         const sentryService = app.get(SentryService)
+        const datadogInterceptor = app.get(DatadogInterceptor)
         const grpcServer = app.get(GrpcServerService)
         const campaignGrpcService = app.get(CampaignGrpcService)
 
@@ -33,6 +35,7 @@ async function bootstrap() {
             }),
         )
         app.useGlobalFilters(new GraphQLExceptionFilter(sentryService))
+        app.useGlobalInterceptors(datadogInterceptor)
 
         app.use((req, res, next) => {
             res.header("X-Content-Type-Options", "nosniff")
@@ -61,6 +64,7 @@ async function bootstrap() {
         console.log(
             `🔗 Campaign Service gRPC running on port: ${envConfig().grpc.campaign?.port || 50003}`,
         )
+        console.log(`📊 Prometheus metrics available at http://localhost:${port}/metrics`)
     } catch (error) {
         console.error("❌ Failed to start Campaign Service:", error)
         process.exit(1)
