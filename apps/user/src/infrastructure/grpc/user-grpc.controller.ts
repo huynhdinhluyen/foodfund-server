@@ -3,6 +3,7 @@ import { GrpcMethod } from "@nestjs/microservices"
 import {
     UserCommonRepository,
     UserAdminRepository,
+    OrganizationRepository,
 } from "../../domain/repositories"
 import { Role } from "@libs/databases"
 import { generateUniqueUsername } from "libs/common"
@@ -78,6 +79,23 @@ interface HealthResponse {
     uptime: number
 }
 
+interface GetOrganizationMembersRequest {
+    userId: string
+}
+
+interface OrganizationMember {
+    userId: string
+    role: string
+    fullName: string
+    email: string
+}
+
+interface GetOrganizationMembersResponse {
+    success: boolean
+    members: OrganizationMember[]
+    error: string | null
+}
+
 const ROLE_MAP = {
     DONOR: 0,
     FUNDRAISER: 1,
@@ -88,11 +106,10 @@ const ROLE_MAP = {
 
 @Controller()
 export class UserGrpcController {
-    private readonly logger = new Logger(UserGrpcController.name)
-
     constructor(
         private readonly userCommonRepository: UserCommonRepository,
         private readonly userAdminRepository: UserAdminRepository,
+        private readonly organizationRepository: OrganizationRepository,
     ) {}
 
     @GrpcMethod("UserService", "Health")
@@ -109,8 +126,6 @@ export class UserGrpcController {
     async createUser(data: CreateUserRequest): Promise<CreateUserResponse> {
         try {
             const { cognitoId, email, fullName, cognitoAttributes } = data
-
-            this.logger.debug("CreateUser called:", JSON.stringify(data))
 
             if (!cognitoId || !email) {
                 return {
@@ -159,7 +174,6 @@ export class UserGrpcController {
                 error: null,
             }
         } catch (error) {
-            this.logger.error("Create user failed:", error)
             return {
                 success: false,
                 user: null,
@@ -211,7 +225,6 @@ export class UserGrpcController {
                 error: null,
             }
         } catch (error) {
-            this.logger.error("Get user failed:", error)
             return {
                 success: false,
                 user: null,
@@ -263,7 +276,6 @@ export class UserGrpcController {
                 error: null,
             }
         } catch (error) {
-            this.logger.error("Update user failed:", error)
             return {
                 success: false,
                 user: null,
@@ -294,7 +306,6 @@ export class UserGrpcController {
                 error: null,
             }
         } catch (error) {
-            this.logger.error("User exists check failed:", error)
             return {
                 exists: false,
                 userId: "",
@@ -347,11 +358,98 @@ export class UserGrpcController {
                 error: null,
             }
         } catch (error) {
-            this.logger.error("Get user by email failed:", error)
             return {
                 success: false,
                 user: null,
                 error: error.message,
+            }
+        }
+    }
+
+    @GrpcMethod("UserService", "GetOrganizationMembers")
+    async getOrganizationMembers(
+        data: GetOrganizationMembersRequest,
+    ): Promise<GetOrganizationMembersResponse> {
+        try {
+            const { userId } = data
+
+            if (!userId) {
+                return {
+                    success: false,
+                    members: [],
+                    error: "User ID is required",
+                }
+            }
+
+            const user = await this.userCommonRepository.findUserById(userId)
+
+            if (!user) {
+                return {
+                    success: false,
+                    members: [],
+                    error: "User not found",
+                }
+            }
+
+            if (!user.cognito_id) {
+                return {
+                    success: true,
+                    members: [
+                        {
+                            userId: user.id,
+                            role: user.role,
+                            fullName: user.full_name,
+                            email: user.email,
+                        },
+                    ],
+                    error: null,
+                }
+            }
+
+            const organizationMembership =
+                await this.organizationRepository.findVerifiedMembershipByUserId(
+                    user.cognito_id,
+                )
+
+            if (!organizationMembership) {
+                return {
+                    success: true,
+                    members: [
+                        {
+                            userId: user.id,
+                            role: user.role,
+                            fullName: user.full_name,
+                            email: user.email,
+                        },
+                    ],
+                    error: null,
+                }
+            }
+
+            const allMembers =
+                await this.organizationRepository.findMembersByOrganizationId(
+                    organizationMembership.organization_id,
+                )
+
+            const members: OrganizationMember[] = allMembers.map(
+                (memberRecord) => ({
+                    userId: memberRecord.member.id,
+                    role: memberRecord.member.role,
+                    fullName: memberRecord.member.full_name,
+                    email: memberRecord.member.email,
+                }),
+            )
+
+            return {
+                success: true,
+                members,
+                error: null,
+            }
+        } catch (error) {
+            return {
+                success: false,
+                members: [],
+                error: error.message || "Internal server error",
             }
         }
     }
