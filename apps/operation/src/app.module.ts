@@ -53,9 +53,9 @@ import { ExpenseProofRepository } from "./application/repositories"
             enableTracing: true,
         }),
         DatadogModule.forRoot({
-            serviceName: 'operation-service',
+            serviceName: "operation-service",
             env: envConfig().nodeEnv,
-            version: process.env.SERVICE_VERSION || '1.0.0',
+            version: process.env.SERVICE_VERSION || "1.0.0",
         }),
         AwsCognitoModule.forRoot({
             isGlobal: false,

@@ -33,9 +33,9 @@ import { HealthController } from "./presentation/http/controllers"
             enableTracing: true,
         }),
         DatadogModule.forRoot({
-            serviceName: 'auth-service',
+            serviceName: "auth-service",
             env: envConfig().nodeEnv,
-            version: process.env.SERVICE_VERSION || '1.0.0',
+            version: process.env.SERVICE_VERSION || "1.0.0",
         }),
         GrpcModule,
         AuthLibModule,

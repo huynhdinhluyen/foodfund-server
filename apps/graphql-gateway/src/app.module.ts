@@ -10,9 +10,9 @@ import { DatadogModule } from "@libs/observability"
 @Module({
     imports: [
         DatadogModule.forRoot({
-            serviceName: 'graphql-gateway',
+            serviceName: "graphql-gateway",
             env: envConfig().nodeEnv,
-            version: process.env.SERVICE_VERSION || '1.0.0',
+            version: process.env.SERVICE_VERSION || "1.0.0",
         }),
         GraphQLGatewayModule.forRoot({
             subgraphs: (() => {

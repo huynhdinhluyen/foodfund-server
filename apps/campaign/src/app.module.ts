@@ -38,9 +38,9 @@ import { DatadogModule } from "@libs/observability"
             enableTracing: true,
         }),
         DatadogModule.forRoot({
-            serviceName: 'campaign-service',
+            serviceName: "campaign-service",
             env: envConfig().nodeEnv,
-            version: process.env.SERVICE_VERSION || '1.0.0',
+            version: process.env.SERVICE_VERSION || "1.0.0",
         }),
         ScheduleModule.forRoot(),
         GrpcModule,

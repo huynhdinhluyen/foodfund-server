@@ -39,7 +39,7 @@ async function bootstrap() {
     console.log(`🚀 Auth Service is running on port ${port}`)
     console.log(`🔌 gRPC server is listening on 0.0.0.0:${grpcPort}`)
     console.log(`🔗 gRPC clients should connect to: ${grpcUrl}`)
-    console.log(`📊 Datadog APM traces available at https://us5.datadoghq.com/apm/services`)
-    console.log(`📈 Datadog metrics available at https://us5.datadoghq.com/infrastructure`)
+    console.log("📊 Datadog APM traces available at https://us5.datadoghq.com/apm/services")
+    console.log("📈 Datadog metrics available at https://us5.datadoghq.com/infrastructure")
 }
 bootstrap()

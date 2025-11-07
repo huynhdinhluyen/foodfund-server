@@ -53,9 +53,9 @@ import { HealthController } from "./presentation/http/controllers"
             enableTracing: true,
         }),
         DatadogModule.forRoot({
-            serviceName: 'user-service',
+            serviceName: "user-service",
             env: envConfig().nodeEnv,
-            version: process.env.SERVICE_VERSION || '1.0.0',
+            version: process.env.SERVICE_VERSION || "1.0.0",
         }),
         GrpcModule,
         GraphQLSubgraphModule.forRoot({
