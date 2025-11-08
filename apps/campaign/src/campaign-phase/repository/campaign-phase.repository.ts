@@ -109,6 +109,18 @@ export class CampaignPhaseRepository {
                     campaign_id: campaignId,
                     is_active: true,
                 },
+                select: {
+                    id: true,
+                    campaign_id: true,
+                    phase_name: true,
+                    location: true,
+                    ingredient_purchase_date: true,
+                    cooking_date: true,
+                    delivery_date: true,
+                    status: true,
+                    created_at: true,
+                    updated_at: true,
+                },
                 orderBy: { created_at: "asc" },
             })
 
