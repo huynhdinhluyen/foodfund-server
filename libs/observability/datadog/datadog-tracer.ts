@@ -136,5 +136,5 @@ export function getTracer(): typeof tracer {
 
 // Re-export the tracer for direct access if needed
 export { tracer }
-export { tracer as default }
+export default tracer
 
