@@ -13,6 +13,24 @@ interface GetCampaignIdByPhaseIdResponse {
     error: string | null
 }
 
+interface GetCampaignPhasesRequest {
+    campaignId: string
+}
+
+interface GetCampaignPhasesResponse {
+    success: boolean
+    phases: Array<{
+        id: string
+        campaignId: string
+        phaseName: string
+        location: string
+        ingredientPurchaseDate: string
+        cookingDate: string
+        deliveryDate: string
+    }>
+    error: string | null
+}
+
 @Injectable()
 export class CampaignGrpcService implements OnModuleInit {
     private readonly logger = new Logger(CampaignGrpcService.name)
@@ -33,6 +51,8 @@ export class CampaignGrpcService implements OnModuleInit {
         return {
             Health: this.health.bind(this),
             GetCampaign: this.getCampaign.bind(this),
+            GetCampaignIdByPhaseId: this.getCampaignIdByPhaseId.bind(this),
+            GetCampaignPhases: this.getCampaignPhases.bind(this),
         }
     }
 
@@ -53,38 +73,70 @@ export class CampaignGrpcService implements OnModuleInit {
     async getCampaignIdByPhaseId(
         data: GetCampaignIdByPhaseIdRequest,
     ): Promise<GetCampaignIdByPhaseIdResponse> {
-        try {
-            const { phaseId } = data
+        const { phaseId } = data
 
-            if (!phaseId) {
-                return {
-                    success: false,
-                    campaignId: null,
-                    error: "Phase ID is required",
-                }
-            }
-
-            const phase = await this.campaignPhaseRepository.findById(phaseId)
-
-            if (!phase) {
-                return {
-                    success: false,
-                    campaignId: null,
-                    error: "Campaign phase not found",
-                }
-            }
-
-            return {
-                success: true,
-                campaignId: phase.campaignId,
-                error: null,
-            }
-        } catch (error) {
+        if (!phaseId) {
             return {
                 success: false,
                 campaignId: null,
-                error: error.message || "Internal server error",
+                error: "Phase ID is required",
             }
+        }
+
+        const phase = await this.campaignPhaseRepository.findById(phaseId)
+
+        if (!phase) {
+            return {
+                success: false,
+                campaignId: null,
+                error: "Campaign phase not found",
+            }
+        }
+
+        return {
+            success: true,
+            campaignId: phase.campaignId,
+            error: null,
+        }
+    }
+
+    @GrpcMethod("CampaignService", "GetCampaignPhases")
+    async getCampaignPhases(
+        data: GetCampaignPhasesRequest,
+    ): Promise<GetCampaignPhasesResponse> {
+        const { campaignId } = data
+
+        if (!campaignId) {
+            return {
+                success: false,
+                phases: [],
+                error: "Campaign ID is required",
+            }
+        }
+
+        const phases = await this.campaignPhaseRepository.findByCampaignId(campaignId)
+
+        if (!phases || phases.length === 0) {
+            return {
+                success: true,
+                phases: [],
+                error: null,
+            }
+        }
+
+        return {
+            success: true,
+            phases: phases.map((phase) => ({
+                id: phase.id,
+                campaignId: phase.campaignId,
+                phaseName: phase.phaseName,
+                location: phase.location,
+                ingredientPurchaseDate:
+                    phase.ingredientPurchaseDate.toISOString(),
+                cookingDate: phase.cookingDate.toISOString(),
+                deliveryDate: phase.deliveryDate.toISOString(),
+            })),
+            error: null,
         }
     }
 }

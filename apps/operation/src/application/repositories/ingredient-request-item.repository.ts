@@ -26,6 +26,26 @@ export class IngredientRequestItemRepository {
         }
     }
 
+    async findByIds(ids: string[]): Promise<IngredientRequestItem[]> {
+        try {
+            const items = await this.prisma.ingredient_Request_Item.findMany({
+                where: {
+                    id: {
+                        in: ids,
+                    },
+                },
+            })
+
+            return items.map((item) => this.mapToGraphQLModel(item))
+        } catch (error) {
+            this.sentryService.captureError(error as Error, {
+                operation: "findIngredientRequestItemsByIds",
+                ids,
+            })
+            throw error
+        }
+    }
+
     async findByRequestId(requestId: string): Promise<IngredientRequestItem[]> {
         try {
             const items = await this.prisma.ingredient_Request_Item.findMany({
