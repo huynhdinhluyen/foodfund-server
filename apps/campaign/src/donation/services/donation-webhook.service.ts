@@ -3,7 +3,7 @@ import { DonorRepository } from "../repositories/donor.repository"
 import { UserClientService } from "../../shared/services/user-client.service"
 import { PayOS } from "@payos/node"
 import { envConfig } from "@libs/env"
-import { PaymentStatus } from "../../shared/enum/campaign.enum"
+import { TransactionStatus } from "../../shared/enum/campaign.enum"
 
 interface PayOSWebhookData {
     orderCode: number

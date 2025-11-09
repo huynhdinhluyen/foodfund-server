@@ -111,25 +111,25 @@ model Donation {
 }
 
 model Payment_Transaction {
-  id              String                    @id @default(uuid())
+  id              String                @id @default(uuid())
   donation_id     String
-  order_code      BigInt?                   @unique
-  amount          BigInt                    @default(0) // Original payment link amount
-  received_amount BigInt                    @default(0) // Actual money received (may differ from amount)
-  description     String?                   @db.Text()
-  status          Payment_Status            @default(PENDING) // Transaction status
-  payment_status  Payment_Completion_Status @default(PENDING) // Payment completion tracking
-  currency        String                    @default("VND") @db.VarChar(10)
+  order_code      BigInt?               @unique
+  amount          BigInt                @default(0) // Original payment link amount
+  received_amount BigInt                @default(0) // Actual money received (may differ from amount)
+  description     String?               @db.Text()
+  status          Transaction_Status    @default(PENDING) // Webhook processing status (SUCCESS/FAILED)
+  payment_status  Payment_Amount_Status @default(PENDING) // Amount received tracking (PARTIAL/COMPLETED/OVERPAID)
+  currency        String                @default("VND") @db.VarChar(10)
 
   // Gateway tracking
   gateway              String?  @db.VarChar(50) // "PAYOS" or "SEPAY"
   processed_by_webhook Boolean  @default(false) // Prevent duplicate processing
 
   // PayOS metadata (JSONB for flexibility)
-  payos_metadata Json? // Stores: payment_link_id, checkout_url, qr_code, counter_account_*, virtual_account_*, reference, transaction_datetime
+  payos_metadata Json? 
 
   // Sepay metadata (JSONB for audit trail)
-  sepay_metadata Json? // Stores: sepay_transaction_id, sepay_reference_number, bank details, etc.
+  sepay_metadata Json? 
 
   error_code        String?   @db.VarChar(50)
   error_description String?   @db.Text()
@@ -245,16 +245,16 @@ enum Campaign_Phase_Status {
   FAILED
 }
 
-enum Payment_Status {
+enum Transaction_Status {
   PENDING
   SUCCESS
   FAILED
   REFUNDED
 }
 
-enum Payment_Completion_Status {
-  PENDING     // No payment received yet
-  PARTIAL     // Received < amount (underpaid)
-  COMPLETED   // Received >= amount (exact or overpaid)
-  OVERPAID    // Received > amount (extra donation accepted)
+enum Payment_Amount_Status {
+  PENDING    
+  PARTIAL  
+  COMPLETED  
+  OVERPAID  
 }

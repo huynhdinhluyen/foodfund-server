@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common"
 import { Donation, Prisma, PrismaClient } from "../../generated/campaign-client"
 import { CreateDonationRepositoryInput } from "../dtos/create-donation-repository.input"
-import { PaymentStatus } from "../../shared/enum/campaign.enum"
+import { TransactionStatus, PaymentAmountStatus } from "../../shared/enum/campaign.enum"
 
 @Injectable()
 export class DonorRepository {
@@ -42,7 +42,7 @@ export class DonorRepository {
     > {
         const items = await this.prisma.payment_Transaction.findMany({
             where: {
-                status: PaymentStatus.PENDING,
+                status: TransactionStatus.PENDING,
                 created_at: {
                     lt: before,
                 },
@@ -82,8 +82,8 @@ export class DonorRepository {
                     qr_code: data.qr_code,
                     payment_link_id: data.payment_link_id,
                 },
-                status: PaymentStatus.PENDING,
-                payment_status: "PENDING",
+                status: TransactionStatus.PENDING,
+                payment_status: PaymentAmountStatus.PENDING,
             },
         })
     }
@@ -154,7 +154,7 @@ export class DonorRepository {
                 // Only get donations with successful payment transactions
                 payment_transactions: {
                     some: {
-                        status: PaymentStatus.SUCCESS,
+                        status: TransactionStatus.SUCCESS,
                     },
                 },
             },
@@ -162,7 +162,7 @@ export class DonorRepository {
                 campaign: true,
                 payment_transactions: {
                     where: {
-                        status: PaymentStatus.SUCCESS,
+                        status: TransactionStatus.SUCCESS,
                     },
                 },
             },
@@ -228,7 +228,7 @@ export class DonorRepository {
             const payment = await tx.payment_Transaction.update({
                 where: { id: paymentId },
                 data: {
-                    status: PaymentStatus.SUCCESS,
+                    status: TransactionStatus.SUCCESS,
                     error_description: adminNote, // Store admin note
                     updated_at: new Date(),
                 },
@@ -257,7 +257,7 @@ export class DonorRepository {
     async findFailedPayments(options?: { skip?: number; take?: number }) {
         return this.prisma.payment_Transaction.findMany({
             where: {
-                status: PaymentStatus.FAILED,
+                status: TransactionStatus.FAILED,
             },
             include: {
                 donation: {
@@ -372,7 +372,7 @@ export class DonorRepository {
             const payment = await tx.payment_Transaction.update({
                 where: { order_code: data.order_code },
                 data: {
-                    status: PaymentStatus.SUCCESS,
+                    status: TransactionStatus.SUCCESS,
                     received_amount: data.amount_paid,
                     payment_status,
                     gateway: data.gateway,
@@ -419,7 +419,7 @@ export class DonorRepository {
         return this.prisma.payment_Transaction.update({
             where: { order_code: data.order_code },
             data: {
-                status: PaymentStatus.FAILED,
+                status: TransactionStatus.FAILED,
                 gateway: data.gateway,
                 processed_by_webhook: data.processed_by_webhook,
                 error_code: data.error_code,

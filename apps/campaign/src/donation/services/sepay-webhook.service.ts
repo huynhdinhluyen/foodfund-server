@@ -3,7 +3,7 @@ import { UserClientService } from "../../shared/services/user-client.service"
 import { RedisService } from "@libs/redis"
 import { DonorRepository } from "../repositories/donor.repository"
 import { envConfig } from "@libs/env"
-import { PaymentStatus } from "../../shared/enum/campaign.enum"
+import { TransactionStatus } from "../../shared/enum/campaign.enum"
 
 interface SepayWebhookPayload {
     id: number // Sepay transaction ID
@@ -181,7 +181,7 @@ export class SepayWebhookService {
 
             // Check 2: If payment already processed (SUCCESS), this is a DUPLICATE or SUPPLEMENT attempt
             // Route to Admin Wallet for manual review (user might have copied old orderCode)
-            if (paymentTransaction.status === PaymentStatus.SUCCESS) {
+            if (paymentTransaction.status === TransactionStatus.SUCCESS) {
                 this.logger.warn(
                     `[Sepay→Fundraiser] ⚠️ Payment already processed with status SUCCESS (orderCode=${orderCode}). User may have copied old description. Routing to Admin Wallet for manual review.`,
                 )
