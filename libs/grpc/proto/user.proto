@@ -24,6 +24,12 @@ service UserService {
   
   // Get user by email
   rpc GetUserByEmail(GetUserByEmailRequest) returns (GetUserResponse);
+  
+  // Credit fundraiser wallet after successful payment
+  rpc CreditFundraiserWallet(CreditFundraiserWalletRequest) returns (CreditWalletResponse);
+  
+  // Credit admin wallet for incoming transfers
+  rpc CreditAdminWallet(CreditAdminWalletRequest) returns (CreditWalletResponse);
 }
 
 // Messages
@@ -129,5 +135,33 @@ message CreateStaffUserRequest {
 message CreateStaffUserResponse {
   bool success = 1;
   User user = 2;
+  string error = 3;
+}
+
+// Credit Fundraiser Wallet
+message CreditFundraiserWalletRequest {
+  string fundraiser_id = 1;
+  string campaign_id = 2;
+  string payment_transaction_id = 3;
+  string amount = 4; // bigint as string
+  string gateway = 5;
+  string description = 6;
+}
+
+// Credit Admin Wallet
+message CreditAdminWalletRequest {
+  string admin_id = 1;
+  string campaign_id = 2; // nullable
+  string payment_transaction_id = 3; // nullable
+  string amount = 4; // bigint as string
+  string gateway = 5;
+  string description = 6;
+  string sepay_metadata = 7; // JSONB as string
+}
+
+// Credit Wallet Response
+message CreditWalletResponse {
+  bool success = 1;
+  string wallet_transaction_id = 2;
   string error = 3;
 }

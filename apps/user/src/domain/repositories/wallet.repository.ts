@@ -13,14 +13,12 @@ export class WalletRepository {
 
     constructor(private readonly prisma: PrismaClient) {}
 
-    /**
-     * Get or create wallet for a user
-     */
-    async getOrCreateWallet(
+
+    async getWallet(
         userId: string,
         walletType: Wallet_Type,
     ): Promise<Wallet> {
-        let wallet = await this.prisma.wallet.findFirst({
+        const wallet = await this.prisma.wallet.findFirst({
             where: {
                 user_id: userId,
                 wallet_type: walletType,
@@ -28,23 +26,51 @@ export class WalletRepository {
         })
 
         if (!wallet) {
-            wallet = await this.prisma.wallet.create({
-                data: {
-                    user_id: userId,
-                    wallet_type: walletType,
-                    balance: BigInt(0),
-                },
-            })
-            this.logger.log(
-                `Created new ${walletType} wallet for user ${userId}`,
-            )
+            const errorMessage = `${walletType} wallet not found for user ${userId}. Wallet must be created first.`
+            this.logger.error(`[getWallet] ❌ ${errorMessage}`)
+            throw new Error(errorMessage)
         }
 
         return wallet
     }
 
     /**
+     * Create wallet for a user (explicit creation only)
+     */
+    async createWallet(
+        userId: string,
+        walletType: Wallet_Type,
+    ): Promise<Wallet> {
+        // Check if wallet already exists
+        const existing = await this.prisma.wallet.findFirst({
+            where: {
+                user_id: userId,
+                wallet_type: walletType,
+            },
+        })
+
+        if (existing) {
+            throw new Error(
+                `${walletType} wallet already exists for user ${userId}`,
+            )
+        }
+
+        const wallet = await this.prisma.wallet.create({
+            data: {
+                user_id: userId,
+                wallet_type: walletType,
+                balance: BigInt(0),
+            },
+        })
+
+        this.logger.log(`Created new ${walletType} wallet for user ${userId}`)
+
+        return wallet
+    }
+
+    /**
      * Credit wallet with transaction
+     * Implements idempotency to prevent duplicate credits for same gateway+payment combination
      */
     async creditWallet(data: {
         userId: string
@@ -57,7 +83,27 @@ export class WalletRepository {
         description?: string
         sepayMetadata?: any
     }): Promise<Wallet_Transaction> {
-        const wallet = await this.getOrCreateWallet(data.userId, data.walletType)
+        const wallet = await this.getWallet(data.userId, data.walletType)
+
+        // IDEMPOTENCY CHECK: Prevent duplicate wallet_transaction for same payment+gateway
+        // This handles race condition when PayOS and Sepay webhooks arrive simultaneously
+        if (data.paymentTransactionId && data.gateway) {
+            const existing = await this.prisma.wallet_Transaction.findFirst({
+                where: {
+                    wallet_id: wallet.id,
+                    payment_transaction_id: data.paymentTransactionId,
+                    gateway: data.gateway,
+                    amount: data.amount, // Same amount from same gateway = duplicate
+                },
+            })
+
+            if (existing) {
+                this.logger.warn(
+                    `[Idempotency] Skipping duplicate credit - Transaction already exists: ${existing.id} (gateway=${data.gateway}, payment=${data.paymentTransactionId}, amount=${data.amount})`,
+                )
+                return existing
+            }
+        }
 
         // Create transaction and update balance in a transaction
         const walletTransaction = await this.prisma.$transaction(

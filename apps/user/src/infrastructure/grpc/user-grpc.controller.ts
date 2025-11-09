@@ -402,11 +402,12 @@ export class UserGrpcController {
                 }
             }
 
-            // Verify user exists
-            const user = await this.userCommonRepository.findUserById(
-                fundraiserId,
-            )
+            const user =
+                await this.userCommonRepository.findUserById(fundraiserId)
             if (!user) {
+                this.logger.error(
+                    `[CreditFundraiserWallet] ❌ Fundraiser ${fundraiserId} not found`,
+                )
                 return {
                     success: false,
                     error: `Fundraiser ${fundraiserId} not found`,
@@ -434,13 +435,15 @@ export class UserGrpcController {
                 walletTransactionId: transaction.id,
             }
         } catch (error) {
+            const errorMessage =
+                error?.message || error?.toString() || "Unknown error"
             this.logger.error(
-                "[CreditFundraiserWallet] Failed:",
-                error.stack || error,
+                `[CreditFundraiserWallet] ❌ Failed for fundraiser ${data.fundraiserId}:`,
+                error?.stack || errorMessage,
             )
             return {
                 success: false,
-                error: error.message,
+                error: errorMessage,
             }
         }
     }
@@ -501,8 +504,7 @@ export class UserGrpcController {
                 campaignId: campaignId || null,
                 paymentTransactionId: paymentTransactionId || null,
                 gateway,
-                description:
-                    description || `Incoming transfer via ${gateway}`,
+                description: description || `Incoming transfer via ${gateway}`,
                 sepayMetadata: parsedSepayMetadata,
             })
 

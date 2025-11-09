@@ -110,8 +110,8 @@ model Wallet_Transaction {
   id                     String           @id @default(uuid())
   wallet_id              String
   wallet                 Wallet           @relation(fields: [wallet_id], references: [id], onDelete: Cascade)
-  campaign_id            String? // NULL for Sepay incoming transfers
-  payment_transaction_id String?          @unique // NULL for Sepay incoming transfers
+  campaign_id            String? // NULL for non-campaign transactions
+  payment_transaction_id String? // Original payment link ID
   amount                 BigInt
   transaction_type       Transaction_Type
   description            String?          @db.Text()

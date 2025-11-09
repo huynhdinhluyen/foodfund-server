@@ -111,42 +111,31 @@ model Donation {
 }
 
 model Payment_Transaction {
-  id          String         @id @default(uuid())
-  donation_id String
-  order_code  BigInt?        @unique
-  amount      BigInt         @default(0)
-  description String?        @db.Text()
-  status      Payment_Status @default(PENDING)
-  currency    String         @default("VND") @db.VarChar(10)
+  id              String                    @id @default(uuid())
+  donation_id     String
+  order_code      BigInt?                   @unique
+  amount          BigInt                    @default(0) // Original payment link amount
+  received_amount BigInt                    @default(0) // Actual money received (may differ from amount)
+  description     String?                   @db.Text()
+  status          Payment_Status            @default(PENDING) // Transaction status
+  payment_status  Payment_Completion_Status @default(PENDING) // Payment completion tracking
+  currency        String                    @default("VND") @db.VarChar(10)
 
   // Gateway tracking
-  gateway              String? @db.VarChar(50) // "PAYOS" or "SEPAY"
-  processed_by_webhook Boolean @default(false) // Prevent duplicate processing
+  gateway              String?  @db.VarChar(50) // "PAYOS" or "SEPAY"
+  processed_by_webhook Boolean  @default(false) // Prevent duplicate processing
 
-  // PayOS payment link info
-  checkout_url              String?   @db.Text()
-  qr_code                   String?   @db.Text()
-  payment_link_id           String?   @db.VarChar(255)
-  counter_account_bank_id   String?   @db.VarChar(50)
-  counter_account_bank_name String?   @db.VarChar(255)
-  counter_account_name      String?   @db.VarChar(255)
-  counter_account_number    String?   @db.VarChar(50)
-  virtual_account_name      String?   @db.VarChar(255)
-  virtual_account_number    String?   @db.VarChar(50)
-  reference                 String?   @db.VarChar(255)
-  transaction_datetime      DateTime? @db.Timestamp()
+  // PayOS metadata (JSONB for flexibility)
+  payos_metadata Json? // Stores: payment_link_id, checkout_url, qr_code, counter_account_*, virtual_account_*, reference, transaction_datetime
 
-  // Sepay webhook tracking (for reference only - Sepay transactions go to Admin Wallet)
-  sepay_reference_number String? @db.VarChar(255) // Bank reference code (MBVCB.xxx)
-  sepay_transaction_id   Int? // Sepay webhook payload ID
-  is_matched             Boolean @default(false) // Did payment match donation?
+  // Sepay metadata (JSONB for audit trail)
+  sepay_metadata Json? // Stores: sepay_transaction_id, sepay_reference_number, bank details, etc.
 
-  error_code        String? @db.VarChar(50)
-  error_description String? @db.Text()
-
-  created_at  DateTime  @default(now())
-  updated_at  DateTime  @updatedAt
-  refunded_at DateTime?
+  error_code        String?   @db.VarChar(50)
+  error_description String?   @db.Text()
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+  refunded_at       DateTime?
 
   donation Donation @relation(fields: [donation_id], references: [id], onDelete: Cascade)
 
@@ -154,12 +143,9 @@ model Payment_Transaction {
   @@index([status])
   @@index([created_at])
   @@index([order_code])
-  @@index([payment_link_id])
-  @@index([reference])
   @@index([gateway])
   @@index([processed_by_webhook])
-  @@index([sepay_transaction_id])
-  @@index([is_matched])
+  @@index([payment_status])
   @@index([status, gateway])
   @@map("payment_transactions")
 }
@@ -264,4 +250,11 @@ enum Payment_Status {
   SUCCESS
   FAILED
   REFUNDED
+}
+
+enum Payment_Completion_Status {
+  PENDING     // No payment received yet
+  PARTIAL     // Received < amount (underpaid)
+  COMPLETED   // Received >= amount (exact or overpaid)
+  OVERPAID    // Received > amount (extra donation accepted)
 }

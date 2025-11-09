@@ -157,8 +157,14 @@ export class DonorService {
             is_anonymous: isAnonymous,
         })
 
-        // Generate unique order code (timestamp-based)
-        const orderCode = Number(Date.now())
+        // Generate unique order code (timestamp-based with random suffix)
+        // Format: {timestamp}{randomSuffix} to prevent collision in concurrent requests
+        // Example: 1762613543567123 (13 digits timestamp + 3 digits random)
+        const timestamp = Date.now()
+        const randomSuffix = Math.floor(Math.random() * 1000)
+            .toString()
+            .padStart(3, "0") // 000-999
+        const orderCode = Number(`${timestamp}${randomSuffix}`)
 
         // Create PayOS payment link
         // Note: returnUrl and cancelUrl are required by PayOS but not used in our flow
@@ -370,7 +376,7 @@ export class DonorService {
             transactions,
             // Banking info - only for PENDING/UNPAID
             qrCode: shouldShowBankingInfo
-                ? latestTx?.qr_code ?? undefined
+                ? (latestTx?.payos_metadata as any)?.qr_code ?? undefined
                 : undefined,
             bankNumber: shouldShowBankingInfo
                 ? config.payosBankNumber

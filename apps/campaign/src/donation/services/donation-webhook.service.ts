@@ -8,6 +8,7 @@ import { PaymentStatus } from "../../shared/enum/campaign.enum"
 interface PayOSWebhookData {
     orderCode: number
     amount: number
+    amountPaid?: number
     description: string
     accountNumber: string
     reference: string
@@ -77,8 +78,21 @@ export class DonationWebhookService {
             return
         }
 
-        // Idempotency check: Already processed by webhook?
-        if (paymentTransaction.processed_by_webhook) {
+        // CRITICAL: Check if Sepay already handled this payment (PARTIAL payments < amount)
+        // If gateway is "SEPAY", it means Sepay already processed this PARTIAL payment
+        // PayOS should NOT process this even if webhook arrives
+        if (paymentTransaction.gateway === "SEPAY") {
+            this.logger.log(
+                `[PayOS] ⚠️ Skipping - Payment already processed by Sepay (PARTIAL payment) - orderCode=${orderCode}`,
+            )
+            return
+        }
+
+        // Idempotency check: Already processed by PayOS webhook?
+        // This check comes AFTER gateway check because:
+        // - If gateway=SEPAY, PayOS should never process (even if processed_by_webhook=false)
+        // - If gateway=PAYOS and processed_by_webhook=true, skip to prevent duplicate
+        if (paymentTransaction.processed_by_webhook && paymentTransaction.gateway === "PAYOS") {
             this.logger.log(
                 `[PayOS] Webhook already processed for order ${orderCode}`,
             )
@@ -100,34 +114,56 @@ export class DonationWebhookService {
 
     /**
      * Process successful PayOS payment
+     * PayOS webhook is ONLY called when user transfers ENOUGH or MORE (>= amount)
+     * PARTIAL payments (< amount) are handled by Sepay webhook
+     * 
      * 1. Update payment_transaction (SUCCESS, gateway=PAYOS, processed_by_webhook=true)
-     * 2. Credit Fundraiser Wallet via gRPC
+     * 2. Credit Fundraiser Wallet with ACTUAL amount paid
      */
     private async processSuccessfulPayment(
         paymentTransaction: any,
         webhookData: PayOSWebhookData,
     ): Promise<void> {
-        const { orderCode } = webhookData
+        const { orderCode, amount, amountPaid } = webhookData
 
         try {
-            // Step 1: Update payment transaction with PayOS data
+            // Use amountPaid (actual received) instead of amount (payment link amount)
+            const actualAmountReceived = BigInt(amountPaid || amount)
+            const originalAmount = paymentTransaction.amount
+
+            // CRITICAL: PayOS should only handle COMPLETED/OVERPAID (>= amount)
+            // PARTIAL payments (< amount) should be handled by Sepay
+            if (actualAmountReceived < originalAmount) {
+                this.logger.warn(
+                    `[PayOS] ⚠️ PARTIAL payment detected (${actualAmountReceived}/${originalAmount}) - This should be handled by Sepay. Skipping PayOS processing.`,
+                )
+                return
+            }
+
+            this.logger.log(
+                `[PayOS] Processing ${actualAmountReceived === originalAmount ? "COMPLETED" : "OVERPAID"} payment - ${actualAmountReceived}/${originalAmount}`,
+            )
+
+            // Step 1: Update payment transaction with PayOS data and actual amount
             await this.donorRepository.updatePaymentTransactionSuccess({
                 order_code: BigInt(orderCode),
+                amount_paid: actualAmountReceived,
                 gateway: "PAYOS",
                 processed_by_webhook: true,
-                is_matched: true,
-                reference: webhookData.reference,
-                transaction_datetime: new Date(webhookData.transactionDateTime),
-                counter_account_bank_id: webhookData.counterAccountBankId,
-                counter_account_bank_name: webhookData.counterAccountBankName,
-                counter_account_name: webhookData.counterAccountName,
-                counter_account_number: webhookData.counterAccountNumber,
-                virtual_account_name: webhookData.virtualAccountName,
-                virtual_account_number: webhookData.virtualAccountNumber,
+                payos_metadata: {
+                    reference: webhookData.reference,
+                    transaction_datetime: new Date(webhookData.transactionDateTime),
+                    counter_account_bank_id: webhookData.counterAccountBankId,
+                    counter_account_bank_name: webhookData.counterAccountBankName,
+                    counter_account_name: webhookData.counterAccountName,
+                    counter_account_number: webhookData.counterAccountNumber,
+                    virtual_account_name: webhookData.virtualAccountName,
+                    virtual_account_number: webhookData.virtualAccountNumber,
+                },
             })
 
             this.logger.log(
-                `[PayOS] ✅ Payment transaction updated - Order ${orderCode}`,
+                `[PayOS] ✅ Payment transaction updated - Order ${orderCode}, Amount Paid: ${actualAmountReceived}`,
             )
 
             // Step 2: Get donation and campaign info
@@ -140,27 +176,43 @@ export class DonationWebhookService {
             }
 
             const campaignId = donation.campaign_id
-            const fundraiserId = donation.campaign?.created_by
+            const fundraiserCognitoId = donation.campaign?.created_by
 
-            if (!fundraiserId) {
+            if (!fundraiserCognitoId) {
                 this.logger.error(
-                    `[PayOS] Fundraiser not found for campaign ${campaignId}`,
+                    `[PayOS] Fundraiser cognito_id not found for campaign ${campaignId}`,
                 )
                 return
             }
 
-            // Step 3: Credit Fundraiser Wallet via gRPC
+            // Step 2.5: Get fundraiser user_id from cognito_id
+            const fundraiserUser =
+                await this.userClientService.getUserByCognitoId(
+                    fundraiserCognitoId,
+                )
+
+            if (!fundraiserUser || !fundraiserUser.id) {
+                this.logger.error(
+                    `[PayOS] Fundraiser user not found for cognito_id ${fundraiserCognitoId}`,
+                )
+                return
+            }
+
+            const fundraiserId = fundraiserUser.id
+
+            // Step 3: Credit Fundraiser Wallet with ACTUAL amount received (not payment link amount)
+            // This handles both exact payment, underpaid, and overpaid scenarios
             await this.userClientService.creditFundraiserWallet({
-                fundraiser_id: fundraiserId,
-                campaign_id: campaignId,
-                payment_transaction_id: paymentTransaction.id,
-                amount: paymentTransaction.amount,
+                fundraiserId: fundraiserId,
+                campaignId: campaignId,
+                paymentTransactionId: paymentTransaction.id,
+                amount: actualAmountReceived, // Use actual amount from PayOS (supports overpayment)
                 gateway: "PAYOS",
                 description: `Donation from ${donation.donor_name || "Anonymous"} - Order ${orderCode}`,
             })
 
             this.logger.log(
-                `[PayOS] ✅ Fundraiser wallet credited - Order ${orderCode}, Amount: ${paymentTransaction.amount}`,
+                `[PayOS] ✅ Fundraiser wallet credited - Order ${orderCode}, Amount: ${actualAmountReceived} (Original: ${paymentTransaction.amount})`,
             )
         } catch (error) {
             this.logger.error(
@@ -187,7 +239,6 @@ export class DonationWebhookService {
                 order_code: orderCode,
                 gateway: "PAYOS",
                 processed_by_webhook: true,
-                is_matched: false,
                 error_code: errorCode,
                 error_description: errorDescription,
             })

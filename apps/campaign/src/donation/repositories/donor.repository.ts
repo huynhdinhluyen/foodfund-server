@@ -36,7 +36,7 @@ export class DonorRepository {
         Array<{
             id: string
             order_code: bigint | null
-            payment_link_id: string | null
+            payos_metadata: any
             created_at: Date
         }>
     > {
@@ -46,12 +46,12 @@ export class DonorRepository {
                 created_at: {
                     lt: before,
                 },
-                OR: [{ payment_link_id: { not: null } }, { order_code: { not: null } }],
+                payos_metadata: { not: Prisma.JsonNull },
             },
             select: {
                 id: true,
                 order_code: true,
-                payment_link_id: true,
+                payos_metadata: true,
                 created_at: true,
             },
             orderBy: { created_at: "asc" },
@@ -75,11 +75,15 @@ export class DonorRepository {
                 donation_id: data.donation_id,
                 order_code: data.order_code,
                 amount: data.amount,
+                received_amount: BigInt(0), // Initialize to 0
                 description: data.description,
-                checkout_url: data.checkout_url,
-                qr_code: data.qr_code,
-                payment_link_id: data.payment_link_id,
+                payos_metadata: {
+                    checkout_url: data.checkout_url,
+                    qr_code: data.qr_code,
+                    payment_link_id: data.payment_link_id,
+                },
                 status: PaymentStatus.PENDING,
+                payment_status: "PENDING",
             },
         })
     }
@@ -286,10 +290,16 @@ export class DonorRepository {
 
     /**
      * Find payment transaction by reference number (for idempotency)
+     * Reference is now stored in payos_metadata JSON
      */
     async findPaymentTransactionByReference(referenceNumber: string) {
         return this.prisma.payment_Transaction.findFirst({
-            where: { reference: referenceNumber },
+            where: {
+                payos_metadata: {
+                    path: ["reference"],
+                    equals: referenceNumber,
+                },
+            },
         })
     }
 
@@ -310,39 +320,64 @@ export class DonorRepository {
     }
 
     /**
-     * Update payment transaction to SUCCESS status
+     * Update payment transaction to SUCCESS status (used by PayOS webhook)
      */
     async updatePaymentTransactionSuccess(data: {
         order_code: bigint
+        amount_paid: bigint // Actual amount received from PayOS
         gateway: string
         processed_by_webhook: boolean
-        is_matched: boolean
-        reference: string
-        transaction_datetime: Date
-        counter_account_bank_id?: string
-        counter_account_bank_name?: string
-        counter_account_name?: string
-        counter_account_number?: string
-        virtual_account_name?: string
-        virtual_account_number?: string
+        payos_metadata: {
+            payment_link_id?: string
+            reference?: string
+            transaction_datetime?: Date
+            counter_account_bank_id?: string
+            counter_account_bank_name?: string
+            counter_account_name?: string
+            counter_account_number?: string
+            virtual_account_name?: string
+            virtual_account_number?: string
+        }
     }) {
         return this.prisma.$transaction(async (tx) => {
+            // Get original payment
+            const originalPayment = await tx.payment_Transaction.findUnique({
+                where: { order_code: data.order_code },
+                include: {
+                    donation: {
+                        include: {
+                            campaign: true,
+                        },
+                    },
+                },
+            })
+
+            if (!originalPayment) {
+                throw new Error(
+                    `Payment with order_code ${data.order_code} not found`,
+                )
+            }
+
+            // Calculate payment_status
+            let payment_status: "PENDING" | "PARTIAL" | "COMPLETED" | "OVERPAID"
+            if (data.amount_paid < originalPayment.amount) {
+                payment_status = "PARTIAL"
+            } else if (data.amount_paid === originalPayment.amount) {
+                payment_status = "COMPLETED"
+            } else {
+                payment_status = "OVERPAID"
+            }
+
             // Update payment transaction
             const payment = await tx.payment_Transaction.update({
                 where: { order_code: data.order_code },
                 data: {
                     status: PaymentStatus.SUCCESS,
+                    received_amount: data.amount_paid,
+                    payment_status,
                     gateway: data.gateway,
                     processed_by_webhook: data.processed_by_webhook,
-                    is_matched: data.is_matched,
-                    reference: data.reference,
-                    transaction_datetime: data.transaction_datetime,
-                    counter_account_bank_id: data.counter_account_bank_id,
-                    counter_account_bank_name: data.counter_account_bank_name,
-                    counter_account_name: data.counter_account_name,
-                    counter_account_number: data.counter_account_number,
-                    virtual_account_name: data.virtual_account_name,
-                    virtual_account_number: data.virtual_account_number,
+                    payos_metadata: data.payos_metadata,
                     updated_at: new Date(),
                 },
                 include: {
@@ -354,12 +389,12 @@ export class DonorRepository {
                 },
             })
 
-            // Update campaign stats
+            // Update campaign stats with ACTUAL amount received
             await tx.campaign.update({
                 where: { id: payment.donation.campaign_id },
                 data: {
                     received_amount: {
-                        increment: payment.amount,
+                        increment: data.amount_paid, // Use actual paid amount
                     },
                     donation_count: {
                         increment: 1,
@@ -378,7 +413,6 @@ export class DonorRepository {
         order_code: bigint
         gateway: string
         processed_by_webhook: boolean
-        is_matched: boolean
         error_code: string
         error_description: string
     }) {
@@ -388,13 +422,35 @@ export class DonorRepository {
                 status: PaymentStatus.FAILED,
                 gateway: data.gateway,
                 processed_by_webhook: data.processed_by_webhook,
-                is_matched: data.is_matched,
                 error_code: data.error_code,
                 error_description: data.error_description,
                 updated_at: new Date(),
             },
         })
     }
+
+    /**
+     * Track Sepay partial payment (mark to prevent PayOS duplicate)
+     * This is called when Sepay processes a transfer with orderCode
+     */
+    async trackSepayPartialPayment(data: {
+        order_code: bigint
+        sepay_transaction_id: number
+        sepay_reference_number: string
+    }) {
+        return this.prisma.payment_Transaction.update({
+            where: { order_code: data.order_code },
+            data: {
+                sepay_metadata: {
+                    sepay_transaction_id: data.sepay_transaction_id,
+                    sepay_reference_number: data.sepay_reference_number,
+                },
+                gateway: "SEPAY", // Mark as processed by Sepay
+                updated_at: new Date(),
+            },
+        })
+    }
+
     async findByOrderCode(orderCode: string) {
         const orderCodeBigInt = BigInt(orderCode)
 
