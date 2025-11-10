@@ -2,14 +2,11 @@ syntax = "proto3";
 
 package foodfund.campaign;
 
-// Campaign Service for internal communication
 service CampaignService {
-  // Health check
   rpc Health(HealthRequest) returns (HealthResponse);
-  
-  // Get campaign by ID
   rpc GetCampaign(GetCampaignRequest) returns (GetCampaignResponse);
   rpc GetCampaignIdByPhaseId(GetCampaignIdByPhaseIdRequest) returns (GetCampaignIdByPhaseIdResponse);
+  rpc GetCampaignPhases(GetCampaignPhasesRequest) returns (GetCampaignPhasesResponse);
 }
 
 // Messages
@@ -57,5 +54,25 @@ message GetCampaignIdByPhaseIdRequest {
 message GetCampaignIdByPhaseIdResponse {
   bool success = 1;
   string campaign_id = 2;
+  string error = 3;
+}
+
+message GetCampaignPhasesRequest {
+  string campaign_id = 1;
+}
+
+message CampaignPhase {
+  string id = 1;
+  string campaign_id = 2;
+  string phase_name = 3;
+  string location = 4;
+  string ingredient_purchase_date = 5;
+  string cooking_date = 6;
+  string delivery_date = 7;
+}
+
+message GetCampaignPhasesResponse {
+  bool success = 1;
+  repeated CampaignPhase phases = 2;
   string error = 3;
 }

@@ -13,11 +13,7 @@ export class WalletRepository {
 
     constructor(private readonly prisma: PrismaClient) {}
 
-
-    async getWallet(
-        userId: string,
-        walletType: Wallet_Type,
-    ): Promise<Wallet> {
+    async getWallet(userId: string, walletType: Wallet_Type): Promise<Wallet> {
         const wallet = await this.prisma.wallet.findFirst({
             where: {
                 user_id: userId,
@@ -93,7 +89,7 @@ export class WalletRepository {
         // Case 2: Non-donation transfer (no payment_transaction_id, has gateway+sepay_metadata)
         //   - Gateway/metadata stored in Wallet_Transaction (apps/user DB)
         //   - Check by sepay_metadata.sepayId to prevent duplicates
-        
+
         if (data.paymentTransactionId) {
             // Case 1: Donation payment - check by payment_transaction_id
             const existing = await this.prisma.wallet_Transaction.findFirst({
@@ -132,40 +128,42 @@ export class WalletRepository {
         }
 
         // Create transaction and update balance in a transaction
-        const walletTransaction = await this.prisma.$transaction(
-            async (tx) => {
-                // Create wallet transaction
-                // NOTE: For donation payments (has payment_transaction_id):
-                //   - gateway and sepay_metadata should be NULL (stored in Payment_Transaction)
-                // For non-donation transfers (no payment_transaction_id):
-                //   - gateway and sepay_metadata are stored here
-                const transaction = await tx.wallet_Transaction.create({
-                    data: {
-                        wallet_id: wallet.id,
-                        campaign_id: data.campaignId || null,
-                        payment_transaction_id: data.paymentTransactionId || null,
-                        amount: data.amount,
-                        transaction_type: data.transactionType,
-                        description: data.description || null,
-                        // Only store gateway/sepay_metadata if NO payment_transaction_id (non-donation transfer)
-                        gateway: data.paymentTransactionId ? null : (data.gateway || null),
-                        sepay_metadata: data.paymentTransactionId ? null : (data.sepayMetadata || null),
-                    },
-                })
+        const walletTransaction = await this.prisma.$transaction(async (tx) => {
+            // Create wallet transaction
+            // NOTE: For donation payments (has payment_transaction_id):
+            //   - gateway and sepay_metadata should be NULL (stored in Payment_Transaction)
+            // For non-donation transfers (no payment_transaction_id):
+            //   - gateway and sepay_metadata are stored here
+            const transaction = await tx.wallet_Transaction.create({
+                data: {
+                    wallet_id: wallet.id,
+                    campaign_id: data.campaignId || null,
+                    payment_transaction_id: data.paymentTransactionId || null,
+                    amount: data.amount,
+                    transaction_type: data.transactionType,
+                    description: data.description || null,
+                    // Only store gateway/sepay_metadata if NO payment_transaction_id (non-donation transfer)
+                    gateway: data.paymentTransactionId
+                        ? null
+                        : data.gateway || null,
+                    sepay_metadata: data.paymentTransactionId
+                        ? null
+                        : data.sepayMetadata || null,
+                },
+            })
 
-                // Update wallet balance
-                await tx.wallet.update({
-                    where: { id: wallet.id },
-                    data: {
-                        balance: {
-                            increment: data.amount,
-                        },
+            // Update wallet balance
+            await tx.wallet.update({
+                where: { id: wallet.id },
+                data: {
+                    balance: {
+                        increment: data.amount,
                     },
-                })
+                },
+            })
 
-                return transaction
-            },
-        )
+            return transaction
+        })
 
         this.logger.log(
             `Credited ${data.amount} to ${data.walletType} wallet ${wallet.id} - Transaction: ${walletTransaction.id}`,
@@ -316,8 +314,8 @@ export class WalletRepository {
         startOfMonth.setHours(0, 0, 0, 0)
 
         // Get total received (CREDIT transactions)
-        const creditTransactions = await this.prisma.wallet_Transaction.aggregate(
-            {
+        const creditTransactions =
+            await this.prisma.wallet_Transaction.aggregate({
                 where: {
                     wallet_id: wallet.id,
                     transaction_type: {
@@ -332,12 +330,11 @@ export class WalletRepository {
                     amount: true,
                 },
                 _count: true,
-            },
-        )
+            })
 
         // Get total withdrawn (DEBIT transactions)
-        const debitTransactions = await this.prisma.wallet_Transaction.aggregate(
-            {
+        const debitTransactions =
+            await this.prisma.wallet_Transaction.aggregate({
                 where: {
                     wallet_id: wallet.id,
                     transaction_type: Transaction_Type.WITHDRAWAL,
@@ -345,8 +342,7 @@ export class WalletRepository {
                 _sum: {
                     amount: true,
                 },
-            },
-        )
+            })
 
         // Get this month received
         const thisMonthTransactions =
@@ -411,15 +407,14 @@ export class WalletRepository {
         startOfMonth.setHours(0, 0, 0, 0)
 
         // Count transactions today
-        const totalTransactionsToday = await this.prisma.wallet_Transaction.count(
-            {
+        const totalTransactionsToday =
+            await this.prisma.wallet_Transaction.count({
                 where: {
                     created_at: {
                         gte: startOfToday,
                     },
                 },
-            },
-        )
+            })
 
         // Count transactions this month
         const totalTransactionsThisMonth =

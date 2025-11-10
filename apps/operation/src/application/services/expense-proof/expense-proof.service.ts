@@ -1,4 +1,4 @@
-import { ExpenseProof, ExpenseProofStatus } from "@app/operation/src/domain"
+import { ExpenseProof } from "@app/operation/src/domain"
 import {
     AuthorizationService,
     Role,
@@ -23,6 +23,7 @@ import { SpacesUploadService } from "@libs/s3-storage"
 import { SentryService } from "@libs/observability"
 import { ExpenseProofFilterInput } from "../../dtos/expense-proof"
 import { GrpcClientService } from "@libs/grpc"
+import { ExpenseProofStatus, IngredientRequestStatus } from "@app/operation/src/domain/enums"
 
 @Injectable()
 export class ExpenseProofService {
@@ -260,10 +261,7 @@ export class ExpenseProofService {
         }
     }
 
-    async getExpenseProof(
-        id: string,
-        userContext: UserContext,
-    ): Promise<ExpenseProof> {
+    async getExpenseProof(id: string): Promise<ExpenseProof> {
         try {
             const proof = await this.expenseProofRepository.findById(id)
 
@@ -271,13 +269,10 @@ export class ExpenseProofService {
                 throw new NotFoundException(`Expense proof not found: ${id}`)
             }
 
-            await this.validateProofAccess(proof, userContext)
-
             return this.mapToGraphQLModel(proof)
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "ExpenseProofService.getExpenseProof",
-                userId: userContext.userId,
                 proofId: id,
             })
             throw error
@@ -385,48 +380,6 @@ export class ExpenseProofService {
         }
     }
 
-    private async validateProofAccess(
-        proof: any,
-        userContext: UserContext,
-    ): Promise<void> {
-        if (userContext.role === Role.ADMIN) {
-            return
-        }
-
-        if (userContext.role === Role.KITCHEN_STAFF) {
-            const requests =
-                await this.ingredientRequestRepository.findByKitchenStaffOrganization(
-                    userContext.userId,
-                )
-            const requestIds = requests.map((r) => r.id)
-
-            if (!requestIds.includes(proof.request_id)) {
-                throw new ForbiddenException(
-                    "Bạn chỉ có thể xem expense proofs từ tổ chức của mình",
-                )
-            }
-            return
-        }
-
-        if (userContext.role === Role.FUNDRAISER) {
-            const hasAccess = await this.checkFundraiserCampaignOwnership(
-                proof.request_id,
-                userContext.userId,
-            )
-
-            if (!hasAccess) {
-                throw new ForbiddenException(
-                    "Bạn chỉ có thể xem expense proofs từ các chiến dịch của mình",
-                )
-            }
-            return
-        }
-
-        throw new ForbiddenException(
-            "You don't have permission to view this expense proof",
-        )
-    }
-
     private async checkFundraiserCampaignOwnership(
         requestId: string,
         fundraiserId: string,
@@ -507,6 +460,33 @@ export class ExpenseProofService {
             changedStatusAt: proof.changed_status_at,
             created_at: proof.created_at,
             updated_at: proof.updated_at,
+            request: proof.request ? {
+                id: proof.request.id,
+                campaignPhaseId: proof.request.campaign_phase_id,
+                kitchenStaffId: proof.request.kitchen_staff_id,
+                totalCost: proof.request.total_cost.toString(),
+                status: proof.request.status as IngredientRequestStatus,
+                changedStatusAt: proof.request.changed_status_at,
+                created_at: proof.request.created_at,
+                updated_at: proof.request.updated_at,
+                items: proof.request.items?.map((item: any) => ({
+                    id: item.id,
+                    requestId: item.request_id,
+                    ingredientName: item.ingredient_name,
+                    quantity: item.quantity,
+                    estimatedUnitPrice: item.estimated_unit_price,
+                    estimatedTotalPrice: item.estimated_total_price,
+                    supplier: item.supplier,
+                })) || [],
+                kitchenStaff: {
+                    __typename: "User",
+                    id: proof.request.kitchen_staff_id,
+                },
+                campaignPhase: {
+                    __typename: "CampaignPhase",
+                    id: proof.request.campaign_phase_id,
+                },
+            } : undefined,
         }
     }
 }

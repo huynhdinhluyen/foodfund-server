@@ -34,12 +34,10 @@ export class GrpcServerService implements OnModuleInit, OnModuleDestroy {
         this.server = new grpc.Server()
     }
 
-    // Initialize gRPC server for a service
     async initialize(config: GrpcServerConfig): Promise<void> {
         this.config = config
 
         try {
-            // Load proto file
             const protoPath = join(
                 process.cwd(),
                 "libs",
@@ -48,7 +46,7 @@ export class GrpcServerService implements OnModuleInit, OnModuleDestroy {
                 config.protoPath,
             )
             const packageDefinition = protoLoader.loadSync(protoPath, {
-                keepCase: true,
+                keepCase: false,
                 longs: String,
                 enums: String,
                 defaults: true,
@@ -58,7 +56,6 @@ export class GrpcServerService implements OnModuleInit, OnModuleDestroy {
             const protoDescriptor =
                 grpc.loadPackageDefinition(packageDefinition)
 
-            // Navigate to the service
             const packageObj = this.getNestedProperty(
                 protoDescriptor,
                 config.packageName,
@@ -71,12 +68,10 @@ export class GrpcServerService implements OnModuleInit, OnModuleDestroy {
                 )
             }
 
-            // Wrap implementation methods with error handling and monitoring
             const wrappedImplementation = this.wrapImplementation(
                 config.implementation,
             )
 
-            // Add service to server
             this.server.addService(
                 serviceDefinition.service,
                 wrappedImplementation,
@@ -89,7 +84,6 @@ export class GrpcServerService implements OnModuleInit, OnModuleDestroy {
         }
     }
 
-    // Start the gRPC server
     async start(): Promise<void> {
         if (!this.config) {
             throw new Error(
@@ -147,40 +141,15 @@ export class GrpcServerService implements OnModuleInit, OnModuleDestroy {
             const clientService =
                 call.metadata.get("x-service-name")[0] || "unknown"
 
-            // Add breadcrumb for tracking
-            this.sentryService.addBreadcrumb(
-                `gRPC method called: ${methodName}`,
-                "grpc",
-                {
-                    methodName,
-                    clientService,
-                    requestId,
-                },
-            )
-
             try {
-                this.logger.log(
-                    `gRPC method called: ${methodName} from ${clientService}`,
+                const result = await originalMethod(
+                    call.request,
+                    call.metadata,
+                    call,
                 )
-
-                // Call original method
-                const result = await originalMethod(call, callback)
-
                 const duration = Date.now() - startTime
 
-                // Log successful call
-                this.logger.log(
-                    `gRPC method completed: ${methodName} (${duration}ms)`,
-                )
-
-                // Track slow methods
-                if (duration > 2000) {
-                    this.sentryService.captureMessage(
-                        `Slow gRPC method: ${methodName} took ${duration}ms`,
-                        "warning",
-                        { methodName, duration, clientService },
-                    )
-                }
+                callback(null, result)
 
                 return result
             } catch (error) {
@@ -191,7 +160,6 @@ export class GrpcServerService implements OnModuleInit, OnModuleDestroy {
                     error,
                 )
 
-                // Capture error with context
                 this.sentryService.captureError(error as Error, {
                     grpcMethod: true,
                     methodName,
@@ -201,7 +169,6 @@ export class GrpcServerService implements OnModuleInit, OnModuleDestroy {
                     request: this.sanitizeRequest(call.request),
                 })
 
-                // Convert to gRPC error
                 const grpcError = this.convertToGrpcError(error)
                 callback(grpcError)
             }

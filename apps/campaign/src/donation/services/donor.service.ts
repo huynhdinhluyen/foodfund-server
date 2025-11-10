@@ -419,7 +419,9 @@ export class DonorService {
         const donation = await this.donorRepository.findByOrderCode(orderCode)
 
         if (!donation) {
-            throw new NotFoundException("Donation not found with this order code")
+            throw new NotFoundException(
+                "Donation not found with this order code",
+            )
         }
 
         // Get all payment transactions
@@ -475,7 +477,7 @@ export class DonorService {
             bankName: shouldShowBankingInfo ? config.payosBankName : undefined,
             bankLogo: shouldShowBankingInfo ? config.payosBankLogo : undefined,
             description: shouldShowBankingInfo
-                ? latestTx?.description ?? undefined
+                ? (latestTx?.description ?? undefined)
                 : undefined,
         }
     }

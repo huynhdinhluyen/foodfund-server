@@ -102,10 +102,7 @@ export class DonationWebhookService {
         // Update payment status based on webhook code
         if (code === "00") {
             // ✅ Payment successful
-            await this.processSuccessfulPayment(
-                paymentTransaction,
-                webhookData,
-            )
+            await this.processSuccessfulPayment(paymentTransaction, webhookData)
         } else {
             // ❌ Payment failed
             await this.processFailedPayment(paymentTransaction, code, desc)
@@ -224,13 +221,10 @@ export class DonationWebhookService {
                 error_description: errorDescription,
             })
 
-            this.logger.warn(
-                `[PayOS] ⚠️ Payment failed - Order ${orderCode}`,
-                {
-                    errorCode,
-                    errorDescription,
-                },
-            )
+            this.logger.warn(`[PayOS] ⚠️ Payment failed - Order ${orderCode}`, {
+                errorCode,
+                errorDescription,
+            })
         } catch (error) {
             this.logger.error(
                 `[PayOS] ❌ Failed to update payment failure for order ${orderCode}`,
