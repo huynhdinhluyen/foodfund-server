@@ -205,6 +205,7 @@ jobs:
   deploy:
     needs: [detect-changes, docker]
     runs-on: ubuntu-latest
+    timeout-minutes: 30  # Set job timeout to 30 minutes
     if: github.event_name == 'push' && needs.detect-changes.outputs.any-service == 'true'
     steps:
       - uses: actions/checkout@v4
@@ -250,78 +251,172 @@ jobs:
             UNIQUE_TAG="develop-${GITHUB_SHA::8}"
           fi
           
-          echo "Deploying/updating services with tag: $TAG (unique: $UNIQUE_TAG)"
+          echo "=================================================="
+          echo "🚀 Deploying FoodFund Microservices"
+          echo "=================================================="
+          echo "Tag: $TAG (unique: $UNIQUE_TAG)"
+          echo ""
           
-          # Force delete old pods to free up resources for new deployment
-          echo "🔄 Cleaning up old pods to free resources..."
+          # ============================================
+          # PHASE 1: Deploy Subgraph Services in Background (Parallel)
+          # ============================================
+          echo "📦 Phase 1: Deploying subgraph services in parallel..."
+          echo ""
+          
+          # Start all subgraph deployments in background for parallel execution
+          DEPLOY_PIDS=()
+          
           if [ "${{ needs.detect-changes.outputs.auth }}" = "true" ]; then
-            kubectl delete pods -l app.kubernetes.io/name=auth-service -n foodfund-k8s --ignore-not-found=true || true
+            echo "🚀 Starting auth-service deployment..."
+            (
+              helm upgrade --install auth-service k8s/charts/auth-service \
+                --namespace foodfund-k8s \
+                --set image.tag=$UNIQUE_TAG \
+                --set image.repository=${DOCKERHUB_USERNAME}/foodfund-auth \
+                --wait \
+                --timeout 6m \
+                --atomic \
+              && echo "✅ auth-service deployed" \
+              || echo "❌ auth-service deployment failed"
+            ) &
+            DEPLOY_PIDS+=($!)
           fi
           
           if [ "${{ needs.detect-changes.outputs.user }}" = "true" ]; then
-            kubectl delete pods -l app.kubernetes.io/name=user-service -n foodfund-k8s --ignore-not-found=true || true
+            echo "🚀 Starting user-service deployment..."
+            (
+              helm upgrade --install user-service k8s/charts/user-service \
+                --namespace foodfund-k8s \
+                --set image.tag=$UNIQUE_TAG \
+                --set image.repository=${DOCKERHUB_USERNAME}/foodfund-user \
+                --wait \
+                --timeout 6m \
+                --atomic \
+              && echo "✅ user-service deployed" \
+              || echo "❌ user-service deployment failed"
+            ) &
+            DEPLOY_PIDS+=($!)
           fi
           
           if [ "${{ needs.detect-changes.outputs.campaign }}" = "true" ]; then
-            kubectl delete pods -l app.kubernetes.io/name=campaign-service -n foodfund-k8s --ignore-not-found=true || true
+            echo "🚀 Starting campaign-service deployment..."
+            (
+              helm upgrade --install campaign-service k8s/charts/campaign-service \
+                --namespace foodfund-k8s \
+                --set image.tag=$UNIQUE_TAG \
+                --set image.repository=${DOCKERHUB_USERNAME}/foodfund-campaign \
+                --wait \
+                --timeout 6m \
+                --atomic \
+              && echo "✅ campaign-service deployed" \
+              || echo "❌ campaign-service deployment failed"
+            ) &
+            DEPLOY_PIDS+=($!)
           fi
 
           if [ "${{ needs.detect-changes.outputs.operation }}" = "true" ]; then
-            kubectl delete pods -l app.kubernetes.io/name=operation-service -n foodfund-k8s --ignore-not-found=true || true
+            echo "🚀 Starting operation-service deployment..."
+            (
+              helm upgrade --install operation-service k8s/charts/operation-service \
+                --namespace foodfund-k8s \
+                --set image.tag=$UNIQUE_TAG \
+                --set image.repository=${DOCKERHUB_USERNAME}/foodfund-operation \
+                --wait \
+                --timeout 6m \
+                --atomic \
+              && echo "✅ operation-service deployed" \
+              || echo "❌ operation-service deployment failed"
+            ) &
+            DEPLOY_PIDS+=($!)
           fi
           
+          # Wait for all background deployments to complete
+          if [ ${#DEPLOY_PIDS[@]} -gt 0 ]; then
+            echo ""
+            echo "⏳ Waiting for ${#DEPLOY_PIDS[@]} deployment(s) to complete..."
+            FAILED=0
+            for pid in "${DEPLOY_PIDS[@]}"; do
+              if ! wait $pid; then
+                FAILED=$((FAILED + 1))
+              fi
+            done
+            
+            if [ $FAILED -gt 0 ]; then
+              echo "❌ $FAILED deployment(s) failed!"
+              exit 1
+            fi
+            
+            echo "✅ All subgraph deployments completed successfully!"
+          fi
+          echo ""
+          
+          # ============================================
+          # PHASE 2: Wait for ALL Subgraphs to be Ready
+          # ============================================
+          echo "⏳ Phase 2: Verifying all subgraph services are ready..."
+          echo ""
+          
+          # Give services a moment to stabilize
+          sleep 10
+          
+          # Quick check for all existing services
+          ALL_READY=true
+          
+          if kubectl get deployment auth-service -n foodfund-k8s &>/dev/null; then
+            if ! kubectl wait --for=condition=available deployment/auth-service -n foodfund-k8s --timeout=120s 2>/dev/null; then
+              echo "⚠️  auth-service not ready yet"
+              ALL_READY=false
+            fi
+          fi
+          
+          if kubectl get deployment user-service -n foodfund-k8s &>/dev/null; then
+            if ! kubectl wait --for=condition=available deployment/user-service -n foodfund-k8s --timeout=120s 2>/dev/null; then
+              echo "⚠️  user-service not ready yet"
+              ALL_READY=false
+            fi
+          fi
+          
+          if kubectl get deployment campaign-service -n foodfund-k8s &>/dev/null; then
+            if ! kubectl wait --for=condition=available deployment/campaign-service -n foodfund-k8s --timeout=120s 2>/dev/null; then
+              echo "⚠️  campaign-service not ready yet"
+              ALL_READY=false
+            fi
+          fi
+          
+          if kubectl get deployment operation-service -n foodfund-k8s &>/dev/null; then
+            if ! kubectl wait --for=condition=available deployment/operation-service -n foodfund-k8s --timeout=120s 2>/dev/null; then
+              echo "⚠️  operation-service not ready yet"
+              ALL_READY=false
+            fi
+          fi
+          
+          if [ "$ALL_READY" = true ]; then
+            echo "✅ All subgraph services are ready!"
+          else
+            echo "⚠️  Some services may still be starting, but continuing with gateway deployment..."
+          fi
+          echo ""
+          
+          # ============================================
+          # PHASE 3: Deploy GraphQL Gateway Last
+          # ============================================
           if [ "${{ needs.detect-changes.outputs.gateway }}" = "true" ]; then
-            kubectl delete pods -l app.kubernetes.io/name=graphql-gateway -n foodfund-k8s --ignore-not-found=true || true
-          fi
-          
-          # Wait a moment for pods to terminate
-          sleep 15
-          
-          # Deploy or update only changed services using Helm
-          if [ "${{ needs.detect-changes.outputs.auth }}" = "true" ]; then
-            echo "Deploying/updating auth-service..."
-            helm upgrade --install auth-service k8s/charts/auth-service \
-              --namespace foodfund-k8s \
-              --set image.tag=$UNIQUE_TAG \
-              --set image.repository=${DOCKERHUB_USERNAME}/foodfund-auth \
-              --timeout 3m
-          fi
-          
-          if [ "${{ needs.detect-changes.outputs.user }}" = "true" ]; then
-            echo "Deploying/updating user-service..."
-            helm upgrade --install user-service k8s/charts/user-service \
-              --namespace foodfund-k8s \
-              --set image.tag=$UNIQUE_TAG \
-              --set image.repository=${DOCKERHUB_USERNAME}/foodfund-user \
-              --timeout 3m
-          fi
-          
-          if [ "${{ needs.detect-changes.outputs.campaign }}" = "true" ]; then
-            echo "Deploying/updating campaign-service..."
-            helm upgrade --install campaign-service k8s/charts/campaign-service \
-              --namespace foodfund-k8s \
-              --set image.tag=$UNIQUE_TAG \
-              --set image.repository=${DOCKERHUB_USERNAME}/foodfund-campaign \
-              --timeout 3m
-          fi
-
-          if [ "${{ needs.detect-changes.outputs.operation }}" = "true" ]; then
-            echo "Deploying/updating operation-service..."
-            helm upgrade --install operation-service k8s/charts/operation-service \
-              --namespace foodfund-k8s \
-              --set image.tag=$UNIQUE_TAG \
-              --set image.repository=${DOCKERHUB_USERNAME}/foodfund-operation \
-              --timeout 3m
-          fi
-          
-          if [ "${{ needs.detect-changes.outputs.gateway }}" = "true" ]; then
-            echo "Deploying/updating graphql-gateway..."
+            echo "🌐 Phase 3: Deploying GraphQL Gateway..."
+            echo ""
             helm upgrade --install graphql-gateway k8s/charts/graphql-gateway \
               --namespace foodfund-k8s \
               --set image.tag=$UNIQUE_TAG \
               --set image.repository=${DOCKERHUB_USERNAME}/foodfund-graphql-gateway \
-              --timeout 3m
+              --wait \
+              --timeout 6m \
+              --atomic
+            echo "✅ graphql-gateway deployed"
+            echo ""
           fi
+          
+          echo "=================================================="
+          echo "✅ Deployment completed successfully!"
+          echo "=================================================="
 
       - name: Final status
         run: |
