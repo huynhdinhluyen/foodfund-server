@@ -5,6 +5,7 @@ import { UserClientService } from "../../shared/services/user-client.service"
 import { PayOS } from "@payos/node"
 import { envConfig } from "@libs/env"
 import { TransactionStatus } from "../../shared/enum/campaign.enum"
+import { Campaign, CampaignStatus } from "../../campaign"
 
 interface PayOSWebhookData {
     orderCode: number
@@ -167,7 +168,7 @@ export class DonationWebhookService {
 
             // 🆕 Check for campaign surplus and emit event
             const { campaign } = result
-            if (campaign.received_amount > campaign.target_amount && campaign.status === "ACTIVE") {
+            if (campaign.received_amount > campaign.target_amount && campaign.status === CampaignStatus.ACTIVE) {
                 const surplus = campaign.received_amount - campaign.target_amount
                 this.logger.log(
                     `[PayOS] 🎯 Surplus detected for campaign ${campaign.id} - Surplus: ${surplus.toString()} VND`,

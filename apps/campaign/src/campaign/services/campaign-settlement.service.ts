@@ -4,12 +4,6 @@ import { PrismaClient } from "../../generated/campaign-client"
 import { UserClientService } from "../../shared/services/user-client.service"
 import { CampaignStatus } from "../enum"
 
-/**
- * Campaign Settlement Service
- * 
- * Handles real-time surplus settlement when donations exceed campaign target.
- * Listens to 'campaign.surplus.detected' event emitted from DonorService.
- */
 @Injectable()
 export class CampaignSettlementService {
     private readonly logger = new Logger(CampaignSettlementService.name)
@@ -80,13 +74,6 @@ export class CampaignSettlementService {
         }
     }
 
-    /**
-     * Settle campaign surplus
-     * 1. Calculate surplus amount
-     * 2. Get fundraiser user ID from cognito_id
-     * 3. Credit fundraiser wallet via gRPC
-     * 4. Update campaign status to COMPLETED
-     */
     async settleCampaignSurplus(campaign: any) {
         const surplus = BigInt(campaign.received_amount) - BigInt(campaign.target_amount)
 

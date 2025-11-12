@@ -5,6 +5,7 @@ import { RedisService } from "@libs/redis"
 import { DonorRepository } from "../repositories/donor.repository"
 import { envConfig } from "@libs/env"
 import { TransactionStatus } from "../../shared/enum/campaign.enum"
+import { CampaignStatus } from "../../campaign"
 
 interface SepayWebhookPayload {
     id: number // Sepay transaction ID
@@ -210,7 +211,7 @@ export class SepayWebhookService {
 
             // 🆕 Check for campaign surplus and emit event
             const { campaign } = result
-            if (campaign.received_amount > campaign.target_amount && campaign.status === "ACTIVE") {
+            if (campaign.received_amount > campaign.target_amount && campaign.status === CampaignStatus.ACTIVE) {
                 const surplus = campaign.received_amount - campaign.target_amount
                 this.logger.log(
                     `[Sepay→Admin] 🎯 Surplus detected for campaign ${campaign.id} - Surplus: ${surplus.toString()} VND`,
@@ -293,7 +294,7 @@ export class SepayWebhookService {
 
             // 🆕 Check for campaign surplus and emit event
             const { campaign } = result
-            if (campaign.received_amount > campaign.target_amount && campaign.status === "ACTIVE") {
+            if (campaign.received_amount > campaign.target_amount && campaign.status === CampaignStatus.ACTIVE) {
                 const surplus = campaign.received_amount - campaign.target_amount
                 this.logger.log(
                     `[Sepay→Admin] 🎯 Surplus detected for campaign ${campaign.id} - Surplus: ${surplus.toString()} VND`,
