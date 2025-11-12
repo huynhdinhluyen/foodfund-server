@@ -6,6 +6,14 @@ import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from "class-validator"
 export class DeliveryTaskFilterInput {
     @Field(() => String, {
         nullable: true,
+        description: "Filter by campaign ID (fetches all tasks from all phases)",
+    })
+    @IsOptional()
+    @IsString()
+        campaignId?: string
+
+    @Field(() => String, {
+        nullable: true,
         description: "Filter by campaign phase ID",
     })
     @IsOptional()
