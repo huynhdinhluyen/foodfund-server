@@ -319,6 +319,48 @@ export class DeliveryTaskService {
 
     async getTasks(filter: DeliveryTaskFilterInput): Promise<DeliveryTask[]> {
         try {
+            if (filter.campaignId) {
+                const campaignPhases = await this.getCampaignPhases(
+                    filter.campaignId,
+                )
+
+                if (campaignPhases.length === 0) {
+                    this.sentryService.addBreadcrumb(
+                        "No campaign phases found for campaign",
+                        "warning",
+                        {
+                            campaignId: filter.campaignId,
+                        },
+                    )
+                    return []
+                }
+
+                const phaseIds = campaignPhases.map((phase) => phase.id)
+
+                const allMealBatches = await Promise.all(
+                    phaseIds.map((phaseId) =>
+                        this.mealBatchRepository.findWithFilters({
+                            campaignPhaseId: phaseId,
+                        }),
+                    ),
+                )
+
+                const mealBatchIds = allMealBatches.flat().map((mb) => mb.id)
+
+                if (mealBatchIds.length === 0) {
+                    return []
+                }
+
+                const tasks =
+                    await this.deliveryTaskRepository.findByMealBatchIds(
+                        mealBatchIds,
+                        filter.limit,
+                        filter.offset,
+                    )
+
+                return tasks.map((t) => this.mapToGraphQLModel(t))
+            }
+
             if (filter.campaignPhaseId) {
                 const mealBatches =
                     await this.mealBatchRepository.findWithFilters({
@@ -480,6 +522,45 @@ export class DeliveryTaskService {
             this.sentryService.captureError(error as Error, {
                 operation: "getDeliveryTaskStatusLogs",
                 taskId,
+            })
+            throw error
+        }
+    }
+
+    private async getCampaignPhases(campaignId: string): Promise<any[]> {
+        try {
+            const response = await this.grpcClient.callCampaignService<
+                { campaignId: string },
+                {
+                    success: boolean
+                    phases: Array<{
+                        id: string
+                        campaignId: string
+                        phaseName: string
+                        location: string
+                        ingredientPurchaseDate: string
+                        cookingDate: string
+                        deliveryDate: string
+                    }>
+                    error: string | null
+                }
+            >(
+                "GetCampaignPhases",
+                { campaignId },
+                { timeout: 5000, retries: 2 },
+            )
+
+            if (!response.success) {
+                throw new BadRequestException(
+                    response.error || "Failed to fetch campaign phases",
+                )
+            }
+
+            return response.phases || []
+        } catch (error) {
+            this.sentryService.captureError(error as Error, {
+                operation: "DeliveryTaskService.getCampaignPhases",
+                campaignId,
             })
             throw error
         }
@@ -667,7 +748,32 @@ export class DeliveryTaskService {
                 __typename: "User",
                 id: data.delivery_staff_id,
             },
-            mealBatch: undefined,
+            mealBatch: data.meal_batch
+                ? {
+                    id: data.meal_batch.id,
+                    campaignPhaseId: data.meal_batch.campaign_phase_id,
+                    kitchenStaffId: data.meal_batch.kitchen_staff_id,
+                    foodName: data.meal_batch.food_name,
+                    quantity: data.meal_batch.quantity,
+                    media: Array.isArray(data.meal_batch.media)
+                        ? data.meal_batch.media
+                        : [],
+                    status: data.meal_batch.status as MealBatchStatus,
+                    cookedDate: data.meal_batch.cooked_date,
+                    created_at: data.meal_batch.created_at,
+                    updated_at: data.meal_batch.updated_at,
+                    kitchenStaff: {
+                        __typename: "User",
+                        id: data.meal_batch.kitchen_staff_id,
+                    },
+                    ingredientUsages: [],
+                }
+                : undefined,
+            statusLogs: data.status_logs
+                ? data.status_logs.map((log: any) =>
+                    this.mapStatusLogToGraphQLModel(log),
+                )
+                : undefined,
         }
     }
 
