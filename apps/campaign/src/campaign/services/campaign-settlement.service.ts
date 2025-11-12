@@ -88,49 +88,52 @@ export class CampaignSettlementService {
         )
         this.logger.log(`  - Surplus: ${surplus.toString()} VND`)
 
-        // Step 1: Get fundraiser user ID from cognito_id
-        this.logger.debug(
-            `[SETTLEMENT] Step 1: Getting fundraiser user ID for cognito_id ${campaign.created_by}`,
-        )
+        // Use transaction to ensure atomicity and prevent race conditions
+        await this.prisma.$transaction(async (tx) => {
+            // Step 1: Get fundraiser user ID from cognito_id
+            this.logger.debug(
+                `[SETTLEMENT] Step 1: Getting fundraiser user ID for cognito_id ${campaign.created_by}`,
+            )
 
-        const fundraiserUser = await this.userClientService.getUserByCognitoId(campaign.created_by)
-        if (!fundraiserUser) {
-            throw new Error(`Fundraiser user not found for cognito_id ${campaign.created_by}`)
-        }
+            const fundraiserUser = await this.userClientService.getUserByCognitoId(campaign.created_by)
+            if (!fundraiserUser) {
+                throw new Error(`Fundraiser user not found for cognito_id ${campaign.created_by}`)
+            }
 
-        this.logger.debug(
-            `[SETTLEMENT] Found fundraiser user ID: ${fundraiserUser.id}`,
-        )
+            this.logger.debug(
+                `[SETTLEMENT] Found fundraiser user ID: ${fundraiserUser.id}`,
+            )
 
-        // Step 2: Credit fundraiser wallet via gRPC
-        this.logger.debug(
-            `[SETTLEMENT] Step 2: Crediting fundraiser wallet for user ${fundraiserUser.id}`,
-        )
+            // Step 2: Credit fundraiser wallet via gRPC
+            this.logger.debug(
+                `[SETTLEMENT] Step 2: Crediting fundraiser wallet for user ${fundraiserUser.id}`,
+            )
 
-        await this.userClientService.creditFundraiserWallet({
-            fundraiserId: fundraiserUser.id,
-            campaignId: campaign.id,
-            paymentTransactionId: "", 
-            amount: surplus, 
-            gateway: "SYSTEM", 
-            description: `Campaign surplus settlement: ${campaign.title} (Surplus: ${surplus.toString()} VND)`,
-        })
+            await this.userClientService.creditFundraiserWallet({
+                fundraiserId: fundraiserUser.id,
+                campaignId: campaign.id,
+                paymentTransactionId: "", 
+                amount: surplus, 
+                gateway: "SYSTEM", 
+                description: `Campaign surplus settlement: ${campaign.title} (Surplus: ${surplus.toString()} VND)`,
+            })
 
-        // Step 3: Update campaign status to COMPLETED
-        this.logger.debug(
-            "[SETTLEMENT] Step 3: Updating campaign status to COMPLETED",
-        )
+            // Step 3: Update campaign status to COMPLETED
+            this.logger.debug(
+                "[SETTLEMENT] Step 3: Updating campaign status to COMPLETED",
+            )
 
-        await this.prisma.campaign.update({
-            where: { id: campaign.id },
-            data: {
-                status: CampaignStatus.COMPLETED,
-                completed_at: new Date(),
-            },
+            await tx.campaign.update({
+                where: { id: campaign.id },
+                data: {
+                    status: CampaignStatus.COMPLETED,
+                    completed_at: new Date(),
+                },
+            })
         })
 
         this.logger.log(
-            `[SETTLEMENT] ✅ Successfully settled campaign ${campaign.id} - ${surplus.toString()} VND transferred to fundraiser ${fundraiserUser.id}`,
+            `[SETTLEMENT] ✅ Successfully settled campaign ${campaign.id} - ${surplus.toString()} VND transferred to fundraiser`,
         )
     }
 }
