@@ -1,7 +1,6 @@
 import { Module } from "@nestjs/common"
 import { EventEmitterModule } from "@nestjs/event-emitter"
 import { CampaignService } from "./services/campaign.service"
-import { AwsCognitoModule } from "@libs/aws-cognito"
 import { PrismaClient } from "../generated/campaign-client"
 import { SpacesUploadService } from "libs/s3-storage/spaces-upload.service"
 import { CampaignSchedulerService } from "./workers/schedulers/campaign-scheduler.service"
@@ -18,14 +17,11 @@ import { HealthController } from "./controller"
 import { CampaignPhaseModule } from "../campaign-phase"
 import { CampaignSettlementService } from "./services/campaign-settlement.service"
 import { UserClientService } from "../shared/services/user-client.service"
+import { CampaignStatsQueryResolver } from "./resolver/queries/campaign-stats-query.resolver"
 
 @Module({
     imports: [
         EventEmitterModule.forRoot(),
-        AwsCognitoModule.forRoot({
-            isGlobal: false,
-            mockMode: false,
-        }),
         CampaignCategoryModule,
         CampaignPhaseModule,
     ],
@@ -42,6 +38,7 @@ import { UserClientService } from "../shared/services/user-client.service"
         CampaignSettlementService,
         UserClientService,
         CampaignQueryResolver,
+        CampaignStatsQueryResolver,
         CampaignMutationResolver,
         CampaignRepository,
         CampaignSchedulerService,

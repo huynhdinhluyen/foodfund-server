@@ -26,6 +26,16 @@ import {
 } from "../exceptions"
 import { Campaign } from "../models"
 import { CampaignPhaseService } from "../../campaign-phase/services"
+import { CampaignStatsFilterInput } from "../dtos/request/campaign-stats-filter.input"
+import {
+    CampaignCategoryStats,
+    CampaignFinancialStats,
+    CampaignOverviewStats,
+    CampaignPerformanceStats,
+    CampaignStatsResponse,
+    CampaignStatusBreakdown,
+    CampaignTimeRangeStats,
+} from "../dtos/response/campaign-stats.response"
 
 @Injectable()
 export class CampaignService {
@@ -746,6 +756,430 @@ export class CampaignService {
 
     async resolveReference(reference: { __typename: string; id: string }) {
         return this.findCampaignById(reference.id)
+    }
+
+    async getPlatformStats(
+        filter?: CampaignStatsFilterInput,
+    ): Promise<CampaignStatsResponse> {
+        try {
+            const filterKey = this.buildFilterKey(filter)
+
+            const cached = await this.cacheService.getPlatformStats(filterKey)
+            if (cached) {
+                return cached
+            }
+
+            const [
+                overview,
+                byStatus,
+                financial,
+                byCategory,
+                performance,
+                timeRange,
+            ] = await Promise.all([
+                this.getOverviewStats(filter?.categoryId),
+                this.getStatusBreakdown(filter?.categoryId),
+                this.getFinancialStats(filter?.categoryId),
+                this.getCategoryBreakdown(),
+                this.getPerformanceStats(),
+                filter?.dateFrom && filter?.dateTo
+                    ? this.getTimeRangeStats(filter.dateFrom, filter.dateTo)
+                    : Promise.resolve(undefined),
+            ])
+
+            const stats: CampaignStatsResponse = {
+                overview,
+                byStatus,
+                financial,
+                byCategory,
+                performance,
+                timeRange,
+            }
+
+            await this.cacheService.setPlatformStats(filterKey, stats)
+
+            this.sentryService.addBreadcrumb(
+                "Platform stats calculated",
+                "stats",
+                {
+                    filterKey,
+                    totalCampaigns: overview.totalCampaigns,
+                    cached: false,
+                },
+            )
+
+            return stats
+        } catch (error) {
+            this.sentryService.captureError(error as Error, {
+                operation: "getPlatformStats",
+                filter,
+            })
+            throw error
+        }
+    }
+
+    async getCategoryStats(categoryId: string): Promise<CampaignStatsResponse> {
+        try {
+            const cached = await this.cacheService.getCategoryStats(categoryId)
+            if (cached) {
+                return cached
+            }
+
+            const [overview, byStatus, financial, performance] =
+                await Promise.all([
+                    this.getOverviewStats(categoryId),
+                    this.getStatusBreakdown(categoryId),
+                    this.getFinancialStats(categoryId),
+                    this.getPerformanceStats(),
+                ])
+
+            const stats: CampaignStatsResponse = {
+                overview,
+                byStatus,
+                financial,
+                byCategory: [],
+                performance,
+            }
+
+            await this.cacheService.setCategoryStats(categoryId, stats)
+
+            return stats
+        } catch (error) {
+            this.sentryService.captureError(error as Error, {
+                operation: "getCategoryStats",
+                categoryId,
+            })
+            throw error
+        }
+    }
+
+    async getUserCampaignStats(
+        userContext: UserContext,
+    ): Promise<CampaignStatsResponse> {
+        if (userContext.role !== Role.FUNDRAISER) {
+            throw new Error(
+                "Only fundraisers can access their campaign statistics",
+            )
+        }
+        const cached = await this.cacheService.getUserCampaignStats(
+            userContext.userId,
+        )
+        if (cached) {
+            return cached
+        }
+
+        const [overview, byStatus, financial] = await Promise.all([
+            this.getUserOverviewStats(userContext.userId),
+            this.getUserStatusBreakdown(userContext.userId),
+            this.getUserFinancialStats(userContext.userId),
+        ])
+
+        const stats: CampaignStatsResponse = {
+            overview,
+            byStatus,
+            financial,
+            byCategory: [],
+            performance: {
+                successRate: 0,
+                averageDurationDays: undefined,
+                mostFundedCampaign: undefined,
+            },
+        }
+
+        await this.cacheService.setUserCampaignStats(userContext.userId, stats)
+
+        return stats
+    }
+
+    private async getOverviewStats(
+        categoryId?: string,
+    ): Promise<CampaignOverviewStats> {
+        const [totalCampaigns, activeCampaigns, completedCampaigns] =
+            await Promise.all([
+                this.campaignRepository.getTotalCampaigns(categoryId),
+                this.campaignRepository.getCountByStatus(
+                    CampaignStatus.ACTIVE,
+                    categoryId,
+                ),
+                this.campaignRepository.getCountByStatus(
+                    CampaignStatus.COMPLETED,
+                    categoryId,
+                ),
+            ])
+
+        return {
+            totalCampaigns,
+            activeCampaigns,
+            completedCampaigns,
+        }
+    }
+
+    private async getStatusBreakdown(
+        categoryId?: string,
+    ): Promise<CampaignStatusBreakdown> {
+        const [
+            pending,
+            approved,
+            active,
+            processing,
+            completed,
+            rejected,
+            cancelled,
+        ] = await Promise.all([
+            this.campaignRepository.getCountByStatus(
+                CampaignStatus.PENDING,
+                categoryId,
+            ),
+            this.campaignRepository.getCountByStatus(
+                CampaignStatus.APPROVED,
+                categoryId,
+            ),
+            this.campaignRepository.getCountByStatus(
+                CampaignStatus.ACTIVE,
+                categoryId,
+            ),
+            this.campaignRepository.getCountByStatus(
+                CampaignStatus.PROCESSING,
+                categoryId,
+            ),
+            this.campaignRepository.getCountByStatus(
+                CampaignStatus.COMPLETED,
+                categoryId,
+            ),
+            this.campaignRepository.getCountByStatus(
+                CampaignStatus.REJECTED,
+                categoryId,
+            ),
+            this.campaignRepository.getCountByStatus(
+                CampaignStatus.CANCELLED,
+                categoryId,
+            ),
+        ])
+
+        return {
+            pending,
+            approved,
+            active,
+            processing,
+            completed,
+            rejected,
+            cancelled,
+        }
+    }
+
+    private async getFinancialStats(
+        categoryId?: string,
+    ): Promise<CampaignFinancialStats> {
+        const aggregates =
+            await this.campaignRepository.getFinancialAggregates(categoryId)
+
+        const averageDonationAmount =
+            aggregates.totalDonations > 0
+                ? Number(aggregates.totalReceivedAmount) /
+                  aggregates.totalDonations
+                : 0
+
+        const fundingRate =
+            Number(aggregates.totalTargetAmount) > 0
+                ? (Number(aggregates.totalReceivedAmount) /
+                      Number(aggregates.totalTargetAmount)) *
+                  100
+                : 0
+
+        return {
+            totalTargetAmount: aggregates.totalTargetAmount.toString(),
+            totalReceivedAmount: aggregates.totalReceivedAmount.toString(),
+            totalDonations: aggregates.totalDonations,
+            averageDonationAmount: Math.round(averageDonationAmount).toString(),
+            fundingRate: Math.round(fundingRate * 100) / 100,
+        }
+    }
+
+    private async getCategoryBreakdown(): Promise<CampaignCategoryStats[]> {
+        const categoryStats = await this.campaignRepository.getCategoryStats()
+
+        return categoryStats.map((stat) => ({
+            categoryId: stat.categoryId,
+            categoryTitle: stat.categoryTitle,
+            campaignCount: stat.campaignCount,
+            totalReceivedAmount: stat.totalReceivedAmount.toString(),
+        }))
+    }
+
+    private async getPerformanceStats(): Promise<CampaignPerformanceStats> {
+        const [
+            totalCampaigns,
+            completedCampaigns,
+            averageDuration,
+            mostFundedCampaign,
+        ] = await Promise.all([
+            this.campaignRepository.getTotalCampaigns(),
+            this.campaignRepository.getCountByStatus(CampaignStatus.COMPLETED),
+            this.campaignRepository.getAverageCampaignDuration(),
+            this.campaignRepository.getMostFundedCampaign(),
+        ])
+
+        const successRate =
+            totalCampaigns > 0 ? (completedCampaigns / totalCampaigns) * 100 : 0
+
+        return {
+            successRate: Math.round(successRate * 100) / 100,
+            averageDurationDays: averageDuration ?? undefined,
+            mostFundedCampaign: mostFundedCampaign ?? undefined,
+        }
+    }
+
+    private async getTimeRangeStats(
+        dateFrom: Date,
+        dateTo: Date,
+    ): Promise<CampaignTimeRangeStats> {
+        const stats = await this.campaignRepository.getTimeRangeStats(
+            dateFrom,
+            dateTo,
+        )
+
+        return {
+            startDate: dateFrom,
+            endDate: dateTo,
+            campaignsCreated: stats.campaignsCreated,
+            campaignsCompleted: stats.campaignsCompleted,
+            totalRaised: stats.totalRaised.toString(),
+            donationsMade: stats.donationsMade,
+        }
+    }
+
+    private async getUserOverviewStats(
+        userId: string,
+    ): Promise<CampaignOverviewStats> {
+        const filter = { created_by: userId }
+
+        const [totalCampaigns, activeCampaigns, completedCampaigns] =
+            await Promise.all([
+                this.campaignRepository.count(filter),
+                this.campaignRepository.count({
+                    ...filter,
+                    status: CampaignStatus.ACTIVE,
+                }),
+                this.campaignRepository.count({
+                    ...filter,
+                    status: CampaignStatus.COMPLETED,
+                }),
+            ])
+
+        return {
+            totalCampaigns,
+            activeCampaigns,
+            completedCampaigns,
+        }
+    }
+
+    private async getUserStatusBreakdown(
+        userId: string,
+    ): Promise<CampaignStatusBreakdown> {
+        const filter = { created_by: userId }
+
+        const [
+            pending,
+            approved,
+            active,
+            processing,
+            completed,
+            rejected,
+            cancelled,
+        ] = await Promise.all([
+            this.campaignRepository.count({
+                ...filter,
+                status: CampaignStatus.PENDING,
+            }),
+            this.campaignRepository.count({
+                ...filter,
+                status: CampaignStatus.APPROVED,
+            }),
+            this.campaignRepository.count({
+                ...filter,
+                status: CampaignStatus.ACTIVE,
+            }),
+            this.campaignRepository.count({
+                ...filter,
+                status: CampaignStatus.PROCESSING,
+            }),
+            this.campaignRepository.count({
+                ...filter,
+                status: CampaignStatus.COMPLETED,
+            }),
+            this.campaignRepository.count({
+                ...filter,
+                status: CampaignStatus.REJECTED,
+            }),
+            this.campaignRepository.count({
+                ...filter,
+                status: CampaignStatus.CANCELLED,
+            }),
+        ])
+
+        return {
+            pending,
+            approved,
+            active,
+            processing,
+            completed,
+            rejected,
+            cancelled,
+        }
+    }
+
+    private async getUserFinancialStats(
+        userId: string,
+    ): Promise<CampaignFinancialStats> {
+        const campaigns = await this.campaignRepository.findMany({
+            filter: { creatorId: userId },
+            limit: 1000,
+        })
+
+        const totalTargetAmount = campaigns.reduce(
+            (sum, c) => sum + BigInt(c.targetAmount),
+            BigInt(0),
+        )
+        const totalReceivedAmount = campaigns.reduce(
+            (sum, c) => sum + BigInt(c.receivedAmount),
+            BigInt(0),
+        )
+        const totalDonations = campaigns.reduce(
+            (sum, c) => sum + c.donationCount,
+            0,
+        )
+
+        const averageDonationAmount =
+            totalDonations > 0
+                ? Number(totalReceivedAmount) / totalDonations
+                : 0
+
+        const fundingRate =
+            Number(totalTargetAmount) > 0
+                ? (Number(totalReceivedAmount) / Number(totalTargetAmount)) *
+                  100
+                : 0
+
+        return {
+            totalTargetAmount: totalTargetAmount.toString(),
+            totalReceivedAmount: totalReceivedAmount.toString(),
+            totalDonations,
+            averageDonationAmount: Math.round(averageDonationAmount).toString(),
+            fundingRate: Math.round(fundingRate * 100) / 100,
+        }
+    }
+
+    private buildFilterKey(filter?: CampaignStatsFilterInput): string {
+        if (!filter) return "all"
+
+        const parts: string[] = []
+        if (filter.categoryId) parts.push(`cat:${filter.categoryId}`)
+        if (filter.creatorId) parts.push(`user:${filter.creatorId}`)
+        if (filter.status) parts.push(`status:${filter.status.join(",")}`)
+        if (filter.dateFrom) parts.push(`from:${filter.dateFrom.toISOString()}`)
+        if (filter.dateTo) parts.push(`to:${filter.dateTo.toISOString()}`)
+
+        return parts.length > 0 ? parts.join("|") : "all"
     }
 
     private validateCampaignDates(

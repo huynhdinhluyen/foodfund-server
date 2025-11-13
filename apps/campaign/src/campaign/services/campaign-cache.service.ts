@@ -21,6 +21,11 @@ export class CampaignCacheService {
         CATEGORY_CAMPAIGNS: 60 * 30,
         CAMPAIGN_STATS: 60 * 10,
         ACTIVE_CAMPAIGNS: 60 * 5,
+        PLATFORM_STATS: 600,
+        TRENDING_24H: 300,
+        TRENDING_7D: 300,
+        CATEGORY_STATS: 900,
+        USER_STATS: 600,
     }
 
     private readonly KEYS = {
@@ -316,5 +321,111 @@ export class CampaignCacheService {
         } catch (error) {
             return { available: false, keysCount: 0 }
         }
+    }
+
+    async setPlatformStats(filter: string, stats: any): Promise<void> {
+        const key = this.buildPlatformStatsKey(filter)
+        await this.redis.set(key, JSON.stringify(stats), {
+            ex: this.TTL.PLATFORM_STATS,
+        })
+    }
+
+    async getPlatformStats(filter: string): Promise<any | null> {
+        const key = this.buildPlatformStatsKey(filter)
+        const cached = await this.redis.get(key)
+        if (cached) {
+            return JSON.parse(cached)
+        }
+        return null
+    }
+
+    async setTrendingCampaigns(
+        period: "24h" | "7d",
+        campaigns: any[],
+    ): Promise<void> {
+        const key = this.buildTrendingKey(period)
+        const ttl =
+            period === "24h" ? this.TTL.TRENDING_24H : this.TTL.TRENDING_7D
+        await this.redis.set(key, JSON.stringify(campaigns), { ex: ttl })
+    }
+
+    async getTrendingCampaigns(period: "24h" | "7d"): Promise<any[] | null> {
+        const key = this.buildTrendingKey(period)
+        const cached = await this.redis.get(key)
+        if (cached) {
+            return JSON.parse(cached)
+        }
+        return null
+    }
+
+    async setCategoryStats(categoryId: string, stats: any): Promise<void> {
+        const key = this.buildCategoryStatsKey(categoryId)
+        await this.redis.set(key, JSON.stringify(stats), {
+            ex: this.TTL.CATEGORY_STATS,
+        })
+    }
+
+    async getCategoryStats(categoryId: string): Promise<any | null> {
+        const key = this.buildCategoryStatsKey(categoryId)
+        const cached = await this.redis.get(key)
+        if (cached) {
+            return JSON.parse(cached)
+        }
+        return null
+    }
+
+    async setUserCampaignStats(userId: string, stats: any): Promise<void> {
+        const key = this.buildUserStatsKey(userId)
+        await this.redis.set(key, JSON.stringify(stats), {
+            ex: this.TTL.USER_STATS,
+        })
+    }
+
+    async getUserCampaignStats(userId: string): Promise<any | null> {
+        const key = this.buildUserStatsKey(userId)
+        const cached = await this.redis.get(key)
+        if (cached) {
+            return JSON.parse(cached)
+        }
+        return null
+    }
+
+    async invalidateAllStats(): Promise<void> {
+        const patterns = [
+            "campaign:stats:platform:*",
+            "campaign:stats:trending:*",
+            "campaign:stats:category:*",
+            "campaign:stats:user:*",
+        ]
+
+        for (const pattern of patterns) {
+            await this.redis.del(pattern)
+        }
+    }
+
+    async invalidateUserStats(userId: string): Promise<void> {
+        const key = this.buildUserStatsKey(userId)
+        await this.redis.del(key)
+    }
+
+    async invalidateCategoryStats(categoryId: string): Promise<void> {
+        const key = this.buildCategoryStatsKey(categoryId)
+        await this.redis.del(key)
+    }
+
+    private buildPlatformStatsKey(filter: string): string {
+        return `campaign:stats:platform:${filter}`
+    }
+
+    private buildTrendingKey(period: "24h" | "7d"): string {
+        return `campaign:stats:trending:${period}`
+    }
+
+    private buildCategoryStatsKey(categoryId: string): string {
+        return `campaign:stats:category:${categoryId}`
+    }
+
+    private buildUserStatsKey(userId: string): string {
+        return `campaign:stats:user:${userId}`
     }
 }
