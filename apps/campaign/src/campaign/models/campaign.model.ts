@@ -1,4 +1,4 @@
-import { Directive, Field, Int, ObjectType } from "@nestjs/graphql"
+import { Directive, Field, Float, Int, ObjectType } from "@nestjs/graphql"
 import { CampaignStatus } from "../enum/campaign.enum"
 import { CampaignCategory } from "../../campaign-category/models/campaign-category.model"
 import { BaseSchema } from "../../shared"
@@ -90,6 +90,28 @@ export class Campaign extends BaseSchema {
         nullable: true,
     })
         completedAt?: Date
+
+    @Field(() => Float, {
+        description:
+            "Funding progress percentage (receivedAmount / targetAmount * 100)",
+    })
+        fundingProgress: number
+
+    @Field(() => Int, {
+        description:
+            "Days remaining until fundraising ends (-1 if ended, 0 if today)",
+    })
+        daysRemaining: number
+
+    @Field(() => Int, {
+        description: "Number of days campaign has been active",
+    })
+        daysActive: number
+
+    @Field(() => Int, {
+        description: "Total number of execution phases",
+    })
+        totalPhases: number
 
     @Field(() => User, {
         nullable: true,
