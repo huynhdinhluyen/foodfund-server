@@ -1,7 +1,10 @@
 import { Injectable } from "@nestjs/common"
 import { PrismaClient } from "../../generated/campaign-client"
 import { sanitizeSearchTerm, User } from "../../shared"
-import { CampaignFilterInput, CampaignSortOrder } from "../dtos/campaign/request"
+import {
+    CampaignFilterInput,
+    CampaignSortOrder,
+} from "../dtos/campaign/request"
 import { CampaignStatus } from "../../domain/enums/campaign/campaign.enum"
 import { Campaign } from "../../domain/entities/campaign.model"
 
@@ -202,16 +205,21 @@ export class CampaignRepository {
                             },
                         },
                         {
-                            location: {
-                                contains: sanitizedSearch,
-                                mode: "insensitive",
-                            },
-                        },
-                        {
                             category: {
                                 title: {
                                     contains: sanitizedSearch,
                                     mode: "insensitive",
+                                },
+                            },
+                        },
+                        {
+                            campaign_phases: {
+                                some: {
+                                    location: {
+                                        contains: sanitizedSearch,
+                                        mode: "insensitive",
+                                    },
+                                    is_active: true,
                                 },
                             },
                         },
@@ -323,7 +331,10 @@ export class CampaignRepository {
         return categoryStats.filter((stat) => stat.campaignCount > 0)
     }
 
-    async getMostFundedCampaign(): Promise<{ id: string; title: string } | null> {
+    async getMostFundedCampaign(): Promise<{
+        id: string
+        title: string
+    } | null> {
         const campaign = await this.prisma.campaign.findFirst({
             where: {
                 is_active: true,
