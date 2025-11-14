@@ -1,7 +1,10 @@
 import { Injectable } from "@nestjs/common"
 import { PrismaClient } from "../../generated/campaign-client"
 import { sanitizeSearchTerm, User } from "../../shared"
-import { CampaignFilterInput, CampaignSortOrder } from "../dtos/campaign/request"
+import {
+    CampaignFilterInput,
+    CampaignSortOrder,
+} from "../dtos/campaign/request"
 import { CampaignStatus } from "../../domain/enums/campaign/campaign.enum"
 import { Campaign } from "../../domain/entities/campaign.model"
 
@@ -19,9 +22,6 @@ export interface CreateCampaignData {
     coverImage: string
     coverImageFileKey?: string
     targetAmount: bigint
-    ingredientBudgetPercentage: number
-    cookingBudgetPercentage: number
-    deliveryBudgetPercentage: number
     fundraisingStartDate: Date
     fundraisingEndDate: Date
     createdBy: string
@@ -33,6 +33,9 @@ export interface CreateCampaignData {
         ingredientPurchaseDate: Date
         cookingDate: Date
         deliveryDate: Date
+        ingredientBudgetPercentage: number
+        cookingBudgetPercentage: number
+        deliveryBudgetPercentage: number
     }>
 }
 
@@ -42,9 +45,6 @@ export interface UpdateCampaignData {
     coverImage?: string
     coverImageFileKey?: string
     targetAmount?: bigint
-    ingredientBudgetPercentage?: number
-    cookingBudgetPercentage?: number
-    deliveryBudgetPercentage?: number
     fundraisingStartDate?: Date
     fundraisingEndDate?: Date
     categoryId?: string
@@ -112,12 +112,6 @@ export class CampaignRepository {
                     cover_image: campaignData.coverImage,
                     cover_image_file_key: campaignData.coverImageFileKey,
                     target_amount: campaignData.targetAmount,
-                    ingredient_budget_percentage:
-                        campaignData.ingredientBudgetPercentage,
-                    cooking_budget_percentage:
-                        campaignData.cookingBudgetPercentage,
-                    delivery_budget_percentage:
-                        campaignData.deliveryBudgetPercentage,
                     fundraising_start_date: campaignData.fundraisingStartDate,
                     fundraising_end_date: campaignData.fundraisingEndDate,
                     created_by: campaignData.createdBy,
@@ -137,6 +131,9 @@ export class CampaignRepository {
                         ingredient_purchase_date: phase.ingredientPurchaseDate,
                         cooking_date: phase.cookingDate,
                         delivery_date: phase.deliveryDate,
+                        ingredient_budget_percentage: phase.ingredientBudgetPercentage,
+                        cooking_budget_percentage: phase.cookingBudgetPercentage,
+                        delivery_budget_percentage: phase.deliveryBudgetPercentage,
                         status: "PLANNING" as const,
                         is_active: true,
                     })),
@@ -202,16 +199,21 @@ export class CampaignRepository {
                             },
                         },
                         {
-                            location: {
-                                contains: sanitizedSearch,
-                                mode: "insensitive",
-                            },
-                        },
-                        {
                             category: {
                                 title: {
                                     contains: sanitizedSearch,
                                     mode: "insensitive",
+                                },
+                            },
+                        },
+                        {
+                            campaign_phases: {
+                                some: {
+                                    location: {
+                                        contains: sanitizedSearch,
+                                        mode: "insensitive",
+                                    },
+                                    is_active: true,
                                 },
                             },
                         },
@@ -323,7 +325,10 @@ export class CampaignRepository {
         return categoryStats.filter((stat) => stat.campaignCount > 0)
     }
 
-    async getMostFundedCampaign(): Promise<{ id: string; title: string } | null> {
+    async getMostFundedCampaign(): Promise<{
+        id: string
+        title: string
+    } | null> {
         const campaign = await this.prisma.campaign.findFirst({
             where: {
                 is_active: true,
@@ -448,14 +453,6 @@ export class CampaignRepository {
             updateData.cover_image_file_key = data.coverImageFileKey
         if (data.targetAmount !== undefined)
             updateData.target_amount = data.targetAmount
-        if (data.ingredientBudgetPercentage !== undefined)
-            updateData.ingredient_budget_percentage =
-                data.ingredientBudgetPercentage
-        if (data.cookingBudgetPercentage !== undefined)
-            updateData.cooking_budget_percentage = data.cookingBudgetPercentage
-        if (data.deliveryBudgetPercentage !== undefined)
-            updateData.delivery_budget_percentage =
-                data.deliveryBudgetPercentage
         if (data.fundraisingStartDate !== undefined)
             updateData.fundraising_start_date = data.fundraisingStartDate
         if (data.fundraisingEndDate !== undefined)
@@ -541,15 +538,6 @@ export class CampaignRepository {
             receivedAmount: dbCampaign.received_amount?.toString() ?? "0",
         }
 
-        const budgetPercentages = {
-            ingredientBudgetPercentage:
-                dbCampaign.ingredient_budget_percentage?.toString() ?? "0",
-            cookingBudgetPercentage:
-                dbCampaign.cooking_budget_percentage?.toString() ?? "0",
-            deliveryBudgetPercentage:
-                dbCampaign.delivery_budget_percentage?.toString() ?? "0",
-        }
-
         const disbursementFields = {
             ingredientFundsAmount:
                 dbCampaign.ingredient_funds_amount?.toString() ?? undefined,
@@ -587,6 +575,9 @@ export class CampaignRepository {
                 ingredientPurchaseDate: phase.ingredient_purchase_date,
                 cookingDate: phase.cooking_date,
                 deliveryDate: phase.delivery_date,
+                ingredientBudgetPercentage: phase.ingredient_budget_percentage?.toString() ?? "0",
+                cookingBudgetPercentage: phase.cooking_budget_percentage?.toString() ?? "0",
+                deliveryBudgetPercentage: phase.delivery_budget_percentage?.toString() ?? "0",
                 status: phase.status,
                 created_at: phase.created_at,
                 updated_at: phase.updated_at,
@@ -602,7 +593,6 @@ export class CampaignRepository {
             coverImageFileKey: dbCampaign.cover_image_file_key || undefined,
             donationCount: dbCampaign.donation_count ?? 0,
             ...bigIntFields,
-            ...budgetPercentages,
             status: dbCampaign.status as CampaignStatus,
             fundraisingStartDate: dbCampaign.fundraising_start_date,
             fundraisingEndDate: dbCampaign.fundraising_end_date,
