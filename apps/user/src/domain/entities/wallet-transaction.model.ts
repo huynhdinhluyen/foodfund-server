@@ -3,10 +3,6 @@ import { GraphQLJSONObject } from "graphql-type-json"
 import { AbstractSchema } from "../../shared/helpers/base.schema"
 import { Transaction_Type } from "../enums/wallet.enum"
 
-/**
- * Wallet Transaction Domain Entity
- * Represents a financial transaction in a wallet
- */
 @ObjectType("WalletTransaction")
 @Directive("@key(fields: \"id\")")
 export class WalletTransactionSchema extends AbstractSchema {
@@ -32,6 +28,16 @@ export class WalletTransactionSchema extends AbstractSchema {
     })
         amount: string
 
+    @Field(() => String, {
+        description: "Wallet balance before this transaction (as BigInt string)",
+    })
+        balance_before: string
+
+    @Field(() => String, {
+        description: "Wallet balance after this transaction (as BigInt string)",
+    })
+        balance_after: string
+
     @Field(() => Transaction_Type, {
         description:
             "Type of transaction (DONATION_RECEIVED, INCOMING_TRANSFER, WITHDRAWAL, ADMIN_ADJUSTMENT)",
@@ -46,7 +52,7 @@ export class WalletTransactionSchema extends AbstractSchema {
 
     @Field(() => String, {
         nullable: true,
-        description: 'Payment gateway used (e.g., "SEPAY")',
+        description: "Payment gateway used (e.g., \"SEPAY\")",
     })
         gateway?: string | null
 

@@ -20,6 +20,7 @@ import {
     UserMutationService,
     WalletService,
 } from "./application/services"
+import { WalletTransactionService } from "./application/services/common/wallet-transaction.service"
 import {
     UserRepository,
     OrganizationRepository,
@@ -111,6 +112,7 @@ import { HealthController } from "./presentation/http/controllers"
         UserQueryService,
         UserMutationService,
         WalletService,
+        WalletTransactionService,
 
         // Presentation - Resolvers
         UserQueryResolver,

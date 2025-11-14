@@ -1,16 +1,34 @@
 import { Injectable, Logger } from "@nestjs/common"
 import { PrismaClient } from "../../generated/user-client"
 import { Transaction_Type, Wallet_Type } from "../../domain/enums/wallet.enum"
-import {
-    WalletSchema,
-    WalletTransactionSchema,
-} from "../../domain/entities"
+import { WalletSchema, WalletTransactionSchema } from "../../domain/entities"
 
 @Injectable()
 export class WalletRepository {
     private readonly logger = new Logger(WalletRepository.name)
 
     constructor(private readonly prisma: PrismaClient) {}
+
+    /**
+     * Map Prisma wallet transaction to domain model
+     */
+    private mapTransactionToSchema(tx: any): WalletTransactionSchema {
+        const schema = new WalletTransactionSchema()
+        schema.id = tx.id
+        schema.wallet_id = tx.wallet_id
+        schema.campaign_id = tx.campaign_id
+        schema.payment_transaction_id = tx.payment_transaction_id
+        schema.amount = tx.amount.toString()
+        schema.balance_before = tx.balance_before.toString()
+        schema.balance_after = tx.balance_after.toString()
+        schema.transaction_type = tx.transaction_type
+        schema.description = tx.description
+        schema.gateway = tx.gateway
+        schema.sepay_metadata = tx.sepay_metadata
+        schema.created_at = tx.created_at
+        schema.updated_at = tx.created_at // Wallet transactions don't have updated_at
+        return schema
+    }
 
     async getWallet(
         userId: string,
@@ -113,12 +131,7 @@ export class WalletRepository {
                 this.logger.warn(
                     `[Idempotency] Skipping duplicate donation credit - Transaction already exists: ${existing.id} (payment=${data.paymentTransactionId})`,
                 )
-                // Map Prisma result to domain model
-                return {
-                    ...existing,
-                    amount: existing.amount.toString(),
-                    updated_at: existing.created_at, // Wallet transactions don't have updated_at, use created_at
-                } as WalletTransactionSchema
+                return this.mapTransactionToSchema(existing)
             }
         } else if (data.sepayMetadata?.sepayId) {
             // Case 2: Non-donation Sepay transfer - check by sepayId
@@ -138,17 +151,21 @@ export class WalletRepository {
                 this.logger.warn(
                     `[Idempotency] Skipping duplicate Sepay transfer - Transaction already exists: ${existing.id} (sepayId=${data.sepayMetadata.sepayId})`,
                 )
-                // Map Prisma result to domain model
-                return {
-                    ...existing,
-                    amount: existing.amount.toString(),
-                    updated_at: existing.created_at, // Wallet transactions don't have updated_at, use created_at
-                } as WalletTransactionSchema
+                return this.mapTransactionToSchema(existing)
             }
         }
 
         // Create transaction and update balance in a transaction
         const walletTransaction = await this.prisma.$transaction(async (tx) => {
+            // Get current balance before transaction
+            const currentWallet = await tx.wallet.findUnique({
+                where: { id: wallet.id },
+                select: { balance: true },
+            })
+
+            const balanceBefore = currentWallet?.balance || BigInt(0)
+            const balanceAfter = balanceBefore + data.amount
+
             // Create wallet transaction
             // NOTE: For donation payments (has payment_transaction_id):
             //   - gateway and sepay_metadata should be NULL (stored in Payment_Transaction)
@@ -160,6 +177,8 @@ export class WalletRepository {
                     campaign_id: data.campaignId || null,
                     payment_transaction_id: data.paymentTransactionId || null,
                     amount: data.amount,
+                    balance_before: balanceBefore,
+                    balance_after: balanceAfter,
                     transaction_type: data.transactionType,
                     description: data.description || null,
                     // Only store gateway/sepay_metadata if NO payment_transaction_id (non-donation transfer)
@@ -176,9 +195,7 @@ export class WalletRepository {
             await tx.wallet.update({
                 where: { id: wallet.id },
                 data: {
-                    balance: {
-                        increment: data.amount,
-                    },
+                    balance: balanceAfter,
                 },
             })
 
@@ -189,12 +206,7 @@ export class WalletRepository {
             `Credited ${data.amount} to ${data.walletType} wallet ${wallet.id} - Transaction: ${walletTransaction.id}`,
         )
 
-        // Map Prisma result to domain model
-        return {
-            ...walletTransaction,
-            amount: walletTransaction.amount.toString(),
-            updated_at: walletTransaction.created_at, // Wallet transactions don't have updated_at, use created_at
-        } as WalletTransactionSchema
+        return this.mapTransactionToSchema(walletTransaction)
     }
 
     /**
@@ -255,12 +267,7 @@ export class WalletRepository {
             },
         })
 
-        // Map Prisma results to domain models
-        return transactions.map((tx) => ({
-            ...tx,
-            amount: tx.amount.toString(),
-            updated_at: tx.created_at, // Wallet transactions don't have updated_at, use created_at
-        })) as WalletTransactionSchema[]
+        return transactions.map((tx) => this.mapTransactionToSchema(tx))
     }
 
     /**
@@ -317,12 +324,7 @@ export class WalletRepository {
             take: limit,
         })
 
-        // Map Prisma results to domain models
-        return transactions.map((tx) => ({
-            ...tx,
-            amount: tx.amount.toString(),
-            updated_at: tx.created_at, // Wallet transactions don't have updated_at, use created_at
-        })) as WalletTransactionSchema[]
+        return transactions.map((tx) => this.mapTransactionToSchema(tx))
     }
 
     /**
@@ -415,6 +417,75 @@ export class WalletRepository {
             totalDonations: creditTransactions._count || 0,
             thisMonthReceived: thisMonthTransactions._sum.amount || BigInt(0),
         }
+    }
+
+    /**
+     * Find wallet transaction by Sepay transaction ID
+     */
+    async findTransactionBySepayId(
+        sepayId: number,
+    ): Promise<WalletTransactionSchema | null> {
+        const transaction = await this.prisma.wallet_Transaction.findFirst({
+            where: {
+                sepay_metadata: {
+                    path: ["id"],
+                    equals: sepayId,
+                },
+            },
+        })
+
+        if (!transaction) {
+            return null
+        }
+
+        return this.mapTransactionToSchema(transaction)
+    }
+
+    /**
+     * Atomic withdrawal: Update wallet balance + Create transaction record
+     * Used for bank transfers OUT (admin wallet)
+     */
+    async atomicWithdrawal(data: {
+        walletId: string
+        amount: bigint
+        balanceBefore: bigint
+        balanceAfter: bigint
+        transactionType: Transaction_Type
+        gateway?: string
+        description?: string
+        sepayMetadata?: any
+    }): Promise<WalletTransactionSchema> {
+        const walletTransaction = await this.prisma.$transaction(async (tx) => {
+            // Create wallet transaction record
+            const transaction = await tx.wallet_Transaction.create({
+                data: {
+                    wallet_id: data.walletId,
+                    amount: data.amount,
+                    balance_before: data.balanceBefore,
+                    balance_after: data.balanceAfter,
+                    transaction_type: data.transactionType,
+                    description: data.description || null,
+                    gateway: data.gateway || null,
+                    sepay_metadata: data.sepayMetadata || null,
+                },
+            })
+
+            // Update wallet balance
+            await tx.wallet.update({
+                where: { id: data.walletId },
+                data: {
+                    balance: data.balanceAfter,
+                },
+            })
+
+            return transaction
+        })
+
+        this.logger.log(
+            `Withdrawal processed - Amount: ${data.amount}, Wallet: ${data.walletId}, Transaction: ${walletTransaction.id}`,
+        )
+
+        return this.mapTransactionToSchema(walletTransaction)
     }
 
     /**

@@ -6,6 +6,7 @@ import {
     WalletRepository,
     OrganizationRepository,
 } from "../../application/repositories"
+import { WalletTransactionService } from "../../application/services/common/wallet-transaction.service"
 import { Role } from "@libs/databases"
 import { generateUniqueUsername } from "libs/common"
 import { Transaction_Type, Wallet_Type } from "../../domain/enums/wallet.enum"
@@ -105,6 +106,22 @@ interface CreditWalletResponse {
     error?: string
 }
 
+interface ProcessBankTransferOutRequest {
+    sepayId: number
+    amount: string // gRPC uses string for bigint
+    gateway: string
+    referenceCode: string
+    content: string
+    transactionDate: string
+    description: string
+}
+
+interface ProcessBankTransferOutResponse {
+    success: boolean
+    walletTransactionId?: string
+    error?: string
+}
+
 const ROLE_MAP = {
     DONOR: 0,
     FUNDRAISER: 1,
@@ -150,6 +167,7 @@ export class UserGrpcController {
         private readonly userAdminRepository: UserAdminRepository,
         private readonly walletRepository: WalletRepository,
         private readonly organizationRepository: OrganizationRepository,
+        private readonly walletTransactionService: WalletTransactionService,
     ) {}
 
     @GrpcMethod("UserService", "Health")
@@ -759,6 +777,70 @@ export class UserGrpcController {
         } catch (error) {
             this.logger.error(
                 "[GetWalletTransactionsByPaymentId] Failed:",
+                error.stack || error,
+            )
+            return {
+                success: false,
+                error: error.message,
+            }
+        }
+    }
+
+    @GrpcMethod("UserService", "ProcessBankTransferOut")
+    async processBankTransferOut(
+        data: ProcessBankTransferOutRequest,
+    ): Promise<ProcessBankTransferOutResponse> {
+        try {
+            const {
+                sepayId,
+                amount,
+                gateway,
+                referenceCode,
+                content,
+                transactionDate,
+                description,
+            } = data
+
+            this.logger.log(
+                `[ProcessBankTransferOut] Processing withdrawal - Sepay ID: ${sepayId}, Amount: ${amount}`,
+            )
+
+            if (!sepayId || !amount) {
+                return {
+                    success: false,
+                    error: "sepayId and amount are required",
+                }
+            }
+
+            // Build Sepay webhook payload
+            const payload = {
+                id: sepayId,
+                gateway,
+                transactionDate,
+                accountNumber: "", // Not needed for withdrawal
+                code: null,
+                content,
+                transferType: "out",
+                transferAmount: Number(amount),
+                accumulated: 0, // Not needed
+                subAccount: null,
+                referenceCode,
+                description,
+            }
+
+            // Process bank transfer out
+            await this.walletTransactionService.processBankTransferOut(payload)
+
+            this.logger.log(
+                `[ProcessBankTransferOut] ✅ Successfully processed withdrawal - Sepay ID: ${sepayId}`,
+            )
+
+            return {
+                success: true,
+            }
+        } catch (error) {
+            this.logger.error(
+                "[ProcessBankTransferOut] Failed:",
                 error.stack || error,
             )
             return {
