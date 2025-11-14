@@ -5,10 +5,10 @@ import {
     UserAdminRepository,
     WalletRepository,
     OrganizationRepository,
-} from "../../domain/repositories"
+} from "../../application/repositories"
 import { Role } from "@libs/databases"
 import { generateUniqueUsername } from "libs/common"
-import { Wallet_Type, Transaction_Type } from "../../generated/user-client"
+import { Transaction_Type, Wallet_Type } from "../../domain/enums/wallet.enum"
 
 interface CreateUserRequest {
     cognitoId: string
@@ -768,3 +768,4 @@ export class UserGrpcController {
         }
     }
 }
+

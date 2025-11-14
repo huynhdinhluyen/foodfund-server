@@ -1,11 +1,10 @@
 import { Injectable, Logger } from "@nestjs/common"
+import { PrismaClient } from "../../generated/user-client"
+import { Transaction_Type, Wallet_Type } from "../../domain/enums/wallet.enum"
 import {
-    Wallet_Type,
-    Transaction_Type,
-    Wallet,
-    Wallet_Transaction,
-    PrismaClient,
-} from "../../generated/user-client"
+    WalletSchema,
+    WalletTransactionSchema,
+} from "../../domain/entities"
 
 @Injectable()
 export class WalletRepository {
@@ -13,7 +12,10 @@ export class WalletRepository {
 
     constructor(private readonly prisma: PrismaClient) {}
 
-    async getWallet(userId: string, walletType: Wallet_Type): Promise<Wallet> {
+    async getWallet(
+        userId: string,
+        walletType: Wallet_Type,
+    ): Promise<WalletSchema> {
         const wallet = await this.prisma.wallet.findFirst({
             where: {
                 user_id: userId,
@@ -27,7 +29,11 @@ export class WalletRepository {
             throw new Error(errorMessage)
         }
 
-        return wallet
+        // Map Prisma result to domain model
+        return {
+            ...wallet,
+            balance: wallet.balance.toString(),
+        } as WalletSchema
     }
 
     /**
@@ -36,7 +42,7 @@ export class WalletRepository {
     async createWallet(
         userId: string,
         walletType: Wallet_Type,
-    ): Promise<Wallet> {
+    ): Promise<WalletSchema> {
         // Check if wallet already exists
         const existing = await this.prisma.wallet.findFirst({
             where: {
@@ -61,7 +67,11 @@ export class WalletRepository {
 
         this.logger.log(`Created new ${walletType} wallet for user ${userId}`)
 
-        return wallet
+        // Map Prisma result to domain model
+        return {
+            ...wallet,
+            balance: wallet.balance.toString(),
+        } as WalletSchema
     }
 
     /**
@@ -78,7 +88,7 @@ export class WalletRepository {
         gateway?: string
         description?: string
         sepayMetadata?: any
-    }): Promise<Wallet_Transaction> {
+    }): Promise<WalletTransactionSchema> {
         const wallet = await this.getWallet(data.userId, data.walletType)
 
         // IDEMPOTENCY CHECK:
@@ -103,7 +113,12 @@ export class WalletRepository {
                 this.logger.warn(
                     `[Idempotency] Skipping duplicate donation credit - Transaction already exists: ${existing.id} (payment=${data.paymentTransactionId})`,
                 )
-                return existing
+                // Map Prisma result to domain model
+                return {
+                    ...existing,
+                    amount: existing.amount.toString(),
+                    updated_at: existing.created_at, // Wallet transactions don't have updated_at, use created_at
+                } as WalletTransactionSchema
             }
         } else if (data.sepayMetadata?.sepayId) {
             // Case 2: Non-donation Sepay transfer - check by sepayId
@@ -123,7 +138,12 @@ export class WalletRepository {
                 this.logger.warn(
                     `[Idempotency] Skipping duplicate Sepay transfer - Transaction already exists: ${existing.id} (sepayId=${data.sepayMetadata.sepayId})`,
                 )
-                return existing
+                // Map Prisma result to domain model
+                return {
+                    ...existing,
+                    amount: existing.amount.toString(),
+                    updated_at: existing.created_at, // Wallet transactions don't have updated_at, use created_at
+                } as WalletTransactionSchema
             }
         }
 
@@ -169,7 +189,12 @@ export class WalletRepository {
             `Credited ${data.amount} to ${data.walletType} wallet ${wallet.id} - Transaction: ${walletTransaction.id}`,
         )
 
-        return walletTransaction
+        // Map Prisma result to domain model
+        return {
+            ...walletTransaction,
+            amount: walletTransaction.amount.toString(),
+            updated_at: walletTransaction.created_at, // Wallet transactions don't have updated_at, use created_at
+        } as WalletTransactionSchema
     }
 
     /**
@@ -198,7 +223,7 @@ export class WalletRepository {
         walletType: Wallet_Type,
         skip = 0,
         limit = 50,
-    ): Promise<Wallet_Transaction[]> {
+    ): Promise<WalletTransactionSchema[]> {
         const wallet = await this.prisma.wallet.findFirst({
             where: {
                 user_id: userId,
@@ -220,8 +245,8 @@ export class WalletRepository {
      */
     async findByPaymentTransactionId(
         paymentTransactionId: string,
-    ): Promise<Wallet_Transaction[]> {
-        return this.prisma.wallet_Transaction.findMany({
+    ): Promise<WalletTransactionSchema[]> {
+        const transactions = await this.prisma.wallet_Transaction.findMany({
             where: {
                 payment_transaction_id: paymentTransactionId,
             },
@@ -229,6 +254,13 @@ export class WalletRepository {
                 created_at: "desc",
             },
         })
+
+        // Map Prisma results to domain models
+        return transactions.map((tx) => ({
+            ...tx,
+            amount: tx.amount.toString(),
+            updated_at: tx.created_at, // Wallet transactions don't have updated_at, use created_at
+        })) as WalletTransactionSchema[]
     }
 
     /**
@@ -238,7 +270,7 @@ export class WalletRepository {
         walletType: Wallet_Type,
         skip = 0,
         take = 50,
-    ): Promise<{ wallets: Wallet[]; total: number }> {
+    ): Promise<{ wallets: WalletSchema[]; total: number }> {
         const [wallets, total] = await Promise.all([
             this.prisma.wallet.findMany({
                 where: {
@@ -257,7 +289,13 @@ export class WalletRepository {
             }),
         ])
 
-        return { wallets, total }
+        // Map Prisma results to domain models
+        const mappedWallets = wallets.map((w) => ({
+            ...w,
+            balance: w.balance.toString(),
+        })) as WalletSchema[]
+
+        return { wallets: mappedWallets, total }
     }
 
     /**
@@ -267,8 +305,8 @@ export class WalletRepository {
         walletId: string,
         skip = 0,
         limit = 50,
-    ): Promise<Wallet_Transaction[]> {
-        return this.prisma.wallet_Transaction.findMany({
+    ): Promise<WalletTransactionSchema[]> {
+        const transactions = await this.prisma.wallet_Transaction.findMany({
             where: {
                 wallet_id: walletId,
             },
@@ -278,6 +316,13 @@ export class WalletRepository {
             skip,
             take: limit,
         })
+
+        // Map Prisma results to domain models
+        return transactions.map((tx) => ({
+            ...tx,
+            amount: tx.amount.toString(),
+            updated_at: tx.created_at, // Wallet transactions don't have updated_at, use created_at
+        })) as WalletTransactionSchema[]
     }
 
     /**

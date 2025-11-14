@@ -29,9 +29,9 @@ import {
     FundraiserRepository,
     DeliveryStaffRepository,
     WalletRepository,
-} from "./domain/repositories"
+} from "./application/repositories"
 import { PrismaUserService } from "./infrastructure/database"
-import { UserGrpcController } from "./infrastructure/grpc/user-grpc.controller"
+import { UserGrpcController } from "./presentation/grpc"
 import {
     UserQueryResolver,
     UserMutationResolver,
@@ -77,7 +77,7 @@ import { HealthController } from "./presentation/http/controllers"
         // Presentation - HTTP Controllers
         HealthController,
 
-        // Infrastructure - gRPC Controller
+        // Presentation - gRPC Controller
         UserGrpcController,
     ],
     providers: [
