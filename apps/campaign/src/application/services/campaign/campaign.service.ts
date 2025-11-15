@@ -13,12 +13,31 @@ import { CampaignCategoryRepository } from "../../repositories/campaign-category
 import { CampaignPhaseRepository } from "../../repositories/campaign-phase.repository"
 import { AuthorizationService, Role, UserContext } from "@app/campaign/src/shared"
 import { CampaignPhaseService } from "../campaign-phase/campaign-phase.service"
-import { CampaignFilterInput, CampaignSortOrder, CreateCampaignInput, ExtendCampaignInput, GenerateUploadUrlInput, UpdateCampaignInput } from "../../dtos/campaign/request"
+import {
+    CampaignFilterInput,
+    CampaignSortOrder,
+    CreateCampaignInput,
+    ExtendCampaignInput,
+    GenerateUploadUrlInput,
+    UpdateCampaignInput,
+} from "../../dtos/campaign/request"
 import { Campaign } from "@app/campaign/src/domain/entities/campaign.model"
 import { CampaignStatus } from "@app/campaign/src/domain/enums/campaign/campaign.enum"
-import { CampaignCannotBeDeletedException, CampaignNotFoundException } from "@app/campaign/src/domain/exceptions/campaign/campaign.exception"
+import {
+    CampaignCannotBeDeletedException,
+    CampaignNotFoundException,
+    FundraiserHasActiveCampaignException,
+} from "@app/campaign/src/domain/exceptions/campaign/campaign.exception"
 import { CampaignStatsFilterInput } from "../../dtos/campaign/request/campaign-stats-filter.input"
-import { CampaignCategoryStats, CampaignFinancialStats, CampaignOverviewStats, CampaignPerformanceStats, CampaignStatsResponse, CampaignStatusBreakdown, CampaignTimeRangeStats } from "../../dtos/campaign/response/campaign-stats.response"
+import {
+    CampaignCategoryStats,
+    CampaignFinancialStats,
+    CampaignOverviewStats,
+    CampaignPerformanceStats,
+    CampaignStatsResponse,
+    CampaignStatusBreakdown,
+    CampaignTimeRangeStats,
+} from "../../dtos/campaign/response/campaign-stats.response"
 import { CreatePhaseInput } from "../../dtos/campaign-phase/request"
 
 @Injectable()
@@ -105,6 +124,8 @@ export class CampaignService {
                 "create campaign",
             )
 
+            await this.validateNoActiveCampaign(userContext.userId)
+
             if (input.categoryId) {
                 await this.validateCategoryExists(input.categoryId)
             }
@@ -170,9 +191,15 @@ export class CampaignService {
                     ingredientPurchaseDate: phase.ingredientPurchaseDate,
                     cookingDate: phase.cookingDate,
                     deliveryDate: phase.deliveryDate,
-                    ingredientBudgetPercentage: parseFloat(phase.ingredientBudgetPercentage),
-                    cookingBudgetPercentage: parseFloat(phase.cookingBudgetPercentage),
-                    deliveryBudgetPercentage: parseFloat(phase.deliveryBudgetPercentage),
+                    ingredientBudgetPercentage: parseFloat(
+                        phase.ingredientBudgetPercentage,
+                    ),
+                    cookingBudgetPercentage: parseFloat(
+                        phase.cookingBudgetPercentage,
+                    ),
+                    deliveryBudgetPercentage: parseFloat(
+                        phase.deliveryBudgetPercentage,
+                    ),
                 })),
             })
 
@@ -1233,15 +1260,23 @@ export class CampaignService {
             const cookingPct = parseFloat(phase.cookingBudgetPercentage)
             const deliveryPct = parseFloat(phase.deliveryBudgetPercentage)
 
-            if (isNaN(ingredientPct) || isNaN(cookingPct) || isNaN(deliveryPct)) {
+            if (
+                isNaN(ingredientPct) ||
+                isNaN(cookingPct) ||
+                isNaN(deliveryPct)
+            ) {
                 throw new BadRequestException(
                     `Phase ${index + 1} (${phase.phaseName}): Budget percentages must be valid numbers`,
                 )
             }
 
             if (
-                ingredientPct < 0 || cookingPct < 0 || deliveryPct < 0 ||
-                ingredientPct > 100 || cookingPct > 100 || deliveryPct > 100
+                ingredientPct < 0 ||
+                cookingPct < 0 ||
+                deliveryPct < 0 ||
+                ingredientPct > 100 ||
+                cookingPct > 100 ||
+                deliveryPct > 100
             ) {
                 throw new BadRequestException(
                     `Phase ${index + 1} (${phase.phaseName}): Budget percentages must be between 0 and 100`,
@@ -1258,9 +1293,9 @@ export class CampaignService {
         if (Math.abs(grandTotal - 100) > 0.01) {
             throw new BadRequestException(
                 "Tổng budget của tất cả phases phải bằng 100%. " +
-                `Hiện tại: Ingredient (${totalIngredient.toFixed(2)}%) + ` +
-                `Cooking (${totalCooking.toFixed(2)}%) + ` +
-                `Delivery (${totalDelivery.toFixed(2)}%) = ${grandTotal.toFixed(2)}%`,
+                    `Hiện tại: Ingredient (${totalIngredient.toFixed(2)}%) + ` +
+                    `Cooking (${totalCooking.toFixed(2)}%) + ` +
+                    `Delivery (${totalDelivery.toFixed(2)}%) = ${grandTotal.toFixed(2)}%`,
             )
         }
 
@@ -1375,6 +1410,33 @@ export class CampaignService {
         )
 
         return campaign
+    }
+
+    private async validateNoActiveCampaign(
+        fundraiserId: string,
+    ): Promise<void> {
+        const activeCampaign =
+            await this.campaignRepository.findActiveCampaignByCreator(
+                fundraiserId,
+            )
+
+        if (activeCampaign) {
+            this.sentryService.addBreadcrumb(
+                "Campaign creation blocked - active campaign exists",
+                "validation",
+                {
+                    fundraiserId,
+                    activeCampaignId: activeCampaign.id,
+                    activeCampaignTitle: activeCampaign.title,
+                    activeCampaignStatus: activeCampaign.status,
+                },
+            )
+
+            throw new FundraiserHasActiveCampaignException(
+                activeCampaign.title,
+                activeCampaign.status,
+            )
+        }
     }
 
     getHealth() {
