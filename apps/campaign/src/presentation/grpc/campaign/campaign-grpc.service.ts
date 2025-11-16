@@ -1,5 +1,7 @@
 import { CampaignPhaseRepository } from "@app/campaign/src/application/repositories/campaign-phase.repository"
+import { CampaignCacheService } from "@app/campaign/src/application/services/campaign/campaign-cache.service"
 import { CampaignService } from "@app/campaign/src/application/services/campaign/campaign.service"
+import { CampaignPhaseStatus } from "@app/campaign/src/domain/enums/campaign-phase/campaign-phase.enum"
 import { Controller, Injectable } from "@nestjs/common"
 import { GrpcMethod } from "@nestjs/microservices"
 
@@ -68,18 +70,55 @@ interface GetCampaignPhasesResponse {
     error: string | null
 }
 
+interface GetCampaignPhaseRequest {
+    phaseId: string
+}
+
+interface GetCampaignPhaseResponse {
+    success: boolean
+    phase?: {
+        id: string
+        campaignId: string
+        phaseName: string
+        ingredientFundsAmount: string
+        cookingFundsAmount: string
+        deliveryFundsAmount: string
+    }
+    error: string | null
+}
+
+interface UpdatePhaseStatusRequest {
+    phaseId: string
+    status: string
+}
+
+interface UpdatePhaseStatusResponse {
+    success: boolean
+    error: string | null
+}
+
+interface InvalidateCampaignCacheRequest {
+    campaignId: string
+}
+
+interface InvalidateCampaignCacheResponse {
+    success: boolean
+    error: string | null
+}
+
 interface HealthRequest {}
 
 interface HealthResponse {
     healthy: boolean
     message: string
 }
+
 @Controller()
-@Injectable()
 export class CampaignGrpcService {
     constructor(
         private readonly campaignService: CampaignService,
         private readonly campaignPhaseRepository: CampaignPhaseRepository,
+        private readonly campaignCacheService: CampaignCacheService,
     ) {}
 
     @GrpcMethod("CampaignService", "Health")
@@ -128,7 +167,9 @@ export class CampaignGrpcService {
                 receivedAmount: campaign.receivedAmount?.toString() || "0",
                 donationCount: campaign.donationCount || 0,
                 status: campaign.status,
-                fundraisingStartDate: toISOString(campaign.fundraisingStartDate),
+                fundraisingStartDate: toISOString(
+                    campaign.fundraisingStartDate,
+                ),
                 fundraisingEndDate: toISOString(campaign.fundraisingEndDate),
                 createdBy: campaign.createdBy,
                 createdAt: toISOString(campaign.created_at),
@@ -184,7 +225,8 @@ export class CampaignGrpcService {
         }
 
         // Get campaign ID from phase
-        const campaignId = await this.campaignService.getCampaignIdByPhaseId(phaseId)
+        const campaignId =
+            await this.campaignService.getCampaignIdByPhaseId(phaseId)
 
         if (!campaignId) {
             return {
@@ -252,13 +294,106 @@ export class CampaignGrpcService {
                 campaignId: phase.campaignId,
                 phaseName: phase.phaseName,
                 location: phase.location,
-                ingredientPurchaseDate: phase.ingredientPurchaseDate.toISOString(),
+                ingredientPurchaseDate:
+                    phase.ingredientPurchaseDate.toISOString(),
                 cookingDate: phase.cookingDate.toISOString(),
                 deliveryDate: phase.deliveryDate.toISOString(),
                 ingredientBudgetPercentage: phase.ingredientBudgetPercentage,
                 cookingBudgetPercentage: phase.cookingBudgetPercentage,
                 deliveryBudgetPercentage: phase.deliveryBudgetPercentage,
             })),
+            error: null,
+        }
+    }
+
+    @GrpcMethod("CampaignService", "GetCampaignPhase")
+    async getCampaignPhase(
+        data: GetCampaignPhaseRequest,
+    ): Promise<GetCampaignPhaseResponse> {
+        const { phaseId } = data
+
+        if (!phaseId) {
+            return {
+                success: false,
+                phase: undefined,
+                error: "Phase ID is required",
+            }
+        }
+
+        const phase =
+            await this.campaignPhaseRepository.findByIdWithCampaign(phaseId)
+
+        if (!phase) {
+            return {
+                success: false,
+                phase: undefined,
+                error: `Campaign phase ${phaseId} not found`,
+            }
+        }
+
+        return {
+            success: true,
+            phase: {
+                id: phase.id,
+                campaignId: phase.campaignId,
+                phaseName: phase.phaseName,
+                ingredientFundsAmount: phase.ingredientFundsAmount || "0",
+                cookingFundsAmount: phase.cookingFundsAmount || "0",
+                deliveryFundsAmount: phase.deliveryFundsAmount || "0",
+            },
+            error: null,
+        }
+    }
+
+    @GrpcMethod("CampaignService", "UpdatePhaseStatus")
+    async updatePhaseStatus(
+        data: UpdatePhaseStatusRequest,
+    ): Promise<UpdatePhaseStatusResponse> {
+        const { phaseId, status } = data
+
+        if (!phaseId || !status) {
+            return {
+                success: false,
+                error: "Phase ID and status are required",
+            }
+        }
+        const validStatuses = Object.values(CampaignPhaseStatus)
+        if (!validStatuses.includes(status as CampaignPhaseStatus)) {
+            return {
+                success: false,
+                error: `Invalid status: ${status}. Valid statuses: ${validStatuses.join(", ")}`,
+            }
+        }
+
+        await this.campaignPhaseRepository.updateStatus(
+            phaseId,
+            status as CampaignPhaseStatus,
+        )
+
+        return {
+            success: true,
+            error: null,
+        }
+    }
+
+    @GrpcMethod("CampaignService", "InvalidateCampaignCache")
+    async invalidateCampaignCache(
+        data: InvalidateCampaignCacheRequest,
+    ): Promise<InvalidateCampaignCacheResponse> {
+        const { campaignId } = data
+
+        if (!campaignId) {
+            return {
+                success: false,
+                error: "Campaign ID is required",
+            }
+        }
+
+        await this.campaignCacheService.deleteCampaign(campaignId)
+        await this.campaignCacheService.invalidateAll(campaignId)
+
+        return {
+            success: true,
             error: null,
         }
     }
