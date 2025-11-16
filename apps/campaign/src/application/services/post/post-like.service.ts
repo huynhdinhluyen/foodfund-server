@@ -6,22 +6,46 @@ import {
 } from "@nestjs/common"
 import { PostLikeRepository } from "../../repositories/post-like.repository"
 import { PostRepository } from "../../repositories/post.repository"
+import { PostCacheService } from "./post-cache.service"
+import { SqsService } from "@libs/aws-sqs"
+
+export enum LikeAction {
+    LIKE = "LIKE",
+    UNLIKE = "UNLIKE",
+}
+
+export interface LikeQueueMessage {
+    action: LikeAction
+    postId: string
+    userId: string
+    timestamp: number
+}
+
+export interface LikeQueueResponse {
+    success: boolean
+    message: string
+    isLiked: boolean
+    tempLikeCount?: number
+}
 
 @Injectable()
 export class PostLikeService {
-    private readonly logger = new Logger(PostLikeService.name)
-
     constructor(
         private readonly postLikeRepository: PostLikeRepository,
         private readonly postRepository: PostRepository,
+        private readonly postCacheService: PostCacheService,
+        private readonly sqsService: SqsService,
     ) {}
 
     async likePost(postId: string, userId: string) {
-        const post = await this.postRepository.findPostById(postId)
+        let post = await this.postCacheService.getPost(postId)
         if (!post) {
-            throw new NotFoundException(
-                `Post with ID ${postId} does not exists`,
-            )
+            post = await this.postRepository.findPostById(postId)
+            if (!post) {
+                throw new NotFoundException(
+                    `Post with ID ${postId} does not exist`,
+                )
+            }
         }
 
         const alreadyLiked = await this.postLikeRepository.checkIfUserLikedPost(
@@ -32,22 +56,46 @@ export class PostLikeService {
             throw new BadRequestException("You already liked this post")
         }
 
-        const result = await this.postLikeRepository.likePost(postId, userId)
+        const queueMessage: LikeQueueMessage = {
+            action: LikeAction.LIKE,
+            postId,
+            userId,
+            timestamp: Date.now(),
+        }
+
+        try {
+            await this.sqsService.sendMessage({
+                messageBody: queueMessage,
+                messageGroupId: `post-like:${postId}`,
+                messageDeduplicationId: `like:${postId}:${userId}:${Date.now()}`,
+            })
+        } catch (error) {
+            return await this.likeSyncFallback(postId, userId)
+        }
+
+        const tempLikeCount =
+            await this.postCacheService.incrementDistributedLikeCounter(postId)
+
+        await this.postCacheService.deletePost(postId)
 
         return {
             success: true,
             message: "Liked",
             isLiked: true,
-            likeCount: result.likeCount,
+            likeCount: tempLikeCount,
+            isOptimistic: true
         }
     }
 
     async unlikePost(postId: string, userId: string) {
-        const post = await this.postRepository.findPostById(postId)
+        let post = await this.postCacheService.getPost(postId)
         if (!post) {
-            throw new NotFoundException(
-                `Post with ID ${postId} does not exists`,
-            )
+            post = await this.postRepository.findPostById(postId)
+            if (!post) {
+                throw new NotFoundException(
+                    `Post with ID ${postId} does not exist`,
+                )
+            }
         }
 
         const hasLiked = await this.postLikeRepository.checkIfUserLikedPost(
@@ -56,17 +104,79 @@ export class PostLikeService {
         )
         if (!hasLiked) {
             throw new BadRequestException(
-                "You have not already liked this post.",
+                "You have not liked this post yet.",
             )
         }
 
-        const result = await this.postLikeRepository.unlikePost(postId, userId)
+        const queueMessage: LikeQueueMessage = {
+            action: LikeAction.UNLIKE,
+            postId,
+            userId,
+            timestamp: Date.now(),
+        }
+
+        try {
+            await this.sqsService.sendMessage({
+                messageBody: queueMessage,
+                messageGroupId: `post-like:${postId}`,
+                messageDeduplicationId: `unlike:${postId}:${userId}:${Date.now()}`,
+            })
+        } catch (error) {
+            return await this.unlikeSyncFallback(postId, userId)
+        }
+
+        const tempLikeCount =
+            await this.postCacheService.decrementDistributedLikeCounter(postId)
+
+        await this.postCacheService.deletePost(postId)
 
         return {
             success: true,
             message: "Unliked",
             isLiked: false,
+            likeCount: tempLikeCount,
+            isOptimistic: true
+        }
+    }
+
+    private async likeSyncFallback(postId: string, userId: string) {
+        const result = await this.postLikeRepository.likePost(postId, userId)
+
+        await Promise.all([
+            this.postCacheService.initializeDistributedLikeCounter(
+                postId,
+                result.likeCount,
+            ),
+            this.postCacheService.deletePost(postId),
+        ])
+
+        return {
+            success: true,
+            message: "Liked (sync)",
+            isLiked: true,
             likeCount: result.likeCount,
+            isOptimistic: false
+        }
+    }
+
+    private async unlikeSyncFallback(postId: string, userId: string) {
+
+        const result = await this.postLikeRepository.unlikePost(postId, userId)
+
+        await Promise.all([
+            this.postCacheService.initializeDistributedLikeCounter(
+                postId,
+                result.likeCount,
+            ),
+            this.postCacheService.deletePost(postId),
+        ])
+
+        return {
+            success: true,
+            message: "Unliked (sync)",
+            isLiked: false,
+            likeCount: result.likeCount,
+            isOptimistic: false
         }
     }
 

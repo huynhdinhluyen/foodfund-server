@@ -23,8 +23,7 @@ import { CampaignQueryResolver } from "./presentation/graphql/campaign/queries"
 import { CampaignStatsQueryResolver } from "./presentation/graphql/campaign/queries/campaign-stats-query.resolver"
 import { CampaignMutationResolver } from "./presentation/graphql/campaign/mutations"
 import { CampaignRepository } from "./application/repositories/campaign.repository"
-import { CampaignSchedulerService } from "./application/workers/schedulers"
-import { CampaignStatusJob } from "./application/workers/campaign-status.job"
+import { CampaignStatusJob } from "./application/workers/campaign/campaign-status.job"
 import { HealthController } from "./presentation/http/controllers/campaign/health.controller"
 import { CampaignGrpcService } from "./presentation/grpc/campaign/campaign-grpc.service"
 import { CampaignCategoryCacheService } from "./application/services/campaign-category/campaign-category-cache.service"
@@ -59,6 +58,9 @@ import { PostCommentQueryResolver, PostLikeQueryResolver, PostQueryResolver } fr
 import { PostCommentMutationResolver, PostLikeMutationResolver, PostMutationResolver } from "./presentation/graphql/post/mutations"
 import { PostLikeDataLoader } from "./application/dataloaders"
 import { QueueWorkerService } from "./application/workers/queue-worker.service"
+import { PostCacheService } from "./application/services/post/post-cache.service"
+import { CampaignSchedulerService } from "./application/workers/campaign/schedulers"
+import { LikeQueueWorkerService } from "./application/workers/post-like/post-like-queue.worker"
 
 @Module({
     imports: [
@@ -109,7 +111,6 @@ import { QueueWorkerService } from "./application/workers/queue-worker.service"
             useFactory: (service: PrismaCampaignService) => service["client"],
             inject: [PrismaCampaignService],
         },
-        QueueWorkerService,
         UserClientService,
         SpacesUploadService,
         AuthorizationService,
@@ -129,6 +130,7 @@ import { QueueWorkerService } from "./application/workers/queue-worker.service"
         PostService,
         PostLikeService,
         PostCommentService,
+        PostCacheService,
 
         UserResolver,
         CampaignQueryResolver,
@@ -158,6 +160,8 @@ import { QueueWorkerService } from "./application/workers/queue-worker.service"
         PostCommentRepository,
 
         CampaignStatusJob,
+        QueueWorkerService,
+        LikeQueueWorkerService,
 
         UserDataLoader,
         PostLikeDataLoader

@@ -7,6 +7,7 @@ import {
 import { PostCommentRepository } from "../../repositories/post-comment.repository"
 import { PostRepository } from "../../repositories/post.repository"
 import { CreateCommentInput, UpdateCommentInput } from "../../dtos/post/request"
+import { PostCacheService } from "./post-cache.service"
 
 @Injectable()
 export class PostCommentService {
@@ -15,6 +16,7 @@ export class PostCommentService {
     constructor(
         private readonly postCommentRepository: PostCommentRepository,
         private readonly postRepository: PostRepository,
+        private readonly postCacheService: PostCacheService,
     ) {}
 
     async createComment(data: CreateCommentInput, userId: string) {
@@ -50,6 +52,13 @@ export class PostCommentService {
             data,
             userId,
         )
+
+        await Promise.all([
+            this.postCacheService.deletePostComments(data.postId),
+            this.postCacheService.incrementCommentsCount(data.postId),
+            this.postCacheService.deletePost(data.postId),
+        ])
+
         return comment
     }
 
@@ -63,11 +72,26 @@ export class PostCommentService {
             throw new NotFoundException(`Post with ${postId} not found`)
         }
 
-        return await this.postCommentRepository.findCommentsByPostId(
+        if (limit === 20 && offset === 0) {
+            const cachedComments =
+                await this.postCacheService.getPostComments(postId)
+
+            if (cachedComments) {
+                return cachedComments
+            }
+        }
+
+        const comments = await this.postCommentRepository.findCommentsByPostId(
             postId,
             limit,
             offset,
         )
+
+        if (limit === 20 && offset === 0) {
+            await this.postCacheService.setPostComments(postId, comments)
+        }
+
+        return comments
     }
 
     async updateComment(
@@ -88,7 +112,12 @@ export class PostCommentService {
             throw new ForbiddenException("You can only edit your own comment.")
         }
 
-        return await this.postCommentRepository.updateComment(commentId, data)
+        const updatedComment =
+            await this.postCommentRepository.updateComment(commentId, data)
+
+        await this.postCacheService.deletePostComments(comment.postId)
+
+        return updatedComment
     }
 
     async deleteComment(commentId: string, userId: string) {
@@ -109,6 +138,12 @@ export class PostCommentService {
             commentId,
             comment.postId,
         )
+
+        await Promise.all([
+            this.postCacheService.deletePostComments(comment.postId),
+            this.postCacheService.decrementCommentsCount(comment.postId),
+            this.postCacheService.deletePost(comment.postId),
+        ])
 
         return {
             success: true,

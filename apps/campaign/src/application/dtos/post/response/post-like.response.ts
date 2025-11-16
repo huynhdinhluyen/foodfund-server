@@ -21,4 +21,11 @@ export class PostLikeResponse {
         description: "Updated like count",
     })
         likeCount: number
+
+    @Field(() => Boolean, {
+        nullable: true,
+        description: "Whether this is an optimistic update (true) or confirmed from DB (false)",
+        defaultValue: false,
+    })
+        isOptimistic?: boolean
 }
