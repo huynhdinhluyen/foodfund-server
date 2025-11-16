@@ -148,7 +148,7 @@ export class CampaignPhaseService {
     }
 
     async getPhaseById(id: string): Promise<CampaignPhase> {
-        const phase = await this.phaseRepository.findById(id)
+        const phase = await this.phaseRepository.findByIdWithCampaign(id)
         if (!phase) {
             throw new NotFoundException(`Phase with ID ${id} not found`)
         }
@@ -312,21 +312,6 @@ export class CampaignPhaseService {
                     "Phase updated - requires re-approval",
                 )
             }
-
-            this.sentryService.addBreadcrumb(
-                "Campaign phase updated",
-                "campaign-phase",
-                {
-                    phaseId: id,
-                    campaignId: phase.campaignId,
-                    user: {
-                        id: userContext.userId,
-                        username: userContext.username,
-                    },
-                    updatedFields: Object.keys(updateData),
-                    cacheInvalidated: true,
-                },
-            )
 
             return updatedPhase
         } catch (error) {
@@ -608,20 +593,6 @@ export class CampaignPhaseService {
                 )
             }
 
-            this.sentryService.addBreadcrumb(
-                "Campaign phase deleted",
-                "campaign-phase",
-                {
-                    phaseId: id,
-                    campaignId: phase.campaignId,
-                    user: {
-                        id: userContext.userId,
-                        username: userContext.username,
-                    },
-                    cacheInvalidated: true,
-                },
-            )
-
             return true
         } catch (error) {
             this.sentryService.captureError(error as Error, {
@@ -709,21 +680,6 @@ export class CampaignPhaseService {
                         )
                     }
                 }),
-            )
-
-            this.sentryService.addBreadcrumb(
-                "Campaign phases batch deleted",
-                "campaign-phase",
-                {
-                    phaseIds: ids,
-                    deletedCount,
-                    campaignIds,
-                    user: {
-                        id: userContext.userId,
-                        username: userContext.username,
-                    },
-                    cacheInvalidated: true,
-                },
             )
 
             return { deletedCount, campaignIds }
