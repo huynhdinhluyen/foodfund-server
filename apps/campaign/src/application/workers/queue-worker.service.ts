@@ -10,13 +10,12 @@ export class QueueWorkerService implements OnModuleInit {
     ) {}
 
     async onModuleInit() {
-        // Start queue consumers in background
         this.startWorkers()
     }
 
     private startWorkers() {
-        // Start donation queue consumer
         this.startDonationWorker()
+        this.startLikeWorker()
     }
 
     private startDonationWorker() {
@@ -30,5 +29,9 @@ export class QueueWorkerService implements OnModuleInit {
                 setTimeout(() => this.startDonationWorker(), 10000)
             }
         })
+    }
+
+    private startLikeWorker() {
+        this.logger.log("Like queue worker initialized")
     }
 }
