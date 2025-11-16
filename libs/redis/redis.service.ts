@@ -297,6 +297,22 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         }
     }
 
+    async incr(key: string): Promise<number> {
+        if (!this.isAvailable()) {
+            return 0
+        }
+
+        return await this.client!.incr(key)
+    }
+
+    async decr(key: string): Promise<number> {
+        if (!this.isAvailable()) {
+            return 0
+        }
+
+        return await this.client!.decr(key)
+    }
+
     /**
      * Check if key exists
      */

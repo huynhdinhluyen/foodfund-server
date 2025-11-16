@@ -23,18 +23,27 @@ import { SpacesUploadService } from "@libs/s3-storage"
 import { SentryService } from "@libs/observability"
 import { ExpenseProofFilterInput } from "../../dtos/expense-proof"
 import { GrpcClientService } from "@libs/grpc"
-import { ExpenseProofStatus, IngredientRequestStatus } from "@app/operation/src/domain/enums"
+import {
+    ExpenseProofStatus,
+    IngredientRequestStatus,
+} from "@app/operation/src/domain/enums"
+import { ExpenseProofCacheService } from "./expense-proof-cache.service"
+import { BaseOperationService } from "@app/operation/src/shared/services"
+import { BudgetValidationHelper } from "@app/operation/src/shared/helpers"
 
 @Injectable()
-export class ExpenseProofService {
+export class ExpenseProofService extends BaseOperationService {
     constructor(
         private readonly expenseProofRepository: ExpenseProofRepository,
         private readonly ingredientRequestRepository: IngredientRequestRepository,
         private readonly spacesUploadService: SpacesUploadService,
-        private readonly sentryService: SentryService,
         private readonly authorizationService: AuthorizationService,
-        private readonly grpcClient: GrpcClientService,
-    ) {}
+        private readonly cacheService: ExpenseProofCacheService,
+        sentryService: SentryService,
+        grpcClient: GrpcClientService,
+    ) {
+        super(sentryService, grpcClient)
+    }
 
     async generateUploadUrls(
         input: GenerateExpenseProofUploadUrlsInput,
@@ -91,16 +100,7 @@ export class ExpenseProofService {
                 )
             }
 
-            const allowedTypes = ["jpg", "jpeg", "png", "mp4", "mov"]
-            const invalidTypes = input.fileTypes.filter(
-                (type) => !allowedTypes.includes(type.toLowerCase()),
-            )
-
-            if (invalidTypes.length > 0) {
-                throw new BadRequestException(
-                    `Invalid file types: ${invalidTypes.join(", ")}. Allowed: ${allowedTypes.join(", ")}`,
-                )
-            }
+            BudgetValidationHelper.validateFileTypes(input.fileTypes)
 
             const uploadResults =
                 await this.spacesUploadService.generateBatchImageUploadUrls(
@@ -184,10 +184,7 @@ export class ExpenseProofService {
                 )
             }
 
-            const amount = BigInt(input.amount)
-            if (amount <= 0) {
-                throw new BadRequestException("Amount must be greater than 0")
-            }
+            const amount = this.parseTotalCost(input.amount)
 
             const cdnEndpoint = process.env.SPACES_CDN_ENDPOINT!
             const mediaUrls = input.mediaFileKeys.map(
@@ -200,7 +197,17 @@ export class ExpenseProofService {
                 amount,
             })
 
-            return this.mapToGraphQLModel(proof)
+            const mappedProof = this.mapToGraphQLModel(proof)
+
+            await Promise.all([
+                this.cacheService.setProof(mappedProof.id, mappedProof),
+                this.cacheService.deleteRequestProofs(input.requestId),
+                this.cacheService.deleteOrganizationProofs(userContext.userId),
+                this.cacheService.deleteAllProofLists(),
+                this.cacheService.deleteProofStats(),
+            ])
+
+            return mappedProof
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "ExpenseProofService.createExpenseProof",
@@ -249,7 +256,16 @@ export class ExpenseProofService {
                 input.adminNote,
             )
 
-            return this.mapToGraphQLModel(updatedProof)
+            const mappedProof = this.mapToGraphQLModel(updatedProof)
+
+            await Promise.all([
+                this.cacheService.setProof(mappedProof.id, mappedProof),
+                this.cacheService.deleteRequestProofs(proof.request_id),
+                this.cacheService.deleteAllProofLists(),
+                this.cacheService.deleteProofStats(),
+            ])
+
+            return mappedProof
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "ExpenseProofService.updateExpenseProofStatus",
@@ -263,13 +279,22 @@ export class ExpenseProofService {
 
     async getExpenseProof(id: string): Promise<ExpenseProof> {
         try {
-            const proof = await this.expenseProofRepository.findById(id)
+            let proof = await this.cacheService.getProof(id)
 
             if (!proof) {
-                throw new NotFoundException(`Expense proof not found: ${id}`)
+                const dbProof = await this.expenseProofRepository.findById(id)
+
+                if (!dbProof) {
+                    throw new NotFoundException(
+                        `Expense proof not found: ${id}`,
+                    )
+                }
+
+                proof = this.mapToGraphQLModel(dbProof)
+                await this.cacheService.setProof(id, proof)
             }
 
-            return this.mapToGraphQLModel(proof)
+            return proof
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "ExpenseProofService.getExpenseProof",
@@ -283,9 +308,15 @@ export class ExpenseProofService {
         filter: ExpenseProofFilterInput,
         limit: number,
         offset: number,
-        userContext: UserContext,
     ): Promise<ExpenseProof[]> {
         try {
+            const cacheKey = { filter, limit, offset }
+            const cachedProofs = await this.cacheService.getProofList(cacheKey)
+
+            if (cachedProofs) {
+                return cachedProofs
+            }
+
             let proofs: any[]
 
             if (filter.campaignId && !filter.campaignPhaseId) {
@@ -297,9 +328,7 @@ export class ExpenseProofService {
                     this.sentryService.addBreadcrumb(
                         "No campaign phases found for campaign",
                         "warning",
-                        {
-                            campaignId: filter.campaignId,
-                        },
+                        { campaignId: filter.campaignId },
                     )
                     return []
                 }
@@ -321,21 +350,16 @@ export class ExpenseProofService {
                 )
             }
 
-            if (userContext.role === Role.FUNDRAISER) {
-                const filteredProofs = await this.filterFundraiserProofs(
-                    proofs,
-                    userContext.userId,
-                )
-                return filteredProofs.map((proof) =>
-                    this.mapToGraphQLModel(proof),
-                )
-            }
+            const mappedProofs = proofs.map((proof) =>
+                this.mapToGraphQLModel(proof),
+            )
 
-            return proofs.map((proof) => this.mapToGraphQLModel(proof))
+            await this.cacheService.setProofList(cacheKey, mappedProofs)
+
+            return mappedProofs
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "ExpenseProofService.getExpenseProofs",
-                userId: userContext.userId,
                 filter,
             })
             throw error
@@ -353,12 +377,27 @@ export class ExpenseProofService {
         )
 
         try {
+            const cachedProofs = await this.cacheService.getOrganizationProofs(
+                userContext.userId,
+            )
+
+            if (cachedProofs) {
+                if (requestId) {
+                    return cachedProofs.filter(
+                        (proof) => proof.requestId === requestId,
+                    )
+                }
+                return cachedProofs
+            }
+
             const requests =
                 await this.ingredientRequestRepository.findByKitchenStaffOrganization(
                     userContext.userId,
                 )
 
             const requestIds = requests.map((r) => r.id)
+
+            let proofs: any[]
 
             if (requestId) {
                 if (!requestIds.includes(requestId)) {
@@ -367,17 +406,25 @@ export class ExpenseProofService {
                     )
                 }
 
-                const proofs =
+                proofs =
                     await this.expenseProofRepository.findByRequestId(requestId)
-                return proofs.map((proof) => this.mapToGraphQLModel(proof))
+            } else {
+                proofs =
+                    await this.expenseProofRepository.findByOrganizationRequests(
+                        requestIds,
+                    )
             }
 
-            const proofs =
-                await this.expenseProofRepository.findByOrganizationRequests(
-                    requestIds,
-                )
+            const mappedProofs = proofs.map((proof) =>
+                this.mapToGraphQLModel(proof),
+            )
 
-            return proofs.map((proof) => this.mapToGraphQLModel(proof))
+            await this.cacheService.setOrganizationProofs(
+                userContext.userId,
+                mappedProofs,
+            )
+
+            return mappedProofs
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "ExpenseProofService.getMyExpenseProofs",
@@ -400,45 +447,20 @@ export class ExpenseProofService {
         )
 
         try {
-            return await this.expenseProofRepository.getStats()
+            const cachedStats = await this.cacheService.getProofStats()
+
+            if (cachedStats) {
+                return cachedStats
+            }
+
+            const stats = await this.expenseProofRepository.getStats()
+
+            await this.cacheService.setProofStats(stats)
+
+            return stats
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "ExpenseProofService.getExpenseProofStats",
-            })
-            throw error
-        }
-    }
-
-    private async getCampaignPhases(campaignId: string): Promise<any[]> {
-        try {
-            const response = await this.grpcClient.callCampaignService<
-                { campaignId: string },
-                {
-                    success: boolean
-                    phases: Array<{
-                        id: string
-                        campaignId: string
-                        phaseName: string
-                        location: string
-                        ingredientPurchaseDate: string
-                        cookingDate: string
-                        deliveryDate: string
-                    }>
-                    error: string | null
-                }
-            >("GetCampaignPhases", { campaignId }, { timeout: 5000, retries: 2 })
-
-            if (!response.success) {
-                throw new BadRequestException(
-                    response.error || "Failed to fetch campaign phases",
-                )
-            }
-
-            return response.phases || []
-        } catch (error) {
-            this.sentryService.captureError(error as Error, {
-                operation: "ExpenseProofService.getCampaignPhases",
-                campaignId,
             })
             throw error
         }
@@ -493,26 +515,6 @@ export class ExpenseProofService {
         }
     }
 
-    private async filterFundraiserProofs(
-        proofs: any[],
-        fundraiserId: string,
-    ): Promise<any[]> {
-        const filteredProofs: any[] = []
-
-        for (const proof of proofs) {
-            const hasAccess = await this.checkFundraiserCampaignOwnership(
-                proof.request_id,
-                fundraiserId,
-            )
-
-            if (hasAccess) {
-                filteredProofs.push(proof)
-            }
-        }
-
-        return filteredProofs
-    }
-
     private mapToGraphQLModel(proof: any): ExpenseProof {
         return {
             id: proof.id,
@@ -524,33 +526,36 @@ export class ExpenseProofService {
             changedStatusAt: proof.changed_status_at,
             created_at: proof.created_at,
             updated_at: proof.updated_at,
-            request: proof.request ? {
-                id: proof.request.id,
-                campaignPhaseId: proof.request.campaign_phase_id,
-                kitchenStaffId: proof.request.kitchen_staff_id,
-                totalCost: proof.request.total_cost.toString(),
-                status: proof.request.status as IngredientRequestStatus,
-                changedStatusAt: proof.request.changed_status_at,
-                created_at: proof.request.created_at,
-                updated_at: proof.request.updated_at,
-                items: proof.request.items?.map((item: any) => ({
-                    id: item.id,
-                    requestId: item.request_id,
-                    ingredientName: item.ingredient_name,
-                    quantity: item.quantity,
-                    estimatedUnitPrice: item.estimated_unit_price,
-                    estimatedTotalPrice: item.estimated_total_price,
-                    supplier: item.supplier,
-                })) || [],
-                kitchenStaff: {
-                    __typename: "User",
-                    id: proof.request.kitchen_staff_id,
-                },
-                campaignPhase: {
-                    __typename: "CampaignPhase",
-                    id: proof.request.campaign_phase_id,
-                },
-            } : undefined,
+            request: proof.request
+                ? {
+                    id: proof.request.id,
+                    campaignPhaseId: proof.request.campaign_phase_id,
+                    kitchenStaffId: proof.request.kitchen_staff_id,
+                    totalCost: proof.request.total_cost.toString(),
+                    status: proof.request.status as IngredientRequestStatus,
+                    changedStatusAt: proof.request.changed_status_at,
+                    created_at: proof.request.created_at,
+                    updated_at: proof.request.updated_at,
+                    items:
+                          proof.request.items?.map((item: any) => ({
+                              id: item.id,
+                              requestId: item.request_id,
+                              ingredientName: item.ingredient_name,
+                              quantity: item.quantity,
+                              estimatedUnitPrice: item.estimated_unit_price,
+                              estimatedTotalPrice: item.estimated_total_price,
+                              supplier: item.supplier,
+                          })) || [],
+                    kitchenStaff: {
+                        __typename: "User",
+                        id: proof.request.kitchen_staff_id,
+                    },
+                    campaignPhase: {
+                        __typename: "CampaignPhase",
+                        id: proof.request.campaign_phase_id,
+                    },
+                }
+                : undefined,
         }
     }
 }

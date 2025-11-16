@@ -56,6 +56,12 @@ export interface UpdateCampaignData {
     donationCount?: number
 }
 
+export interface ExtendCampaignData {
+    campaignId: string
+    extensionDays: number
+    newFundraisingEndDate: Date
+}
+
 export interface StatsDateRange {
     dateFrom?: Date
     dateTo?: Date
@@ -131,9 +137,12 @@ export class CampaignRepository {
                         ingredient_purchase_date: phase.ingredientPurchaseDate,
                         cooking_date: phase.cookingDate,
                         delivery_date: phase.deliveryDate,
-                        ingredient_budget_percentage: phase.ingredientBudgetPercentage,
-                        cooking_budget_percentage: phase.cookingBudgetPercentage,
-                        delivery_budget_percentage: phase.deliveryBudgetPercentage,
+                        ingredient_budget_percentage:
+                            phase.ingredientBudgetPercentage,
+                        cooking_budget_percentage:
+                            phase.cookingBudgetPercentage,
+                        delivery_budget_percentage:
+                            phase.deliveryBudgetPercentage,
                         status: "PLANNING" as const,
                         is_active: true,
                     })),
@@ -519,6 +528,52 @@ export class CampaignRepository {
         return this.mapToGraphQLModel(campaign)
     }
 
+    async extendCampaignWithPhases(
+        data: ExtendCampaignData,
+    ): Promise<Campaign> {
+        const result = await this.prisma.$transaction(async (tx) => {
+            const updatedCampaign = await tx.campaign.update({
+                where: {
+                    id: data.campaignId,
+                    is_active: true,
+                },
+                data: {
+                    fundraising_end_date: data.newFundraisingEndDate,
+                    extension_count: 1,
+                    extension_days: data.extensionDays,
+                    updated_at: new Date(),
+                },
+            })
+
+            await tx.$executeRaw`
+                UPDATE campaign_phases
+                SET 
+                    ingredient_purchase_date = ingredient_purchase_date + INTERVAL '${data.extensionDays} days',
+                    cooking_date = cooking_date + INTERVAL '${data.extensionDays} days',
+                    delivery_date = delivery_date + INTERVAL '${data.extensionDays} days',
+                    updated_at = NOW()
+                WHERE 
+                    campaign_id = ${data.campaignId}
+                    AND is_active = true
+            `
+
+            const campaignWithPhases = await tx.campaign.findUnique({
+                where: { id: data.campaignId },
+                include: this.CAMPAIGN_JOIN_FIELDS,
+            })
+
+            return campaignWithPhases
+        })
+
+        if (!result) {
+            throw new Error(
+                `Failed to extend campaign ${data.campaignId} with phases`,
+            )
+        }
+
+        return this.mapToGraphQLModel(result)
+    }
+
     async delete(id: string): Promise<boolean> {
         await this.prisma.$transaction(async (tx) => {
             await tx.campaign_Phase.updateMany({
@@ -605,22 +660,71 @@ export class CampaignRepository {
             }
             : undefined
 
+        const receivedAmount = BigInt(dbCampaign.received_amount || 0)
+
         const phases =
-            dbCampaign.campaign_phases?.map((phase: any) => ({
-                id: phase.id,
-                campaignId: phase.campaign_id,
-                phaseName: phase.phase_name,
-                location: phase.location,
-                ingredientPurchaseDate: phase.ingredient_purchase_date,
-                cookingDate: phase.cooking_date,
-                deliveryDate: phase.delivery_date,
-                ingredientBudgetPercentage: phase.ingredient_budget_percentage?.toString() ?? "0",
-                cookingBudgetPercentage: phase.cooking_budget_percentage?.toString() ?? "0",
-                deliveryBudgetPercentage: phase.delivery_budget_percentage?.toString() ?? "0",
-                status: phase.status,
-                created_at: phase.created_at,
-                updated_at: phase.updated_at,
-            })) || []
+            dbCampaign.campaign_phases?.map((phase: any) => {
+                const ingredientPct =
+                    parseFloat(
+                        phase.ingredient_budget_percentage?.toString() || "0",
+                    ) / 100
+                const cookingPct =
+                    parseFloat(
+                        phase.cooking_budget_percentage?.toString() || "0",
+                    ) / 100
+                const deliveryPct =
+                    parseFloat(
+                        phase.delivery_budget_percentage?.toString() || "0",
+                    ) / 100
+
+                const ingredientFunds =
+                    receivedAmount > 0n
+                        ? (receivedAmount *
+                              BigInt(Math.floor(ingredientPct * 10000))) /
+                          10000n
+                        : 0n
+                const cookingFunds =
+                    receivedAmount > 0n
+                        ? (receivedAmount *
+                              BigInt(Math.floor(cookingPct * 10000))) /
+                          10000n
+                        : 0n
+                const deliveryFunds =
+                    receivedAmount > 0n
+                        ? (receivedAmount *
+                              BigInt(Math.floor(deliveryPct * 10000))) /
+                          10000n
+                        : 0n
+
+                return {
+                    id: phase.id,
+                    campaignId: phase.campaign_id,
+                    phaseName: phase.phase_name,
+                    location: phase.location,
+                    ingredientPurchaseDate: phase.ingredient_purchase_date,
+                    cookingDate: phase.cooking_date,
+                    deliveryDate: phase.delivery_date,
+                    ingredientBudgetPercentage:
+                        phase.ingredient_budget_percentage?.toString() ?? "0",
+                    cookingBudgetPercentage:
+                        phase.cooking_budget_percentage?.toString() ?? "0",
+                    deliveryBudgetPercentage:
+                        phase.delivery_budget_percentage?.toString() ?? "0",
+                    ingredientFundsAmount:
+                        ingredientFunds > 0n
+                            ? ingredientFunds.toString()
+                            : undefined,
+                    cookingFundsAmount:
+                        cookingFunds > 0n ? cookingFunds.toString() : undefined,
+                    deliveryFundsAmount:
+                        deliveryFunds > 0n
+                            ? deliveryFunds.toString()
+                            : undefined,
+                    status: phase.status,
+                    created_at: phase.created_at,
+                    updated_at: phase.updated_at,
+                }
+            }) || []
 
         const computedFields = this.calculateComputedFields(dbCampaign, phases)
 
@@ -687,27 +791,35 @@ export class CampaignRepository {
         )
 
         const msPerDay = 1000 * 60 * 60 * 24
-        const daysRemaining = Math.ceil(
+
+        let daysRemaining = Math.ceil(
             (endMidnight.getTime() - todayMidnight.getTime()) / msPerDay,
         )
+
+        if (daysRemaining < 0) {
+            daysRemaining = 0
+        }
 
         const startMidnight = new Date(
             startDate.getFullYear(),
             startDate.getMonth(),
             startDate.getDate(),
         )
-        const daysActive = Math.max(
-            0,
-            Math.floor(
-                (todayMidnight.getTime() - startMidnight.getTime()) / msPerDay,
-            ),
-        )
+
+        let daysActive = 0
+        if (todayMidnight >= startMidnight) {
+            daysActive =
+                Math.floor(
+                    (todayMidnight.getTime() - startMidnight.getTime()) /
+                        msPerDay,
+                ) + 1
+        }
 
         const totalPhases = phases.length
 
         return {
             fundingProgress: Math.round(fundingProgress * 100) / 100,
-            daysRemaining: Math.max(-1, daysRemaining),
+            daysRemaining,
             daysActive,
             totalPhases,
         }

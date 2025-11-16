@@ -32,17 +32,24 @@ import {
 } from "../../dtos/delivery-task"
 import { SentryService } from "@libs/observability"
 import { GrpcClientService } from "@libs/grpc"
+import { DeliveryTaskCacheService } from "./delivery-task-cache.service"
+import { MealBatchCacheService } from "../meal-batch"
+import { BaseOperationService } from "@app/operation/src/shared/services"
 
 @Injectable()
-export class DeliveryTaskService {
+export class DeliveryTaskService extends BaseOperationService {
     constructor(
         private readonly deliveryTaskRepository: DeliveryTaskRepository,
         private readonly deliveryStatusLogRepository: DeliveryStatusLogRepository,
         private readonly mealBatchRepository: MealBatchRepository,
         private readonly authService: AuthorizationService,
-        private readonly grpcClient: GrpcClientService,
-        private readonly sentryService: SentryService,
-    ) {}
+        private readonly cacheService: DeliveryTaskCacheService,
+        private readonly mealBatchCacheService: MealBatchCacheService,
+        sentryService: SentryService,
+        grpcClient: GrpcClientService,
+    ) {
+        super(sentryService, grpcClient)
+    }
 
     async assignTaskToStaff(
         input: AssignTaskToStaffInput,
@@ -143,25 +150,27 @@ export class DeliveryTaskService {
                     note: `Task assigned by fundraiser to delivery staff ${staffId}`,
                 })
 
-                createdTasks.push(this.mapToGraphQLModel(created))
+                const mappedTask = this.mapToGraphQLModel(created)
+                await this.cacheService.setTask(mappedTask.id, mappedTask)
+
+                createdTasks.push(mappedTask)
             }
 
-            this.sentryService.addBreadcrumb(
-                "Multiple delivery tasks assigned",
-                "delivery",
-                {
-                    fundraiserId: userContext.userId,
-                    organizationId: fundraiserOrganization.id,
-                    mealBatchId: input.mealBatchId,
-                    staffCount: input.deliveryStaffIds.length,
-                    taskIds: createdTasks.map((t) => t.id),
-                },
-            )
+            await Promise.all([
+                this.cacheService.deleteMealBatchTasks(input.mealBatchId),
+                this.cacheService.deleteCampaignPhaseTasks(
+                    mealBatch.campaignPhaseId,
+                ),
+                this.cacheService.deleteAllTaskLists(),
+                ...input.deliveryStaffIds.map((staffId) =>
+                    this.cacheService.deleteStaffTasks(staffId),
+                ),
+            ])
 
             return createdTasks
         } catch (error) {
             this.sentryService.captureError(error as Error, {
-                operation: "assignTaskToStaff",
+                operation: "DeliveryTaskService.assignTaskToStaff",
                 input,
                 userId: userContext.userId,
             })
@@ -215,20 +224,22 @@ export class DeliveryTaskService {
                 note: "Task self-assigned by delivery staff",
             })
 
-            this.sentryService.addBreadcrumb(
-                "Delivery task self-assigned",
-                "delivery",
-                {
-                    taskId: created.id,
-                    deliveryStaffId: userContext.userId,
-                    mealBatchId: input.mealBatchId,
-                },
-            )
+            const mappedTask = this.mapToGraphQLModel(created)
 
-            return this.mapToGraphQLModel(created)
+            await Promise.all([
+                this.cacheService.setTask(mappedTask.id, mappedTask),
+                this.cacheService.deleteMealBatchTasks(input.mealBatchId),
+                this.cacheService.deleteStaffTasks(userContext.userId),
+                this.cacheService.deleteCampaignPhaseTasks(
+                    mealBatch.campaignPhaseId,
+                ),
+                this.cacheService.deleteAllTaskLists(),
+            ])
+
+            return mappedTask
         } catch (error) {
             this.sentryService.captureError(error as Error, {
-                operation: "selfAssignTask",
+                operation: "DeliveryTaskService.selfAssignTask",
                 input,
                 userId: userContext.userId,
             })
@@ -273,6 +284,16 @@ export class DeliveryTaskService {
                 )
             }
 
+            const mealBatch = await this.mealBatchRepository.findById(
+                task.meal_batch_id,
+            )
+
+            if (!mealBatch) {
+                throw new NotFoundException(
+                    `Meal batch ${task.meal_batch_id} not found`,
+                )
+            }
+
             if (input.status === DeliveryTaskStatus.OUT_FOR_DELIVERY) {
                 await this.mealBatchRepository.updateStatusToDelivered(
                     task.meal_batch_id,
@@ -295,21 +316,29 @@ export class DeliveryTaskService {
                 note: input.note,
             })
 
-            this.sentryService.addBreadcrumb(
-                "Delivery task status updated",
-                "delivery",
-                {
-                    taskId: input.taskId,
-                    oldStatus: task.status,
-                    newStatus: input.status,
-                    userId: userContext.userId,
-                },
-            )
+            const mappedTask = this.mapToGraphQLModel(updated)
 
-            return this.mapToGraphQLModel(updated)
+            await Promise.all([
+                this.cacheService.setTask(mappedTask.id, mappedTask),
+                this.cacheService.deleteMealBatchTasks(task.meal_batch_id),
+                this.cacheService.deleteStaffTasks(task.delivery_staff_id),
+                this.cacheService.deleteCampaignPhaseTasks(
+                    mealBatch.campaignPhaseId,
+                ),
+                this.cacheService.deletePhaseStats(mealBatch.campaignPhaseId),
+                this.cacheService.deleteAllTaskLists(),
+
+                this.mealBatchCacheService.invalidateBatch(
+                    task.meal_batch_id,
+                    mealBatch.campaignPhaseId,
+                    mealBatch.kitchenStaffId,
+                ),
+            ])
+
+            return mappedTask
         } catch (error) {
             this.sentryService.captureError(error as Error, {
-                operation: "updateDeliveryTaskStatus",
+                operation: "DeliveryTaskService.updateTaskStatus",
                 input,
                 userId: userContext.userId,
             })
@@ -319,6 +348,18 @@ export class DeliveryTaskService {
 
     async getTasks(filter: DeliveryTaskFilterInput): Promise<DeliveryTask[]> {
         try {
+            const cacheKey = {
+                filter,
+                limit: filter.limit || 10,
+                offset: filter.offset || 0,
+            }
+
+            const cachedTasks = await this.cacheService.getTaskList(cacheKey)
+
+            if (cachedTasks) {
+                return cachedTasks
+            }
+
             const mealBatchIds = await this.resolveMealBatchIds(filter)
 
             if (mealBatchIds.length === 0) {
@@ -331,10 +372,14 @@ export class DeliveryTaskService {
                 filter.offset,
             )
 
-            return tasks.map((t) => this.mapToGraphQLModel(t))
+            const mappedTasks = tasks.map((t) => this.mapToGraphQLModel(t))
+
+            await this.cacheService.setTaskList(cacheKey, mappedTasks)
+
+            return mappedTasks
         } catch (error) {
             this.sentryService.captureError(error as Error, {
-                operation: "getDeliveryTasks",
+                operation: "DeliveryTaskService.getTasks",
                 filter,
             })
             throw error
@@ -343,18 +388,26 @@ export class DeliveryTaskService {
 
     async getTaskById(id: string): Promise<DeliveryTask> {
         try {
-            const task = await this.deliveryTaskRepository.findById(id)
+            let task = await this.cacheService.getTask(id)
 
             if (!task) {
-                throw new NotFoundException(
-                    `Delivery task with ID ${id} not found`,
-                )
+                const dbTask = await this.deliveryTaskRepository.findById(id)
+
+                if (!dbTask) {
+                    throw new NotFoundException(
+                        `Delivery task with ID ${id} not found`,
+                    )
+                }
+
+                task = this.mapToGraphQLModel(dbTask)
+
+                await this.cacheService.setTask(id, task)
             }
 
-            return this.mapToGraphQLModel(task)
+            return task
         } catch (error) {
             this.sentryService.captureError(error as Error, {
-                operation: "getDeliveryTaskById",
+                operation: "DeliveryTaskService.getTaskById",
                 taskId: id,
             })
             throw error
@@ -378,6 +431,14 @@ export class DeliveryTaskService {
                 "view your delivery tasks",
             )
 
+            const cachedTasks = await this.cacheService.getStaffTasks(
+                userContext.userId,
+            )
+
+            if (cachedTasks) {
+                return cachedTasks
+            }
+
             const tasks =
                 await this.deliveryTaskRepository.findByDeliveryStaffId(
                     userContext.userId,
@@ -385,10 +446,17 @@ export class DeliveryTaskService {
                     offset,
                 )
 
-            return tasks.map((t) => this.mapToGraphQLModel(t))
+            const mappedTasks = tasks.map((t) => this.mapToGraphQLModel(t))
+
+            await this.cacheService.setStaffTasks(
+                userContext.userId,
+                mappedTasks,
+            )
+
+            return mappedTasks
         } catch (error) {
             this.sentryService.captureError(error as Error, {
-                operation: "getMyDeliveryTasks",
+                operation: "DeliveryTaskService.getMyTasks",
                 userId: userContext.userId,
             })
             throw error
@@ -405,13 +473,24 @@ export class DeliveryTaskService {
                 "view delivery tasks for meal batch",
             )
 
+            const cachedTasks =
+                await this.cacheService.getMealBatchTasks(mealBatchId)
+
+            if (cachedTasks) {
+                return cachedTasks
+            }
+
             const tasks =
                 await this.deliveryTaskRepository.findByMealBatchId(mealBatchId)
 
-            return tasks.map((t) => this.mapToGraphQLModel(t))
+            const mappedTasks = tasks.map((t) => this.mapToGraphQLModel(t))
+
+            await this.cacheService.setMealBatchTasks(mealBatchId, mappedTasks)
+
+            return mappedTasks
         } catch (error) {
             this.sentryService.captureError(error as Error, {
-                operation: "getTasksByMealBatch",
+                operation: "DeliveryTaskService.getTasksByMealBatch",
                 mealBatchId,
             })
             throw error
@@ -422,6 +501,13 @@ export class DeliveryTaskService {
         campaignPhaseId: string,
     ): Promise<DeliveryTaskStatsResponse> {
         try {
+            const cachedStats =
+                await this.cacheService.getPhaseStats(campaignPhaseId)
+
+            if (cachedStats) {
+                return cachedStats
+            }
+
             const mealBatches = await this.mealBatchRepository.findWithFilters({
                 campaignPhaseId,
             })
@@ -447,10 +533,12 @@ export class DeliveryTaskService {
                     mealBatchIds,
                 )
 
+            await this.cacheService.setPhaseStats(campaignPhaseId, stats)
+
             return stats
         } catch (error) {
             this.sentryService.captureError(error as Error, {
-                operation: "getDeliveryTaskStats",
+                operation: "DeliveryTaskService.getStatsByCampaignPhase",
                 campaignPhaseId,
             })
             throw error
@@ -467,12 +555,14 @@ export class DeliveryTaskService {
             return logs.map((log) => this.mapStatusLogToGraphQLModel(log))
         } catch (error) {
             this.sentryService.captureError(error as Error, {
-                operation: "getDeliveryTaskStatusLogs",
+                operation: "DeliveryTaskService.getStatusLogs",
                 taskId,
             })
             throw error
         }
     }
+
+    // ==================== Private Helper Methods ====================
 
     private async resolveMealBatchIds(
         filter: DeliveryTaskFilterInput,
@@ -523,45 +613,6 @@ export class DeliveryTaskService {
         })
 
         return mealBatches.map((mb) => mb.id)
-    }
-
-    private async getCampaignPhases(campaignId: string): Promise<any[]> {
-        try {
-            const response = await this.grpcClient.callCampaignService<
-                { campaignId: string },
-                {
-                    success: boolean
-                    phases: Array<{
-                        id: string
-                        campaignId: string
-                        phaseName: string
-                        location: string
-                        ingredientPurchaseDate: string
-                        cookingDate: string
-                        deliveryDate: string
-                    }>
-                    error: string | null
-                }
-            >(
-                "GetCampaignPhases",
-                { campaignId },
-                { timeout: 5000, retries: 2 },
-            )
-
-            if (!response.success) {
-                throw new BadRequestException(
-                    response.error || "Failed to fetch campaign phases",
-                )
-            }
-
-            return response.phases || []
-        } catch (error) {
-            this.sentryService.captureError(error as Error, {
-                operation: "DeliveryTaskService.getCampaignPhases",
-                campaignId,
-            })
-            throw error
-        }
     }
 
     private validateStatusTransition(

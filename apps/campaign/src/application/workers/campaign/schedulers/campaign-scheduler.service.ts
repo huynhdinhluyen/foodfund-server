@@ -2,9 +2,9 @@ import { Injectable, Logger } from "@nestjs/common"
 import { SentryService } from "@libs/observability/sentry.service"
 import { JobExecutionResult } from "@libs/common/base/base.job"
 import { CampaignStatus } from "@app/campaign/src/domain/enums/campaign/campaign.enum"
-import { CampaignRepository } from "../../repositories/campaign.repository"
 import { Campaign } from "@app/campaign/src/domain/entities/campaign.model"
 import { UserClientService } from "@app/campaign/src/shared"
+import { CampaignRepository } from "../../../repositories/campaign.repository"
 
 export interface StatusTransitionResult {
     campaignId: string
