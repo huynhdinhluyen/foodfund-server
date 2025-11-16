@@ -23,7 +23,11 @@ import { SpacesUploadService } from "@libs/s3-storage"
 import { SentryService } from "@libs/observability"
 import { ExpenseProofFilterInput } from "../../dtos/expense-proof"
 import { GrpcClientService } from "@libs/grpc"
-import { ExpenseProofStatus, IngredientRequestStatus } from "@app/operation/src/domain/enums"
+import {
+    ExpenseProofStatus,
+    IngredientRequestStatus,
+} from "@app/operation/src/domain/enums"
+import { ExpenseProofCacheService } from "./expense-proof-cache.service"
 
 @Injectable()
 export class ExpenseProofService {
@@ -34,6 +38,7 @@ export class ExpenseProofService {
         private readonly sentryService: SentryService,
         private readonly authorizationService: AuthorizationService,
         private readonly grpcClient: GrpcClientService,
+        private readonly cacheService: ExpenseProofCacheService,
     ) {}
 
     async generateUploadUrls(
@@ -200,7 +205,22 @@ export class ExpenseProofService {
                 amount,
             })
 
-            return this.mapToGraphQLModel(proof)
+            const mappedProof = this.mapToGraphQLModel(proof)
+
+            await Promise.all([
+                this.cacheService.setProof(mappedProof.id, mappedProof),
+                this.cacheService.deleteRequestProofs(input.requestId),
+                request.campaignPhaseId
+                    ? this.cacheService.deletePhaseProofs(
+                        request.campaignPhaseId,
+                    )
+                    : Promise.resolve(),
+                this.cacheService.deleteOrganizationProofs(userContext.userId),
+                this.cacheService.deleteAllProofLists(),
+                this.cacheService.deleteStats(),
+            ])
+
+            return mappedProof
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "ExpenseProofService.createExpenseProof",
@@ -249,7 +269,30 @@ export class ExpenseProofService {
                 input.adminNote,
             )
 
-            return this.mapToGraphQLModel(updatedProof)
+            const mappedProof = this.mapToGraphQLModel(updatedProof)
+
+            let campaignPhaseId: string | undefined
+
+            if (proof.request) {
+                campaignPhaseId = proof.request.campaign_phase_id
+            } else {
+                const request = await this.ingredientRequestRepository.findById(
+                    proof.request_id,
+                )
+                campaignPhaseId = request?.campaignPhaseId
+            }
+
+            await Promise.all([
+                this.cacheService.setProof(mappedProof.id, mappedProof),
+                this.cacheService.deleteRequestProofs(proof.request_id),
+                campaignPhaseId
+                    ? this.cacheService.deletePhaseProofs(campaignPhaseId)
+                    : Promise.resolve(),
+                this.cacheService.deleteAllProofLists(),
+                this.cacheService.deleteStats(),
+            ])
+
+            return mappedProof
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "ExpenseProofService.updateExpenseProofStatus",
@@ -263,13 +306,23 @@ export class ExpenseProofService {
 
     async getExpenseProof(id: string): Promise<ExpenseProof> {
         try {
-            const proof = await this.expenseProofRepository.findById(id)
+            let proof = await this.cacheService.getProof(id)
 
             if (!proof) {
-                throw new NotFoundException(`Expense proof not found: ${id}`)
+                const dbProof = await this.expenseProofRepository.findById(id)
+
+                if (!dbProof) {
+                    throw new NotFoundException(
+                        `Expense proof not found: ${id}`,
+                    )
+                }
+
+                proof = this.mapToGraphQLModel(dbProof)
+
+                await this.cacheService.setProof(id, proof)
             }
 
-            return this.mapToGraphQLModel(proof)
+            return proof
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "ExpenseProofService.getExpenseProof",
@@ -285,6 +338,13 @@ export class ExpenseProofService {
         offset: number,
     ): Promise<ExpenseProof[]> {
         try {
+            const cacheKey = { filter, limit, offset }
+            const cachedProofs = await this.cacheService.getProofList(cacheKey)
+
+            if (cachedProofs) {
+                return cachedProofs
+            }
+
             let proofs: any[]
 
             if (filter.campaignId && !filter.campaignPhaseId) {
@@ -320,7 +380,13 @@ export class ExpenseProofService {
                 )
             }
 
-            return proofs.map((proof) => this.mapToGraphQLModel(proof))
+            const mappedProofs = proofs.map((proof) =>
+                this.mapToGraphQLModel(proof),
+            )
+
+            await this.cacheService.setProofList(cacheKey, mappedProofs)
+
+            return mappedProofs
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "ExpenseProofService.getExpenseProofs",
@@ -341,12 +407,23 @@ export class ExpenseProofService {
         )
 
         try {
+            const cachedProofs = await this.cacheService.getOrganizationProofs(
+                userContext.userId,
+                requestId,
+            )
+
+            if (cachedProofs) {
+                return cachedProofs
+            }
+
             const requests =
                 await this.ingredientRequestRepository.findByKitchenStaffOrganization(
                     userContext.userId,
                 )
 
             const requestIds = requests.map((r) => r.id)
+
+            let proofs: any[]
 
             if (requestId) {
                 if (!requestIds.includes(requestId)) {
@@ -355,17 +432,26 @@ export class ExpenseProofService {
                     )
                 }
 
-                const proofs =
+                proofs =
                     await this.expenseProofRepository.findByRequestId(requestId)
-                return proofs.map((proof) => this.mapToGraphQLModel(proof))
+            } else {
+                proofs =
+                    await this.expenseProofRepository.findByOrganizationRequests(
+                        requestIds,
+                    )
             }
 
-            const proofs =
-                await this.expenseProofRepository.findByOrganizationRequests(
-                    requestIds,
-                )
+            const mappedProofs = proofs.map((proof) =>
+                this.mapToGraphQLModel(proof),
+            )
 
-            return proofs.map((proof) => this.mapToGraphQLModel(proof))
+            await this.cacheService.setOrganizationProofs(
+                userContext.userId,
+                mappedProofs,
+                requestId,
+            )
+
+            return mappedProofs
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "ExpenseProofService.getMyExpenseProofs",
@@ -388,7 +474,17 @@ export class ExpenseProofService {
         )
 
         try {
-            return await this.expenseProofRepository.getStats()
+            const cachedStats = await this.cacheService.getStats()
+
+            if (cachedStats) {
+                return cachedStats
+            }
+
+            const stats = await this.expenseProofRepository.getStats()
+
+            await this.cacheService.setStats(stats)
+
+            return stats
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "ExpenseProofService.getExpenseProofStats",
@@ -414,7 +510,11 @@ export class ExpenseProofService {
                     }>
                     error: string | null
                 }
-            >("GetCampaignPhases", { campaignId }, { timeout: 5000, retries: 2 })
+            >(
+                "GetCampaignPhases",
+                { campaignId },
+                { timeout: 5000, retries: 2 },
+            )
 
             if (!response.success) {
                 throw new BadRequestException(
@@ -492,33 +592,36 @@ export class ExpenseProofService {
             changedStatusAt: proof.changed_status_at,
             created_at: proof.created_at,
             updated_at: proof.updated_at,
-            request: proof.request ? {
-                id: proof.request.id,
-                campaignPhaseId: proof.request.campaign_phase_id,
-                kitchenStaffId: proof.request.kitchen_staff_id,
-                totalCost: proof.request.total_cost.toString(),
-                status: proof.request.status as IngredientRequestStatus,
-                changedStatusAt: proof.request.changed_status_at,
-                created_at: proof.request.created_at,
-                updated_at: proof.request.updated_at,
-                items: proof.request.items?.map((item: any) => ({
-                    id: item.id,
-                    requestId: item.request_id,
-                    ingredientName: item.ingredient_name,
-                    quantity: item.quantity,
-                    estimatedUnitPrice: item.estimated_unit_price,
-                    estimatedTotalPrice: item.estimated_total_price,
-                    supplier: item.supplier,
-                })) || [],
-                kitchenStaff: {
-                    __typename: "User",
-                    id: proof.request.kitchen_staff_id,
-                },
-                campaignPhase: {
-                    __typename: "CampaignPhase",
-                    id: proof.request.campaign_phase_id,
-                },
-            } : undefined,
+            request: proof.request
+                ? {
+                    id: proof.request.id,
+                    campaignPhaseId: proof.request.campaign_phase_id,
+                    kitchenStaffId: proof.request.kitchen_staff_id,
+                    totalCost: proof.request.total_cost.toString(),
+                    status: proof.request.status as IngredientRequestStatus,
+                    changedStatusAt: proof.request.changed_status_at,
+                    created_at: proof.request.created_at,
+                    updated_at: proof.request.updated_at,
+                    items:
+                          proof.request.items?.map((item: any) => ({
+                              id: item.id,
+                              requestId: item.request_id,
+                              ingredientName: item.ingredient_name,
+                              quantity: item.quantity,
+                              estimatedUnitPrice: item.estimated_unit_price,
+                              estimatedTotalPrice: item.estimated_total_price,
+                              supplier: item.supplier,
+                          })) || [],
+                    kitchenStaff: {
+                        __typename: "User",
+                        id: proof.request.kitchen_staff_id,
+                    },
+                    campaignPhase: {
+                        __typename: "CampaignPhase",
+                        id: proof.request.campaign_phase_id,
+                    },
+                }
+                : undefined,
         }
     }
 }
