@@ -13,6 +13,7 @@ import { CampaignCategoryRepository } from "../../repositories/campaign-category
 import { CampaignPhaseRepository } from "../../repositories/campaign-phase.repository"
 import {
     AuthorizationService,
+    PhaseBudgetValidator,
     Role,
     UserContext,
 } from "@app/campaign/src/shared"
@@ -41,7 +42,6 @@ import {
     CampaignStatusBreakdown,
     CampaignTimeRangeStats,
 } from "../../dtos/campaign/response/campaign-stats.response"
-import { CreatePhaseInput } from "../../dtos/campaign-phase/request"
 
 interface CoverImageUpdateResult {
     updateData: {
@@ -177,7 +177,7 @@ export class CampaignService {
                 )
             }
 
-            this.validateTotalPhaseBudgets(input.phases)
+            PhaseBudgetValidator.validate(input.phases)
 
             this.phaseService.validatePhaseDates(
                 input.phases,
@@ -1229,60 +1229,6 @@ export class CampaignService {
         }
 
         return amount
-    }
-
-    private validateTotalPhaseBudgets(phases: CreatePhaseInput[]): void {
-        let totalIngredient = 0
-        let totalCooking = 0
-        let totalDelivery = 0
-
-        for (const [index, phase] of phases.entries()) {
-            const ingredientPct = Number.parseFloat(
-                phase.ingredientBudgetPercentage,
-            )
-            const cookingPct = Number.parseFloat(phase.cookingBudgetPercentage)
-            const deliveryPct = Number.parseFloat(
-                phase.deliveryBudgetPercentage,
-            )
-
-            if (
-                Number.isNaN(ingredientPct) ||
-                Number.isNaN(cookingPct) ||
-                Number.isNaN(deliveryPct)
-            ) {
-                throw new BadRequestException(
-                    `Phase ${index + 1} (${phase.phaseName}): Budget percentages must be valid numbers`,
-                )
-            }
-
-            if (
-                ingredientPct < 0 ||
-                cookingPct < 0 ||
-                deliveryPct < 0 ||
-                ingredientPct > 100 ||
-                cookingPct > 100 ||
-                deliveryPct > 100
-            ) {
-                throw new BadRequestException(
-                    `Phase ${index + 1} (${phase.phaseName}): Budget percentages must be between 0 and 100`,
-                )
-            }
-
-            totalIngredient += ingredientPct
-            totalCooking += cookingPct
-            totalDelivery += deliveryPct
-        }
-
-        const grandTotal = totalIngredient + totalCooking + totalDelivery
-
-        if (Math.abs(grandTotal - 100) > 0.01) {
-            throw new BadRequestException(
-                "Tổng budget của tất cả phases phải bằng 100%. " +
-                    `Hiện tại: Ingredient (${totalIngredient.toFixed(2)}%) + ` +
-                    `Cooking (${totalCooking.toFixed(2)}%) + ` +
-                    `Delivery (${totalDelivery.toFixed(2)}%) = ${grandTotal.toFixed(2)}%`,
-            )
-        }
     }
 
     private validateStatusTransition(
