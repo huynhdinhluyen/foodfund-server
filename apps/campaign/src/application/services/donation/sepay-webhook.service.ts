@@ -5,6 +5,7 @@ import { envConfig } from "@libs/env"
 import { UserClientService } from "@app/campaign/src/shared"
 import { DonorRepository } from "../../repositories/donor.repository"
 import { CampaignStatus } from "@app/campaign/src/domain/enums/campaign/campaign.enum"
+import { BrevoEmailService } from "@libs/email"
 
 interface SepayWebhookPayload {
     id: number // Sepay transaction ID
@@ -30,6 +31,7 @@ export class SepayWebhookService {
         private readonly redisService: RedisService,
         private readonly donorRepository: DonorRepository,
         private readonly eventEmitter: EventEmitter2,
+        private readonly emailService: BrevoEmailService,
     ) {}
 
     /**
@@ -239,6 +241,9 @@ export class SepayWebhookService {
             this.logger.log(
                 `[Sepay→Admin] ✅ Admin wallet credited - orderCode=${orderCode}, amount=${payload.transferAmount}`,
             )
+
+            // Step 4: Send donation confirmation email (if donor is not anonymous)
+            await this.sendDonationConfirmationEmail(donation, BigInt(payload.transferAmount), donation.campaign)
         } catch (error) {
             this.logger.error(
                 `[Sepay→Admin] ❌ Failed to process partial payment - orderCode=${orderCode}`,
@@ -310,6 +315,9 @@ export class SepayWebhookService {
             this.logger.log(
                 `[Sepay→Admin] ✅ Admin wallet credited for supplementary payment - amount=${payload.transferAmount}`,
             )
+
+            // Step 4: Send donation confirmation email (if donor is not anonymous)
+            await this.sendDonationConfirmationEmail(donation, BigInt(payload.transferAmount), result.campaign)
         } catch (error) {
             this.logger.error(
                 "[Sepay→Admin] ❌ Failed to process supplementary payment",
@@ -518,5 +526,69 @@ export class SepayWebhookService {
     private getSystemAdminId(): string {
         const adminId = envConfig().systemAdminId || "admin-system-001"
         return adminId
+    }
+
+    /**
+     * Send donation confirmation email to donor
+     * Only sends if donor is not anonymous and has a user_id
+     */
+    private async sendDonationConfirmationEmail(
+        donation: any,
+        amount: bigint,
+        campaign: any,
+    ): Promise<void> {
+        try {
+            // Skip if anonymous donation or no donor_id
+            if (donation.is_anonymous || !donation.donor_id) {
+                this.logger.log(
+                    "[Sepay] Skipping email - Anonymous donation or no donor_id",
+                )
+                return
+            }
+
+            // Fetch donor user information
+            const donor = await this.userClientService.getUserByCognitoId(
+                donation.donor_id,
+            )
+            if (!donor || !donor.email) {
+                this.logger.warn(
+                    `[Sepay] Cannot send email - Donor ${donation.donor_id} not found or no email`,
+                )
+                return
+            }
+
+            // Fetch fundraiser name from created_by UUID
+            let fundraiserName = "FoodFund Team"
+            if (campaign.created_by) {
+                const fundraiser = await this.userClientService.getUserByCognitoId(
+                    campaign.created_by,
+                )
+                if (fundraiser) {
+                    fundraiserName = fundraiser.fullName || fundraiser.username || "FoodFund Team"
+                }
+            }
+
+            // Format amount
+            const formattedAmount = new Intl.NumberFormat("vi-VN").format(Number(amount))
+
+            // Send email
+            await this.emailService.sendDonationConfirmation(
+                donor.email,
+                donor.fullName || donor.username || "Donor",
+                formattedAmount,
+                campaign.title || "Campaign",
+                fundraiserName,
+            )
+
+            this.logger.log(
+                `[Sepay] ✅ Donation confirmation email sent to ${donor.email}`,
+            )
+        } catch (error) {
+            // Don't throw - email is non-critical
+            this.logger.error(
+                "[Sepay] Failed to send donation confirmation email:",
+                error.stack,
+            )
+        }
     }
 }

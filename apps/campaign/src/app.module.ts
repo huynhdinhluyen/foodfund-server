@@ -6,7 +6,6 @@ import { ScheduleModule } from "@nestjs/schedule"
 import { User } from "./shared/model/user.model"
 import { EnvModule } from "@libs/env/env.module"
 import { OpenSearchModule } from "@libs/aws-opensearch"
-import { SqsModule } from "@libs/aws-sqs"
 import { GrpcModule } from "@libs/grpc"
 import { QueueModule, QUEUE_NAMES } from "@libs/queue"
 import { BullBoardModule } from "@bull-board/nestjs"
@@ -43,7 +42,6 @@ import { AuthLibModule } from "@libs/auth"
 import { DonationWebhookController } from "./presentation/http/controllers/donation/donation-webhook.controller"
 import { SepayWebhookController } from "./presentation/http/controllers/donation/sepay-webhook.controller"
 import { DonorService } from "./application/services/donation/donor.service"
-import { DonationProcessorService } from "./application/services/donation/donation-processor.service"
 import { DonationWebhookService } from "./application/services/donation/donation-webhook.service"
 import { SepayWebhookService } from "./application/services/donation/sepay-webhook.service"
 import { PayosCleanupService } from "./application/services/donation/payos-cleanup.service"
@@ -64,6 +62,7 @@ import { PostLikeDataLoader } from "./application/dataloaders"
 import { PostCacheService } from "./application/services/post/post-cache.service"
 import { CampaignSchedulerService } from "./application/workers/campaign/schedulers"
 import { PostLikeProcessor } from "./application/processors/post-like.processor"
+import { BrevoEmailService } from "@libs/email"
 
 @Module({
     imports: [
@@ -95,7 +94,6 @@ import { PostLikeProcessor } from "./application/processors/post-like.processor"
         }),
         ScheduleModule.forRoot(),
         GrpcModule,
-        SqsModule,
         QueueModule,
         BullBoardModule.forRoot({
             route: "/admin/queues",
@@ -134,7 +132,6 @@ import { PostLikeProcessor } from "./application/processors/post-like.processor"
         CampaignCategoryService,
         CampaignPhaseService,
         DonorService,
-        DonationProcessorService,
         DonationWebhookService,
         SepayWebhookService,
         PayosCleanupService,
@@ -175,7 +172,8 @@ import { PostLikeProcessor } from "./application/processors/post-like.processor"
         PostLikeProcessor,
 
         UserDataLoader,
-        PostLikeDataLoader
+        PostLikeDataLoader,
+        BrevoEmailService
     ],
 })
 export class AppModule {}
