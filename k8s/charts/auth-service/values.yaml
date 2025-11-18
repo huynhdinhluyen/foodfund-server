@@ -75,13 +75,12 @@ ingress:
   #      - chart-example.local
 
 resources:
-  # Ultra-optimized for small cluster (2 nodes x 2GB RAM) - no Prisma
   limits:
-    cpu: 150m # Max 15% of 1 vCPU
-    memory: 128Mi # Max 128MB
+    cpu: 500m
+    memory: 512Mi
   requests:
-    cpu: 20m # Min 2% of 1 vCPU
-    memory: 64Mi # Min 64MB
+    cpu: 100m
+    memory: 256Mi
 
 # This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 startupProbe:
@@ -117,11 +116,11 @@ readinessProbe:
 
 # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
 autoscaling:
-  enabled: false # Disabled for resource-constrained cluster
+  enabled: true
   minReplicas: 1
-  maxReplicas: 1 # Keep at 1 replica due to memory constraints
+  maxReplicas: 2
   targetCPUUtilizationPercentage: 80
-  targetMemoryUtilizationPercentage: 85
+  targetMemoryUtilizationPercentage: 70
 
 # Additional volumes on the output Deployment definition.
 volumes: []
@@ -147,10 +146,8 @@ affinity: {}
 env:
   - name: SERVICE_NAME
     value: "auth-service"
-  # Add any service-specific env vars that are not in ConfigMap/Secret here
-  # Example:
-  # - name: SERVICE_SPECIFIC_CONFIG
-  #   value: "some-value"
+  - name: NODE_OPTIONS
+    value: "--max-old-space-size=384"
 # Sensitive environment variables are set via ConfigMap/Secret
 # See k8s/config/ for templates
 
