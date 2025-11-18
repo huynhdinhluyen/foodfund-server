@@ -147,7 +147,7 @@ env:
   - name: SERVICE_NAME
     value: "graphql-gateway"
   - name: NODE_OPTIONS
-    value: "--max-old-space-size=320"
+    value: "--max-old-space-size=384"
 
 # Sensitive environment variables are set via ConfigMap/Secret
 # See k8s/config/ for templates
