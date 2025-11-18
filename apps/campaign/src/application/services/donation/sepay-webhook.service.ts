@@ -5,7 +5,7 @@ import { envConfig } from "@libs/env"
 import { UserClientService } from "@app/campaign/src/shared"
 import { DonorRepository } from "../../repositories/donor.repository"
 import { CampaignStatus } from "@app/campaign/src/domain/enums/campaign/campaign.enum"
-import { BrevoEmailService } from "@libs/email"
+import { DonationEmailService } from "./donation-email.service"
 
 interface SepayWebhookPayload {
     id: number // Sepay transaction ID
@@ -31,21 +31,9 @@ export class SepayWebhookService {
         private readonly redisService: RedisService,
         private readonly donorRepository: DonorRepository,
         private readonly eventEmitter: EventEmitter2,
-        private readonly emailService: BrevoEmailService,
+        private readonly donationEmailService: DonationEmailService,
     ) {}
 
-    /**
-     * Handle Sepay webhook - Route ALL transfers to Admin Wallet
-     * NEW LOGIC: All Sepay transfers now go to Admin Wallet
-     * 
-     * DUPLICATE PREVENTION:
-     * - If orderCode exists AND amount >= original: Skip (PayOS will handle)
-     * - If orderCode exists AND amount < original: Process PARTIAL payment
-     * - If no orderCode: Process as regular transfer
-     * 
-     * OUTGOING TRANSFERS (transferType: "out"):
-     * - Route to WalletTransactionService to deduct from admin wallet
-     */
     async handleSepayWebhook(payload: SepayWebhookPayload): Promise<void> {
         this.logger.log("[Sepay] Received webhook:", {
             id: payload.id,
@@ -243,7 +231,12 @@ export class SepayWebhookService {
             )
 
             // Step 4: Send donation confirmation email (if donor is not anonymous)
-            await this.sendDonationConfirmationEmail(donation, BigInt(payload.transferAmount), donation.campaign)
+            await this.donationEmailService.sendDonationConfirmation(
+                donation,
+                BigInt(payload.transferAmount),
+                donation.campaign,
+                "Sepay",
+            )
         } catch (error) {
             this.logger.error(
                 `[Sepay→Admin] ❌ Failed to process partial payment - orderCode=${orderCode}`,
@@ -317,7 +310,12 @@ export class SepayWebhookService {
             )
 
             // Step 4: Send donation confirmation email (if donor is not anonymous)
-            await this.sendDonationConfirmationEmail(donation, BigInt(payload.transferAmount), result.campaign)
+            await this.donationEmailService.sendDonationConfirmation(
+                donation,
+                BigInt(payload.transferAmount),
+                result.campaign,
+                "Sepay",
+            )
         } catch (error) {
             this.logger.error(
                 "[Sepay→Admin] ❌ Failed to process supplementary payment",
@@ -515,8 +513,6 @@ export class SepayWebhookService {
                 `[Sepay OUT] ❌ Failed to process outgoing transfer: ${error.message}`,
                 error.stack,
             )
-            // Don't throw - log error for manual review
-            // This prevents webhook retry loops
         }
     }
 
@@ -528,67 +524,4 @@ export class SepayWebhookService {
         return adminId
     }
 
-    /**
-     * Send donation confirmation email to donor
-     * Only sends if donor is not anonymous and has a user_id
-     */
-    private async sendDonationConfirmationEmail(
-        donation: any,
-        amount: bigint,
-        campaign: any,
-    ): Promise<void> {
-        try {
-            // Skip if anonymous donation or no donor_id
-            if (donation.is_anonymous || !donation.donor_id) {
-                this.logger.log(
-                    "[Sepay] Skipping email - Anonymous donation or no donor_id",
-                )
-                return
-            }
-
-            // Fetch donor user information
-            const donor = await this.userClientService.getUserByCognitoId(
-                donation.donor_id,
-            )
-            if (!donor || !donor.email) {
-                this.logger.warn(
-                    `[Sepay] Cannot send email - Donor ${donation.donor_id} not found or no email`,
-                )
-                return
-            }
-
-            // Fetch fundraiser name from created_by UUID
-            let fundraiserName = "FoodFund Team"
-            if (campaign.created_by) {
-                const fundraiser = await this.userClientService.getUserByCognitoId(
-                    campaign.created_by,
-                )
-                if (fundraiser) {
-                    fundraiserName = fundraiser.fullName || fundraiser.username || "FoodFund Team"
-                }
-            }
-
-            // Format amount
-            const formattedAmount = new Intl.NumberFormat("vi-VN").format(Number(amount))
-
-            // Send email
-            await this.emailService.sendDonationConfirmation(
-                donor.email,
-                donor.fullName || donor.username || "Donor",
-                formattedAmount,
-                campaign.title || "Campaign",
-                fundraiserName,
-            )
-
-            this.logger.log(
-                `[Sepay] ✅ Donation confirmation email sent to ${donor.email}`,
-            )
-        } catch (error) {
-            // Don't throw - email is non-critical
-            this.logger.error(
-                "[Sepay] Failed to send donation confirmation email:",
-                error.stack,
-            )
-        }
-    }
 }

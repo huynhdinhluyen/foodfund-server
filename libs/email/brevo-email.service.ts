@@ -319,37 +319,48 @@ export class BrevoEmailService {
     ): Promise<SendEmailResponse | null> {
         return this.sendEmail({
             to: email,
-            subject: `❤️ Thank you for your donation to "${campaignTitle}"`,
+            subject: `❤️ Cảm ơn bạn đã ủng hộ chiến dịch "${campaignTitle}"`,
             html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h1 style="color: #e53e3e;">Thank You for Your Generous Donation! ❤️</h1>
-                    <p style="color: #4a5568; line-height: 1.6;">
-                        Dear ${donorName},
+        <div style="background-color: #f7fafc; padding: 40px 20px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow: hidden;">
+                
+                <div style="background-color: #e53e3e; padding: 30px 20px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700;">Cảm Ơn Tấm Lòng Vàng! ❤️</h1>
+                </div>
+
+                <div style="padding: 30px;">
+                    <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
+                        Thân gửi <strong>${donorName}</strong>,
                     </p>
-                    <p style="color: #4a5568; line-height: 1.6;">
-                        Thank you for your donation of <strong>${amount} VND</strong> to the campaign
-                        <strong>"${campaignTitle}"</strong> organized by ${fundraiserName}.
+                    <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
+                        Thay mặt đội ngũ FoodFund và cộng đồng, chúng tôi xin gửi lời cảm ơn chân thành nhất vì sự đóng góp của bạn cho chiến dịch <strong>"${campaignTitle}"</strong> do <strong>${fundraiserName}</strong> tổ chức.
                     </p>
-                    <p style="color: #4a5568; line-height: 1.6;">
-                        Your contribution will help provide food and support to those in need.
-                        Every donation makes a real difference in the community.
+                    
+                    <div style="background-color: #fff5f5; border: 1px solid #feb2b2; border-radius: 8px; padding: 20px; text-align: center; margin: 25px 0;">
+                        <span style="display: block; color: #718096; font-size: 14px; margin-bottom: 5px;">Số tiền bạn đã quyên góp</span>
+                        <span style="display: block; color: #c53030; font-size: 28px; font-weight: bold;">${amount} VNĐ</span>
+                    </div>
+
+                    <p style="color: #4a5568; font-size: 16px; line-height: 1.6;">
+                        Sự chia sẻ của bạn không chỉ là vật chất mà còn là nguồn động viên tinh thần to lớn, giúp mang lại những bữa ăn ấm áp và hỗ trợ thiết thực cho những hoàn cảnh khó khăn.
                     </p>
-                    <div style="background: #fed7d7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #e53e3e;">
-                        <p style="margin: 0; color: #2d3748; font-weight: bold;">
-                            Your Impact:
-                        </p>
-                        <ul style="margin: 10px 0 0 0; color: #4a5568; padding-left: 20px;">
-                            <li>100% of your donation goes directly to the cause</li>
-                            <li>You can track how funds are used transparently</li>
-                            <li>Your support helps combat food insecurity</li>
+
+                    <div style="margin-top: 30px; border-top: 1px solid #edf2f7; padding-top: 20px;">
+                        <p style="margin: 0 0 15px 0; color: #2d3748; font-weight: bold;">Cam kết của chúng tôi:</p>
+                        <ul style="margin: 0; color: #4a5568; padding-left: 20px; list-style-type: circle;">
+                            <li style="margin-bottom: 8px;">100% số tiền ủng hộ được chuyển trực tiếp đến chiến dịch.</li>
+                            <li style="margin-bottom: 8px;">Minh bạch hoá sao kê và quá trình sử dụng quỹ.</li>
+                            <li style="margin-bottom: 8px;">Lan toả yêu thương và đẩy lùi nạn đói.</li>
                         </ul>
                     </div>
-                    <p style="color: #4a5568;">
-                        From the bottom of our hearts, thank you!<br>
-                        The FoodFund Team
-                    </p>
                 </div>
-            `,
+
+                <div style="background-color: #edf2f7; padding: 20px; text-align: center; font-size: 14px; color: #718096;">
+                    <p style="margin: 0;">Trân trọng,<br><strong>Đội ngũ FoodFund</strong></p>
+                </div>
+            </div>
+        </div>
+    `,
         })
     }
 }

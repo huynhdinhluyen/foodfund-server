@@ -5,7 +5,7 @@ import { envConfig } from "@libs/env"
 import { DonorRepository } from "../../repositories/donor.repository"
 import { UserClientService } from "@app/campaign/src/shared"
 import { CampaignStatus } from "@app/campaign/src/domain/enums/campaign/campaign.enum"
-import { BrevoEmailService } from "@libs/email"
+import { DonationEmailService } from "./donation-email.service"
 
 interface PayOSWebhookData {
     orderCode: number
@@ -36,7 +36,7 @@ export class DonationWebhookService {
         private readonly donorRepository: DonorRepository,
         private readonly userClientService: UserClientService,
         private readonly eventEmitter: EventEmitter2,
-        private readonly emailService: BrevoEmailService,
+        private readonly donationEmailService: DonationEmailService,
     ) {}
 
     private getPayOS(): PayOS {
@@ -116,14 +116,6 @@ export class DonationWebhookService {
         }
     }
 
-    /**
-     * Process successful PayOS payment
-     * PayOS webhook is ONLY called when user transfers ENOUGH or MORE (>= amount)
-     * PARTIAL payments (< amount) are handled by Sepay webhook
-     *
-     * 1. Update payment_transaction (SUCCESS, gateway=PAYOS, processed_by_webhook=true)
-     * 2. Credit Admin Wallet with ACTUAL amount paid
-     */
     private async processSuccessfulPayment(
         paymentTransaction: any,
         webhookData: PayOSWebhookData,
@@ -209,14 +201,12 @@ export class DonationWebhookService {
             const adminUserId = this.getSystemAdminId()
 
             // Step 4: Credit Admin Wallet with ACTUAL amount received
-            // NOTE: gateway and metadata are stored in Payment_Transaction, NOT Wallet_Transaction
-            // Wallet_Transaction links to Payment_Transaction via payment_transaction_id
             await this.userClientService.creditAdminWallet({
                 adminId: adminUserId,
                 campaignId: campaignId,
                 paymentTransactionId: paymentTransaction.id,
                 amount: actualAmountReceived,
-                gateway: "PAYOS", // For logging/description only, NOT stored in Wallet_Transaction
+                gateway: "PAYOS", 
                 description: `Donation from ${donation.donor_name || "Anonymous"} - Order ${orderCode}`,
             })
 
@@ -225,10 +215,11 @@ export class DonationWebhookService {
             )
 
             // Step 5: Send donation confirmation email (if donor is not anonymous)
-            await this.sendDonationConfirmationEmail(
+            await this.donationEmailService.sendDonationConfirmation(
                 donation,
                 actualAmountReceived,
                 result.campaign,
+                "PayOS",
             )
         } catch (error) {
             this.logger.error(
@@ -280,62 +271,4 @@ export class DonationWebhookService {
         return adminId
     }
 
-    /**
-     * Send donation confirmation email to donor
-     */
-    private async sendDonationConfirmationEmail(
-        donation: any,
-        amount: bigint,
-        campaign: any,
-    ): Promise<void> {
-        try {
-            if (donation.is_anonymous || !donation.donor_id) {
-                this.logger.log(
-                    "[PayOS] Skipping email - Anonymous donation or no donor_id",
-                )
-                return
-            }
-
-            const donor = await this.userClientService.getUserByCognitoId(
-                donation.donor_id,
-            )
-            if (!donor || !donor.email) {
-                this.logger.warn(
-                    `[PayOS] Cannot send email - Donor ${donation.donor_id} not found or no email`,
-                )
-                return
-            }
-
-            let fundraiserName = "FoodFund Team"
-            if (campaign.created_by) {
-                const fundraiser = await this.userClientService.getUserByCognitoId(
-                    campaign.created_by,
-                )
-                if (fundraiser) {
-                    fundraiserName = fundraiser.fullName || "FoodFund Team"
-                }
-            }
-
-            const formattedAmount = new Intl.NumberFormat("vi-VN").format(
-                Number(amount),
-            )
-
-            await this.emailService.sendDonationConfirmation(
-                donor.email,
-                donor.fullName || donor.username || "Donor",
-                formattedAmount,
-                campaign.title,
-                fundraiserName,
-            )
-
-            this.logger.log(
-                `[PayOS] ✅ Donation confirmation email sent to ${donor.email}`,
-            )
-        } catch (error) {
-            this.logger.error(
-                "[PayOS] Failed to send donation confirmation email:",
-                error.stack,
-            )
-        }
-    }
 }
