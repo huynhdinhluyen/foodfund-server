@@ -32,7 +32,9 @@ service UserService {
   rpc CreditFundraiserWallet(CreditFundraiserWalletRequest) returns (CreditFundraiserWalletResponse);
   rpc GetUserBasicInfo(GetUserBasicInfoRequest) returns (GetUserBasicInfoResponse);
   rpc GetUserOrganization(GetUserOrganizationRequest) returns (GetUserOrganizationResponse);
-  
+  rpc GetUsersByIds(GetUsersByIdsRequest) returns (GetUsersByIdsResponse);
+  rpc GetUserDisplayName(GetUserDisplayNameRequest) returns (GetUserDisplayNameResponse);
+
   // Process bank transfer out (for withdrawal/payout)
   rpc ProcessBankTransferOut(ProcessBankTransferOutRequest) returns (ProcessBankTransferOutResponse);
 }
@@ -221,5 +223,32 @@ message ProcessBankTransferOutRequest {
 message ProcessBankTransferOutResponse {
   bool success = 1;
   string wallet_transaction_id = 2;
+  string error = 3;
+}
+
+message GetUsersByIdsRequest {
+  repeated string user_ids = 1;
+}
+
+message GetUsersByIdsResponse {
+  bool success = 1;
+  repeated UserInfo users = 2;
+  string error = 3;
+}
+
+message UserInfo {
+  string id = 1;
+  string full_name = 2;
+  string username = 3;
+  string avatar_url = 4;
+}
+
+message GetUserDisplayNameRequest {
+  string user_id = 1;
+}
+
+message GetUserDisplayNameResponse {
+  bool success = 1;
+  string display_name = 2;
   string error = 3;
 }

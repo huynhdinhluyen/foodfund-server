@@ -6,6 +6,7 @@ import { DonorRepository } from "../../repositories/donor.repository"
 import { UserClientService } from "@app/campaign/src/shared"
 import { CampaignStatus } from "@app/campaign/src/domain/enums/campaign/campaign.enum"
 import { DonationEmailService } from "./donation-email.service"
+import { CampaignFollowerService } from "../campaign/campaign-follower.service"
 
 interface PayOSWebhookData {
     orderCode: number
@@ -37,6 +38,7 @@ export class DonationWebhookService {
         private readonly userClientService: UserClientService,
         private readonly eventEmitter: EventEmitter2,
         private readonly donationEmailService: DonationEmailService,
+        private readonly campaignFollowerService: CampaignFollowerService,
     ) {}
 
     private getPayOS(): PayOS {
@@ -206,7 +208,7 @@ export class DonationWebhookService {
                 campaignId: campaignId,
                 paymentTransactionId: paymentTransaction.id,
                 amount: actualAmountReceived,
-                gateway: "PAYOS", 
+                gateway: "PAYOS",
                 description: `Donation from ${donation.donor_name || "Anonymous"} - Order ${orderCode}`,
             })
 
@@ -220,6 +222,9 @@ export class DonationWebhookService {
                 actualAmountReceived,
                 result.campaign,
                 "PayOS",
+            )
+            await this.campaignFollowerService.invalidateFollowersCache(
+                donation.campaign_id,
             )
         } catch (error) {
             this.logger.error(
@@ -270,5 +275,4 @@ export class DonationWebhookService {
         const adminId = envConfig().systemAdminId || "admin-system-001"
         return adminId
     }
-
 }

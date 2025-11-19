@@ -531,7 +531,7 @@ export class DonorRepository {
                 },
             })
 
-        return paymentTransaction?.donation || null
+        return paymentTransaction?.donation ?? null
     }
 
     /**
@@ -638,5 +638,24 @@ export class DonorRepository {
                 },
             },
         })
+    }
+
+    async getCampaignFollowers(campaignId: string): Promise<string[]> {
+        const donors = await this.prisma.donation.findMany({
+            where: {
+                campaign_id: campaignId,
+                donor_id: {
+                    not: undefined,
+                },
+            },
+            select: {
+                donor_id: true,
+            },
+            distinct: ["donor_id"],
+        })
+
+        return donors
+            .map((d) => d.donor_id)
+            .filter((id): id is string => id !== null)
     }
 }
