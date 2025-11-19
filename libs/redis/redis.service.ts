@@ -14,12 +14,14 @@ import type {
     RedisHealthStatus,
     RedisSetOptions,
     RedisGetOptions,
+    RedisValue,
 } from "./redis.types"
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(RedisService.name)
     private client: Redis | null = null
+    private subscriber: Redis | null = null
     private isConnected = false
     private connectionStartTime = 0
 
@@ -30,37 +32,61 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
     async onModuleInit(): Promise<void> {
         await this.connect()
+        this.subscriber = this.client
     }
 
     async onModuleDestroy(): Promise<void> {
         await this.disconnect()
+        this.subscriber = null
     }
 
     /**
      * Connect to Redis server
      */
     private async connect(): Promise<void> {
+        if (this.client) {
+            return
+        }
         try {
             const redisOptions = this.buildRedisOptions()
             this.connectionStartTime = Date.now()
 
             this.client = new Redis(redisOptions)
 
-            // Set up event listeners
-            this.client.on("connect", () => {
-                this.logger.log(
-                    `Connected to Redis at ${redisOptions.host}:${redisOptions.port}`,
-                )
-                this.isConnected = true
+            this.client.on("error", (error) => {
+                if (error.message.includes("max number of clients reached")) {
+                    this.logger.error(
+                        "❌ Redis max clients reached! Consider upgrading Redis Cloud plan or reducing connections",
+                    )
+                } else {
+                    this.logger.error("Redis connection error", error)
+                }
+                this.isConnected = false
+            })
+
+            await new Promise<void>((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error("Redis connection timeout"))
+                }, 10000)
+
+                this.client!.on("connect", () => {
+                    clearTimeout(timeout)
+                    this.logger.log(
+                        `Connected to Redis at ${redisOptions.host}:${redisOptions.port}`,
+                    )
+                    this.isConnected = true
+                    resolve()
+                })
+
+                this.client!.once("error", (error) => {
+                    clearTimeout(timeout)
+                    this.isConnected = false
+                    reject(error)
+                })
             })
 
             this.client.on("ready", () => {
                 this.logger.log("Redis client is ready")
-            })
-
-            this.client.on("error", (error) => {
-                this.logger.error("Redis connection error", error)
-                this.isConnected = false
             })
 
             this.client.on("close", () => {
@@ -72,7 +98,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
                 this.logger.log(`Redis reconnecting in ${time}ms`)
             })
 
-            // Test connection
             await this.client.ping()
             this.logger.log("Redis connection established successfully")
         } catch (error) {
@@ -94,14 +119,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
                 this.logger.error("Error closing Redis connection", error)
             }
             this.client = null
+            this.subscriber = null
             this.isConnected = false
         }
     }
 
-    /**
-     * Build Redis connection options from resolved module options
-     * No need to re-resolve config - already done in module
-     */
     private buildRedisOptions(): RedisOptions {
         const redisOptions: RedisOptions = {
             host: this.options.host || LOCALHOST,
@@ -115,6 +137,18 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
             lazyConnect: this.options.lazyConnect ?? false,
             family: this.options.family || 4,
             keepAlive: this.options.keepAlive || 30000,
+            enableOfflineQueue: true,
+            retryStrategy: (times) => {
+                if (times > 3) {
+                    this.logger.error("Redis connection retry limit exceeded")
+                    return null
+                }
+                const delay = Math.min(times * 200, 2000)
+                this.logger.warn(
+                    `Redis reconnecting in ${delay}ms (attempt ${times})`,
+                )
+                return delay
+            },
         }
 
         if (this.options.password) {
@@ -125,7 +159,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
             redisOptions.username = this.options.username
         }
 
-        // Add TLS support if configured
         if (this.options.tls) {
             redisOptions.tls = this.options.tls
         }
@@ -193,14 +226,8 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
                 }
             }
 
-            // Get memory info if available
-            let memoryUsage: number | undefined
-            try {
-                const info = await this.client!.memory("USAGE", "temp-key")
-                memoryUsage = typeof info === "number" ? info : undefined
-            } catch {
-                // Memory usage info not available
-            }
+            const info = await this.client!.memory("USAGE", "temp-key")
+            const memoryUsage = typeof info === "number" ? info : undefined
 
             return {
                 status: "healthy",
@@ -258,6 +285,23 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         }
     }
 
+    async setex(
+        key: string,
+        seconds: number,
+        value: string | number,
+    ): Promise<"OK" | null> {
+        if (!this.isAvailable()) {
+            return null
+        }
+
+        try {
+            return await this.client!.setex(key, seconds, value.toString())
+        } catch (error) {
+            this.logger.error(`Redis SETEX error for key ${key}`, error)
+            throw error
+        }
+    }
+
     /**
      * Get a value by key
      */
@@ -305,6 +349,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         return await this.client!.incr(key)
     }
 
+    async incrby(key: string, increment: number): Promise<number> {
+        if (!this.isAvailable()) {
+            return 0
+        }
+
+        return await this.client!.incrby(key, increment)
+    }
+
     async decr(key: string): Promise<number> {
         if (!this.isAvailable()) {
             return 0
@@ -313,20 +365,27 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         return await this.client!.decr(key)
     }
 
+    async decrby(key: string, decrement: number): Promise<number> {
+        if (!this.isAvailable()) {
+            return 0
+        }
+
+        return await this.client!.decrby(key, decrement)
+    }
+
     /**
      * Check if key exists
      */
-    async exists(key: string): Promise<boolean> {
+    async exists(key: string): Promise<number> {
         if (!this.isAvailable()) {
-            return false
+            return 0
         }
 
         try {
-            const result = await this.client!.exists(key)
-            return result === 1
+            return await this.client!.exists(key)
         } catch (error) {
             this.logger.error(`Redis EXISTS error for key ${key}`, error)
-            return false
+            return 0
         }
     }
 
@@ -441,10 +500,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     /**
      * Push to left of list
      */
-    async lpush(
-        key: string,
-        ...values: (string | number | Buffer)[]
-    ): Promise<number> {
+    async lpush(key: string, ...values: RedisValue[]): Promise<number> {
         if (!this.isAvailable()) {
             return 0
         }
@@ -460,10 +516,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     /**
      * Push to right of list
      */
-    async rpush(
-        key: string,
-        ...values: (string | number | Buffer)[]
-    ): Promise<number> {
+    async rpush(key: string, ...values: RedisValue[]): Promise<number> {
         if (!this.isAvailable()) {
             return 0
         }
@@ -545,10 +598,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     /**
      * Add members to set
      */
-    async sadd(
-        key: string,
-        ...members: (string | number | Buffer)[]
-    ): Promise<number> {
+    async sadd(key: string, ...members: RedisValue[]): Promise<number> {
         if (!this.isAvailable()) {
             return 0
         }
@@ -564,10 +614,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     /**
      * Remove members from set
      */
-    async srem(
-        key: string,
-        ...members: (string | number | Buffer)[]
-    ): Promise<number> {
+    async srem(key: string, ...members: RedisValue[]): Promise<number> {
         if (!this.isAvailable()) {
             return 0
         }
@@ -599,10 +646,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     /**
      * Check if member exists in set
      */
-    async sismember(
-        key: string,
-        member: string | number | Buffer,
-    ): Promise<boolean> {
+    async sismember(key: string, member: RedisValue): Promise<boolean> {
         if (!this.isAvailable()) {
             return false
         }
@@ -613,6 +657,75 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         } catch (error) {
             this.logger.error(`Redis SISMEMBER error for key ${key}`, error)
             return false
+        }
+    }
+
+    // === PUB/SUB OPERATIONS ===
+
+    /**
+     * Publish a message to a channel
+     */
+    async publish(channel: string, message: string): Promise<number> {
+        if (!this.isAvailable()) {
+            this.logger.warn("Redis not available, skipping PUBLISH operation")
+            return 0
+        }
+
+        try {
+            return await this.client!.publish(channel, message)
+        } catch (error) {
+            this.logger.error(
+                `Redis PUBLISH error for channel ${channel}`,
+                error,
+            )
+            throw error
+        }
+    }
+
+    /**
+     * Subscribe to a channel
+     */
+    async subscribe(
+        channel: string,
+        callback: (message: string) => void,
+    ): Promise<void> {
+        if (!this.subscriber) {
+            throw new Error("Redis subscriber not available")
+        }
+
+        try {
+            await this.subscriber.subscribe(channel)
+
+            this.subscriber.on("message", (ch, message) => {
+                if (ch === channel) {
+                    callback(message)
+                }
+            })
+        } catch (error) {
+            this.logger.error(
+                `Redis SUBSCRIBE error for channel ${channel}`,
+                error,
+            )
+            throw error
+        }
+    }
+
+    /**
+     * Unsubscribe from a channel
+     */
+    async unsubscribe(channel: string): Promise<void> {
+        if (!this.subscriber) {
+            throw new Error("Redis subscriber not available")
+        }
+
+        try {
+            await this.subscriber.unsubscribe(channel)
+        } catch (error) {
+            this.logger.error(
+                `Redis UNSUBSCRIBE error for channel ${channel}`,
+                error,
+            )
+            throw error
         }
     }
 

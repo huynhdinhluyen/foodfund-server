@@ -1,40 +1,60 @@
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common"
-import { InjectQueue } from "@nestjs/bull"
+import { Injectable, Logger, OnModuleInit, Inject } from "@nestjs/common"
 import { Queue } from "bull"
 import { Cron, CronExpression } from "@nestjs/schedule"
 import { StatsD } from "hot-shots"
-import { QUEUE_NAMES } from "./constants"
 import { envConfig } from "@libs/env"
+
+export interface QueueConfig {
+    name: string
+    queue: Queue
+}
+
+export interface BullDatadogOptions {
+    serviceName: string
+    queues: QueueConfig[]
+}
 
 @Injectable()
 export class BullDatadogService implements OnModuleInit {
     private readonly logger = new Logger(BullDatadogService.name)
     private statsd: InstanceType<typeof StatsD>
+    private readonly queues: QueueConfig[]
 
     constructor(
-        @InjectQueue(QUEUE_NAMES.POST_LIKES) private postLikeQueue: Queue,
-        @InjectQueue(QUEUE_NAMES.DONATIONS) private donationQueue: Queue,
-    ) {}
+        @Inject("BULL_DATADOG_OPTIONS")
+        private readonly options: BullDatadogOptions,
+    ) {
+        this.queues = options.queues
+    }
 
     onModuleInit() {
         const env = envConfig()
         this.statsd = new StatsD({
             host: env.datadog.agentHost || "localhost",
             port: env.datadog.agentPort || 8125,
-            prefix: "campaign.",
+            prefix: `${this.options.serviceName}.`,
             globalTags: {
                 env: env.datadog.env || "production",
-                service: "campaign-service",
+                service: this.options.serviceName,
             },
         })
 
-        this.logger.log("Bull Datadog monitoring initialized")
+        this.logger.log(
+            `Bull Datadog monitoring initialized for ${this.options.serviceName}`,
+        )
+        this.logger.log(
+            `Monitoring ${this.queues.length} queues: ${this.queues.map((q) => q.name).join(", ")}`,
+        )
     }
 
     @Cron(CronExpression.EVERY_10_SECONDS)
     async collectMetrics() {
-        await this.collectQueueMetrics("post-likes", this.postLikeQueue)
-        await this.collectQueueMetrics("donations", this.donationQueue)
+        for (const queueConfig of this.queues) {
+            await this.collectQueueMetrics(
+                queueConfig.name,
+                queueConfig.queue,
+            )
+        }
     }
 
     private async collectQueueMetrics(queueName: string, queue: Queue) {
@@ -61,7 +81,6 @@ export class BullDatadogService implements OnModuleInit {
             )
             this.statsd.gauge(`queue.${queueName}.health_score`, healthScore)
 
-            // Only log if there are issues
             if (waiting > 100 || failed > 10 || healthScore < 70) {
                 this.logger.warn(`Queue ${queueName} needs attention`, {
                     waiting,

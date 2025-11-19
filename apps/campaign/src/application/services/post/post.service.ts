@@ -9,6 +9,11 @@ import { CreatePostInput, UpdatePostInput } from "../../dtos/post/request"
 import { PostLikeDataLoader } from "../../dataloaders"
 import { PostSortOrder } from "@app/campaign/src/domain/enums/post/post.enum"
 import { PostCacheService } from "./post-cache.service"
+import { EventEmitter2 } from "@nestjs/event-emitter"
+import { CampaignNewPostEvent } from "@app/campaign/src/domain/events"
+import { CampaignRepository } from "../../repositories/campaign.repository"
+import { CampaignFollowerService } from "../campaign/campaign-follower.service"
+import { stripHtmlTags } from "@app/campaign/src/shared/utils"
 
 @Injectable()
 export class PostService {
@@ -16,8 +21,11 @@ export class PostService {
 
     constructor(
         private readonly postRepository: PostRepository,
+        private readonly campaignRepository: CampaignRepository,
         private readonly spacesUploadService: SpacesUploadService,
         private readonly postCacheService: PostCacheService,
+        private readonly campaignFollowerService: CampaignFollowerService,
+        private readonly eventEmitter: EventEmitter2,
     ) {}
 
     async createPost(data: CreatePostInput, userId: string) {
@@ -44,7 +52,10 @@ export class PostService {
             media: mediaUrls ? JSON.stringify(mediaUrls) : undefined,
         }
 
-        const post = await this.postRepository.createPost(repositoryInput, userId)
+        const post = await this.postRepository.createPost(
+            repositoryInput,
+            userId,
+        )
 
         await Promise.all([
             this.postCacheService.setPost(post.id, post),
@@ -52,6 +63,8 @@ export class PostService {
             this.postCacheService.deleteUserPosts(userId),
             this.postCacheService.deleteAllPostLists(),
         ])
+
+        await this.emitNewPostNotification(post.id, data, userId)
 
         return post
     }
@@ -229,11 +242,7 @@ export class PostService {
 
         await this.postRepository.deactivatePost(id, userId)
 
-        await this.postCacheService.invalidatePost(
-            id,
-            post.campaignId,
-            userId,
-        )
+        await this.postCacheService.invalidatePost(id, post.campaignId, userId)
 
         return { success: true, message: "Delete successfully" }
     }
@@ -241,13 +250,51 @@ export class PostService {
     async deactivatePost(id: string, userId: string) {
         const post = await this.postRepository.deactivatePost(id, userId)
 
-        await this.postCacheService.invalidatePost(
-            id,
-            post.campaignId,
-            userId,
-        )
+        await this.postCacheService.invalidatePost(id, post.campaignId, userId)
 
         return post
+    }
+
+    private async emitNewPostNotification(
+        postId: string,
+        postData: CreatePostInput,
+        authorId: string,
+    ): Promise<void> {
+        const campaign = await this.campaignRepository.findById(
+            postData.campaignId,
+        )
+
+        if (!campaign) {
+            return
+        }
+
+        const campaignFollowerIds =
+            await this.campaignFollowerService.getCampaignFollowers(
+                postData.campaignId,
+            )
+
+        if (campaignFollowerIds.length === 0) {
+            return
+        }
+
+        const postPreview = this.createPostPreview(postData.content)
+
+        this.eventEmitter.emit("campaign.post.created", {
+            postId,
+            campaignId: postData.campaignId,
+            campaignTitle: campaign.title,
+            authorId,
+            postTitle: postData.title,
+            postPreview,
+            followerIds: campaignFollowerIds,
+        } satisfies CampaignNewPostEvent)
+    }
+
+    private createPostPreview(content: string): string {
+        const plainText = stripHtmlTags(content)
+        return plainText.length > 100
+            ? `${plainText.slice(0, 100)}...`
+            : plainText
     }
 
     private convertFileKeysToCdnUrls(

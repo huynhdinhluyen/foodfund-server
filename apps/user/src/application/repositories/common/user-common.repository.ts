@@ -76,4 +76,34 @@ export class UserCommonRepository {
             },
         })
     }
+
+    async findUsersByIds(userIds: string[]): Promise<any[]> {
+        return this.prisma.user.findMany({
+            where: {
+                id: {
+                    in: userIds,
+                },
+                is_active: true,
+            },
+            select: {
+                id: true,
+                full_name: true,
+                user_name: true,
+                avatar_url: true,
+            },
+        })
+    }
+
+    async findUserFullName(cognitoId: string): Promise<{
+        id: string
+        full_name: string
+    } | null> {
+        return this.prisma.user.findUnique({
+            where: { cognito_id: cognitoId, is_active: true },
+            select: {
+                id: true,
+                full_name: true,
+            },
+        })
+    }
 }
