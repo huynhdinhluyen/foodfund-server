@@ -6,6 +6,7 @@ import { UserClientService } from "@app/campaign/src/shared"
 import { DonorRepository } from "../../repositories/donor.repository"
 import { CampaignStatus } from "@app/campaign/src/domain/enums/campaign/campaign.enum"
 import { DonationEmailService } from "./donation-email.service"
+import { BadgeAwardService } from "./badge-award.service"
 
 interface SepayWebhookPayload {
     id: number // Sepay transaction ID
@@ -32,6 +33,7 @@ export class SepayWebhookService {
         private readonly donorRepository: DonorRepository,
         private readonly eventEmitter: EventEmitter2,
         private readonly donationEmailService: DonationEmailService,
+        private readonly badgeAwardService: BadgeAwardService,
     ) {}
 
     async handleSepayWebhook(payload: SepayWebhookPayload): Promise<void> {
@@ -237,12 +239,44 @@ export class SepayWebhookService {
                 donation.campaign,
                 "Sepay",
             )
+
+            // Step 5: Award badge (non-blocking, fire-and-forget)
+            if (donation.donor_id) {
+                this.awardBadgeAsync(donation.donor_id)
+            }
         } catch (error) {
             this.logger.error(
                 `[Sepay→Admin] ❌ Failed to process partial payment - orderCode=${orderCode}`,
                 error.stack,
             )
             throw error
+        }
+    }
+
+    /**
+     * Award badge asynchronously (non-blocking)
+     * Get donor stats and award appropriate badge
+     */
+    private async awardBadgeAsync(donorId: string): Promise<void> {
+        try {
+            // Get donor donation stats
+            const stats = await this.donorRepository.getDonationStats(donorId)
+
+            // Check if this is first donation
+            const isFirstDonation = stats.donationCount === 1
+
+            // Award badge based on total amount
+            await this.badgeAwardService.checkAndAwardBadge(
+                donorId,
+                stats.totalDonated,
+                isFirstDonation,
+            )
+        } catch (error) {
+            // Non-blocking: Just log error, don't throw
+            this.logger.error(
+                `[Badge] Failed to award badge to donor ${donorId}:`,
+                error.message,
+            )
         }
     }
 

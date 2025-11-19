@@ -5,8 +5,11 @@ import {
     UserAdminRepository,
     WalletRepository,
     OrganizationRepository,
+    BadgeRepository,
+    UserBadgeRepository,
 } from "../../application/repositories"
 import { WalletTransactionService } from "../../application/services/common/wallet-transaction.service"
+import { UserBadgeService } from "../../application/services/badge"
 import { Role } from "@libs/databases"
 import { generateUniqueUsername } from "libs/common"
 import { Transaction_Type, Wallet_Type } from "../../domain/enums/wallet.enum"
@@ -122,6 +125,47 @@ interface ProcessBankTransferOutResponse {
     error?: string
 }
 
+interface AwardBadgeRequest {
+    userId: string
+    badgeId: string
+}
+
+interface AwardBadgeResponse {
+    success: boolean
+    userBadgeId?: string
+    badge?: {
+        id: string
+        name: string
+        description: string
+        iconUrl: string
+        sortOrder: number
+        isActive: boolean
+        createdAt: string
+        updatedAt: string
+    }
+    error?: string
+}
+
+interface GetUserBadgeRequest {
+    userId: string
+}
+
+interface GetUserBadgeResponse {
+    success: boolean
+    badge?: {
+        id: string
+        name: string
+        description: string
+        iconUrl: string
+        sortOrder: number
+        isActive: boolean
+        createdAt: string
+        updatedAt: string
+    }
+    awardedAt?: string
+    error?: string
+}
+
 const ROLE_MAP = {
     DONOR: 0,
     FUNDRAISER: 1,
@@ -168,6 +212,8 @@ export class UserGrpcController {
         private readonly walletRepository: WalletRepository,
         private readonly organizationRepository: OrganizationRepository,
         private readonly walletTransactionService: WalletTransactionService,
+        private readonly userBadgeService: UserBadgeService,
+        private readonly userBadgeRepository: UserBadgeRepository,
     ) {}
 
     /**
@@ -753,6 +799,114 @@ export class UserGrpcController {
 
             return { id: sepayId.toString() }
         })
+    }
+
+    @GrpcMethod("UserService", "AwardBadgeToDonor")
+    async awardBadgeToDonor(
+        data: AwardBadgeRequest,
+    ): Promise<AwardBadgeResponse> {
+        const { userId, badgeId } = data
+
+        this.logger.log(
+            `[AwardBadgeToDonor] Awarding badge ${badgeId} to user ${userId}`,
+        )
+
+        if (!userId || !badgeId) {
+            return {
+                success: false,
+                error: "userId and badgeId are required",
+            }
+        }
+
+        try {
+            const userBadge = await this.userBadgeService.awardBadge(
+                userId,
+                badgeId,
+            )
+
+            this.logger.log(
+                `[AwardBadgeToDonor] ✅ Successfully awarded badge ${badgeId} to user ${userId}`,
+            )
+
+            return {
+                success: true,
+                userBadgeId: userBadge.id,
+                badge: {
+                    id: userBadge.badge.id,
+                    name: userBadge.badge.name,
+                    description: userBadge.badge.description,
+                    iconUrl: userBadge.badge.icon_url,
+                    sortOrder: userBadge.badge.sort_order,
+                    isActive: userBadge.badge.is_active,
+                    createdAt: userBadge.badge.created_at.toISOString(),
+                    updatedAt: userBadge.badge.updated_at.toISOString(),
+                },
+            }
+        } catch (error) {
+            this.logger.error(
+                "[AwardBadgeToDonor] ❌ Failed to award badge:",
+                error.stack || error,
+            )
+            return {
+                success: false,
+                error: error.message || "Failed to award badge",
+            }
+        }
+    }
+
+    @GrpcMethod("UserService", "GetUserBadge")
+    async getUserBadge(data: GetUserBadgeRequest): Promise<GetUserBadgeResponse> {
+        const { userId } = data
+
+        this.logger.log(`[GetUserBadge] Fetching badge for user ${userId}`)
+
+        if (!userId) {
+            return {
+                success: false,
+                error: "userId is required",
+            }
+        }
+
+        try {
+            const userBadge = await this.userBadgeRepository.findUserBadge(userId)
+
+            if (!userBadge) {
+                this.logger.log(`[GetUserBadge] User ${userId} has no badge`)
+                return {
+                    success: true,
+                    badge: undefined,
+                    awardedAt: undefined,
+                }
+            }
+
+            this.logger.log(
+                `[GetUserBadge] ✅ Found badge ${userBadge.badge.name} for user ${userId}`,
+            )
+
+            return {
+                success: true,
+                badge: {
+                    id: userBadge.badge.id,
+                    name: userBadge.badge.name,
+                    description: userBadge.badge.description,
+                    iconUrl: userBadge.badge.icon_url,
+                    sortOrder: userBadge.badge.sort_order,
+                    isActive: userBadge.badge.is_active,
+                    createdAt: userBadge.badge.created_at.toISOString(),
+                    updatedAt: userBadge.badge.updated_at.toISOString(),
+                },
+                awardedAt: userBadge.awarded_at.toISOString(),
+            }
+        } catch (error) {
+            this.logger.error(
+                "[GetUserBadge] ❌ Failed to fetch badge:",
+                error.stack || error,
+            )
+            return {
+                success: false,
+                error: error.message || "Failed to fetch badge",
+            }
+        }
     }
 }
 

@@ -1,4 +1,6 @@
 export * from "./admin/user-admin.repository"
+export * from "./badge/badge.repository"
+export * from "./badge/user-badge.repository"
 export * from "./common/user-common.repository"
 export * from "./delivery-staff/delivery-staff.repository"
 export * from "./donor/donor.repository"

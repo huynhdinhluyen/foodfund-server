@@ -45,6 +45,7 @@ import { DonorService } from "./application/services/donation/donor.service"
 import { DonationWebhookService } from "./application/services/donation/donation-webhook.service"
 import { SepayWebhookService } from "./application/services/donation/sepay-webhook.service"
 import { DonationEmailService } from "./application/services/donation/donation-email.service"
+import { BadgeAwardService } from "./application/services/donation/badge-award.service"
 import { PayosCleanupService } from "./application/services/donation/payos-cleanup.service"
 import { DonationAdminService } from "./application/services/donation/admin"
 import { DonorRepository } from "./application/repositories/donor.repository"
@@ -136,6 +137,7 @@ import { BrevoEmailService } from "@libs/email"
         DonationWebhookService,
         SepayWebhookService,
         DonationEmailService,
+        BadgeAwardService,
         PayosCleanupService,
         DonationAdminService,
         PostService,
