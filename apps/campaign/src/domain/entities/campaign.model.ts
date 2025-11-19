@@ -62,6 +62,12 @@ export class Campaign extends BaseSchema {
     })
         changedStatusAt?: Date
 
+    @Field(() => String, {
+        nullable: true,
+        description: "Reason for rejection or cancellation",
+    })
+        reason?: string
+
     @Field(() => Date, {
         nullable: true,
     })

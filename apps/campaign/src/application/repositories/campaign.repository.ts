@@ -746,6 +746,7 @@ export class CampaignRepository {
             createdBy: dbCampaign.created_by,
             categoryId: dbCampaign.category_id || undefined,
             changedStatusAt: dbCampaign.changed_status_at || undefined,
+            reason: dbCampaign.reason || undefined,
             completedAt: dbCampaign.completed_at || undefined,
             extensionCount: dbCampaign.extension_count ?? 0,
             extensionDays: dbCampaign.extension_days ?? 0,
