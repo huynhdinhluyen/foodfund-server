@@ -77,11 +77,11 @@ ingress:
 resources: 
   # Ultra-optimized for small cluster (2 nodes x 2GB RAM) - with Prisma
   limits:
-    cpu: 200m      # Max 20% of 1 vCPU
-    memory: 256Mi  # Max 256MB
+    cpu: 500m      # Max 50% of 1 vCPU
+    memory: 512Mi  # Max 512MB
   requests:
-    cpu: 30m       # Min 3% of 1 vCPU  
-    memory: 128Mi  # Min 128MB
+    cpu: 100m       # Min 10% of 1 vCPU  
+    memory: 256Mi  # Min 256MB
 
 # This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 startupProbe:
@@ -117,11 +117,11 @@ readinessProbe:
 
 # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
 autoscaling:
-  enabled: false  # Disabled for resource-constrained cluster
+  enabled: true  # Disabled for resource-constrained cluster
   minReplicas: 1
-  maxReplicas: 1  # Keep at 1 replica due to memory constraints
+  maxReplicas: 2  # Keep at 1 replica due to memory constraints
   targetCPUUtilizationPercentage: 80
-  targetMemoryUtilizationPercentage: 85
+  targetMemoryUtilizationPercentage: 70
 
 # Additional volumes on the output Deployment definition.
 volumes: []
@@ -147,6 +147,8 @@ affinity: {}
 env:
   - name: SERVICE_NAME
     value: "campaign-service"
+  - name: NODE_OPTIONS
+    value: "--max-old-space-size=320"
   # Add any service-specific env vars that are not in ConfigMap/Secret here
   # Example:
   # - name: SERVICE_SPECIFIC_CONFIG
