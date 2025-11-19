@@ -12,14 +12,12 @@ export interface RedisModuleOptions {
     lazyConnect?: boolean
     family?: 4 | 6
     keepAlive?: number
-    // TLS options
     tls?: {
         cert?: string
         key?: string
         ca?: string
         rejectUnauthorized?: boolean
     }
-    // Cluster options
     cluster?: {
         enableOfflineQueue?: boolean
         redisOptions?: Partial<RedisModuleOptions>
@@ -66,3 +64,7 @@ export interface RedisHealthStatus {
         lastCheck: Date
     }
 }
+
+export type RedisValue = string | number | Buffer
+export type RedisCommandArg = string | number | Buffer
+export type RedisPipelineCommand = [string, ...RedisCommandArg[]]
