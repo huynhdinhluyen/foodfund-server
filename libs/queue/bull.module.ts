@@ -11,10 +11,6 @@ import { QUEUE_NAMES } from "./constants"
         BullModule.forRootAsync({
             useFactory: () => {
                 const env = envConfig()
-
-                // Build Redis config for Bull
-                // Note: Bull doesn't allow enableReadyCheck or maxRetriesPerRequest
-                // for subscriber/bclient connections
                 const redisConfig: any = {
                     host: env.redis.host,
                     port: env.redis.port,
