@@ -46,6 +46,13 @@ import {
     CampaignStatusBreakdown,
     CampaignTimeRangeStats,
 } from "../../dtos/campaign/response/campaign-stats.response"
+import { EventEmitter2 } from "@nestjs/event-emitter"
+import {
+    CampaignApprovedEvent,
+    CampaignCancelledEvent,
+    CampaignCompletedEvent,
+    CampaignRejectedEvent,
+} from "@app/campaign/src/domain/events"
 
 interface CoverImageUpdateResult {
     updateData: {
@@ -74,6 +81,7 @@ export class CampaignService {
         private readonly userClientService: UserClientService,
         private readonly campaignEmailService: CampaignEmailService,
         private readonly donorRepository: DonorRepository,
+        private readonly eventEmitter: EventEmitter2,
     ) {}
 
     async generateCampaignImageUploadUrl(
@@ -381,6 +389,7 @@ export class CampaignService {
         id: string,
         newStatus: CampaignStatus,
         userContext: UserContext,
+        reason?: string,
     ) {
         try {
             this.authorizationService.requireAuthentication(
@@ -398,6 +407,10 @@ export class CampaignService {
             const updateData: any = {
                 status: newStatus,
                 changedStatusAt: new Date(),
+            }
+
+            if (reason) {
+                updateData.reason = reason
             }
 
             if (
@@ -432,8 +445,50 @@ export class CampaignService {
                 updateData.changedStatusAt = new Date()
                 
                 await this.autoTransferWalletToCampaign(campaign, updateData)
+                this.eventEmitter.emit("campaign.approved", {
+                    campaignId: campaign.id,
+                    campaignTitle: campaign.title,
+                    fundraiserId: campaign.createdBy,
+                    approvedBy: userContext.userId,
+                    approvedAt: new Date().toISOString(),
+                } satisfies CampaignApprovedEvent)
+            } else if (newStatus === CampaignStatus.REJECTED) {
+                if (!reason) {
+                    throw new BadRequestException(
+                        "Reason is required when rejecting a campaign",
+                    )
+                }
+                updateData.changedStatusAt = new Date()
+
+                this.eventEmitter.emit("campaign.rejected", {
+                    campaignId: campaign.id,
+                    campaignTitle: campaign.title,
+                    fundraiserId: campaign.createdBy,
+                    rejectedBy: userContext.userId,
+                    reason,
+                } satisfies CampaignRejectedEvent)
             } else if (newStatus === CampaignStatus.COMPLETED) {
                 updateData.completedAt = new Date()
+
+                this.eventEmitter.emit("campaign.completed", {
+                    campaignId: campaign.id,
+                    campaignTitle: campaign.title,
+                    fundraiserId: campaign.createdBy,
+                    totalRaised: campaign.receivedAmount.toString(),
+                    totalDonors: campaign.donationCount,
+                } satisfies CampaignCompletedEvent)
+            } else if (newStatus === CampaignStatus.CANCELLED) {
+                if (!reason) {
+                    throw new BadRequestException(
+                        "Reason is required when cancelling a campaign",
+                    )
+                }
+                this.eventEmitter.emit("campaign.cancelled", {
+                    campaignId: campaign.id,
+                    campaignTitle: campaign.title,
+                    fundraiserId: campaign.createdBy,
+                    reason,
+                } satisfies CampaignCancelledEvent)
             }
 
             const updatedCampaign = await this.campaignRepository.update(

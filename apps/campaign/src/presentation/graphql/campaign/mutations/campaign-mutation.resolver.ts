@@ -5,8 +5,17 @@ import { CognitoGraphQLGuard } from "@libs/aws-cognito"
 import { Campaign } from "@app/campaign/src/domain/entities/campaign.model"
 import { CampaignService } from "@app/campaign/src/application/services/campaign/campaign.service"
 import { SignedUrlResponse } from "@app/campaign/src/application/dtos/campaign/response"
-import { CreateCampaignInput, ExtendCampaignInput, GenerateUploadUrlInput, UpdateCampaignInput } from "@app/campaign/src/application/dtos/campaign/request"
-import { createUserContextFromToken, CurrentUser } from "@app/campaign/src/shared"
+import {
+    ChangeStatusInput,
+    CreateCampaignInput,
+    ExtendCampaignInput,
+    GenerateUploadUrlInput,
+    UpdateCampaignInput,
+} from "@app/campaign/src/application/dtos/campaign/request"
+import {
+    createUserContextFromToken,
+    CurrentUser,
+} from "@app/campaign/src/shared"
 import { CampaignStatus } from "@app/campaign/src/domain/enums/campaign/campaign.enum"
 
 @Resolver(() => Campaign)
@@ -75,12 +84,16 @@ export class CampaignMutationResolver {
     })
     @UseGuards(CognitoGraphQLGuard)
     async changeCampaignStatus(
-        @Args("id", { type: () => String }) id: string,
-        @Args("status", { type: () => CampaignStatus }) status: CampaignStatus,
+        @Args("input") input: ChangeStatusInput,
         @CurrentUser("decodedToken") decodedToken: any,
     ): Promise<Campaign> {
         const userContext = createUserContextFromToken(decodedToken)
-        return this.campaignService.changeStatus(id, status, userContext)
+        return this.campaignService.changeStatus(
+            input.campaignId,
+            input.newStatus,
+            userContext,
+            input.reason,
+        )
     }
 
     @Mutation(() => Campaign, {

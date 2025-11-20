@@ -7,6 +7,7 @@ import { UserClientService } from "@app/campaign/src/shared"
 import { CampaignStatus } from "@app/campaign/src/domain/enums/campaign/campaign.enum"
 import { DonationEmailService } from "./donation-email.service"
 import { BadgeAwardService } from "./badge-award.service"
+import { CampaignFollowerService } from "../campaign/campaign-follower.service"
 
 interface PayOSWebhookData {
     orderCode: number
@@ -39,6 +40,7 @@ export class DonationWebhookService {
         private readonly eventEmitter: EventEmitter2,
         private readonly donationEmailService: DonationEmailService,
         private readonly badgeAwardService: BadgeAwardService,
+        private readonly campaignFollowerService: CampaignFollowerService,
     ) {}
 
     private getPayOS(): PayOS {
@@ -227,8 +229,10 @@ export class DonationWebhookService {
             // Step 6: Update donor cached stats and award badge
             if (donation.donor_id) {
                 // Get user database ID from cognito_id
-                const donor = await this.userClientService.getUserByCognitoId(donation.donor_id)
-                
+                const donor = await this.userClientService.getUserByCognitoId(
+                    donation.donor_id,
+                )
+
                 if (donor) {
                     // Update cached stats (via gRPC)
                     await this.userClientService.updateDonorStats({
@@ -246,6 +250,9 @@ export class DonationWebhookService {
                     )
                 }
             }
+            await this.campaignFollowerService.invalidateFollowersCache(
+                donation.campaign_id,
+            )
         } catch (error) {
             this.logger.error(
                 `[PayOS] ❌ Failed to process successful payment for order ${orderCode}`,

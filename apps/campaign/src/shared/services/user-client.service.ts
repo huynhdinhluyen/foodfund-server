@@ -8,6 +8,13 @@ interface UserProfile {
     email?: string
 }
 
+export interface UserDisplayInfo {
+    id: string
+    fullName: string
+    username: string
+    avatarUrl: string
+}
+
 @Injectable()
 export class UserClientService {
     private readonly logger = new Logger(UserClientService.name)
@@ -360,7 +367,7 @@ export class UserClientService {
             const response = await this.grpcClient.callUserService<
                 {
                     sepayId: number
-                    amount: string 
+                    amount: string
                     gateway: string
                     referenceCode: string
                     content: string
@@ -548,5 +555,38 @@ export class UserClientService {
             )
             throw error // This is critical - must throw
         }
+    }
+    async getUserDisplayName(userId: string): Promise<string> {
+        const response = await this.grpcClient.callUserService<
+            { userId: string },
+            { success: boolean; displayName: string; error?: string }
+        >("getUserDisplayName", { userId }, { timeout: 3000, retries: 2 })
+
+        if (!response.success) {
+            return "Unknown User"
+        }
+
+        return response.displayName
+    }
+
+    async getUsersByIds(userIds: string[]): Promise<UserDisplayInfo[]> {
+        if (!userIds || userIds.length === 0) {
+            return []
+        }
+
+        const response = await this.grpcClient.callUserService<
+            { userIds: string[] },
+            {
+                success: boolean
+                users: UserDisplayInfo[]
+                error?: string
+            }
+        >("getUsersByIds", { userIds }, { timeout: 5000, retries: 2 })
+
+        if (!response.success) {
+            return []
+        }
+
+        return response.users
     }
 }

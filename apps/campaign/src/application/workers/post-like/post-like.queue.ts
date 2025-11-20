@@ -1,25 +1,24 @@
+import { PostLikeJob } from "@app/campaign/src/domain/interfaces/post"
+import { JOB_TYPES, QUEUE_NAMES } from "@libs/queue"
 import { InjectQueue } from "@nestjs/bull"
 import { Injectable, Logger } from "@nestjs/common"
 import { Queue } from "bull"
-import { QUEUE_NAMES } from "./constants"
-import { PostLikeJob } from "./types"
 
 @Injectable()
 export class PostLikeQueue {
     private readonly logger = new Logger(PostLikeQueue.name)
 
     constructor(
-        @InjectQueue(QUEUE_NAMES.POST_LIKES) private queue: Queue<PostLikeJob>,
+        @InjectQueue(QUEUE_NAMES.CAMPAIGN_JOBS)
+        private readonly queue: Queue,
     ) {}
 
     async addLikeJob(data: PostLikeJob): Promise<string> {
-        const job = await this.queue.add("process-like", data, {
+        const job = await this.queue.add(JOB_TYPES.POST_LIKE, data, {
             priority: 1,
             attempts: 3,
             jobId: `${data.action}:${data.postId}:${data.userId}:${data.timestamp}`,
         })
-
-        this.logger.debug(`Added like job: ${job.id}`)
         return job.id.toString()
     }
 

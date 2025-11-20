@@ -32,7 +32,9 @@ service UserService {
   rpc CreditFundraiserWallet(CreditFundraiserWalletRequest) returns (CreditFundraiserWalletResponse);
   rpc GetUserBasicInfo(GetUserBasicInfoRequest) returns (GetUserBasicInfoResponse);
   rpc GetUserOrganization(GetUserOrganizationRequest) returns (GetUserOrganizationResponse);
-  
+  rpc GetUsersByIds(GetUsersByIdsRequest) returns (GetUsersByIdsResponse);
+  rpc GetUserDisplayName(GetUserDisplayNameRequest) returns (GetUserDisplayNameResponse);
+
   // Process bank transfer out (for withdrawal/payout)
   rpc ProcessBankTransferOut(ProcessBankTransferOutRequest) returns (ProcessBankTransferOutResponse);
   
@@ -105,7 +107,7 @@ message CreditAdminWalletRequest {
 
 message CreditAdminWalletResponse {
   bool success = 1;
-  string wallet_transaction_id = 2; // Wallet transaction ID
+  string wallet_transaction_id = 2; 
   string error = 3;
 }
 
@@ -143,9 +145,9 @@ message GetUserWithStatsRequest {
 message GetUserWithStatsResponse {
   bool success = 1;
   string id = 2;
-  string total_donated = 3; // BigInt as string
+  string total_donated = 3; 
   int32 donation_count = 4;
-  string last_donation_at = 5; // ISO timestamp
+  string last_donation_at = 5; 
   string error = 6;
 }
 
@@ -156,7 +158,7 @@ message GetWalletBalanceRequest {
 
 message GetWalletBalanceResponse {
   bool success = 1;
-  string balance = 2; // BigInt as string
+  string balance = 2; 
   string error = 3;
 }
 
@@ -164,14 +166,14 @@ message GetWalletBalanceResponse {
 message DebitWalletRequest {
   string user_id = 1;
   string campaign_id = 2;
-  string amount = 3; // BigInt as string
+  string amount = 3; 
   string description = 4;
 }
 
 message DebitWalletResponse {
   bool success = 1;
   string wallet_transaction_id = 2;
-  string new_balance = 3; // BigInt as string
+  string new_balance = 3; 
   string error = 4;
 }
 
@@ -316,14 +318,41 @@ message GetUserBadgeResponse {
 // Update Donor Stats (for badge optimization)
 message UpdateDonorStatsRequest {
   string donor_id = 1;
-  string amount_to_add = 2; // BigInt as string
+  string amount_to_add = 2; 
   int32 increment_count = 3;
-  string last_donation_at = 4; // ISO timestamp
+  string last_donation_at = 4; 
 }
 
 message UpdateDonorStatsResponse {
   bool success = 1;
-  string total_donated = 2; // BigInt as string
+  string total_donated = 2; 
   int32 donation_count = 3;
   string error = 4;
+}
+
+message GetUsersByIdsRequest {
+  repeated string user_ids = 1;
+}
+
+message GetUsersByIdsResponse {
+  bool success = 1;
+  repeated UserInfo users = 2;
+  string error = 3;
+}
+
+message UserInfo {
+  string id = 1;
+  string full_name = 2;
+  string username = 3;
+  string avatar_url = 4;
+}
+
+message GetUserDisplayNameRequest {
+  string user_id = 1;
+}
+
+message GetUserDisplayNameResponse {
+  bool success = 1;
+  string display_name = 2;
+  string error = 3;
 }

@@ -3,27 +3,29 @@ import { InjectQueue } from "@nestjs/bull"
 import { Queue } from "bull"
 import { Cron, CronExpression } from "@nestjs/schedule"
 import { StatsD } from "hot-shots"
-import { QUEUE_NAMES } from "./constants"
 import { envConfig } from "@libs/env"
+import { QUEUE_NAMES } from "./constants"
 
 @Injectable()
 export class BullDatadogService implements OnModuleInit {
     private readonly logger = new Logger(BullDatadogService.name)
     private statsd: InstanceType<typeof StatsD>
+    private env = envConfig()
+    private lastErrorLog = 0
 
     constructor(
         @InjectQueue(QUEUE_NAMES.POST_LIKES) private postLikeQueue: Queue,
-        @InjectQueue(QUEUE_NAMES.DONATIONS) private donationQueue: Queue,
+        @InjectQueue(QUEUE_NAMES.CAMPAIGN_JOBS)
+        private campaignJobsQueue: Queue,
     ) {}
 
     onModuleInit() {
-        const env = envConfig()
         this.statsd = new StatsD({
-            host: env.datadog.agentHost || "localhost",
-            port: env.datadog.agentPort || 8125,
+            host: this.env.datadog.agentHost || "localhost",
+            port: this.env.datadog.agentPort || 8125,
             prefix: "campaign.",
             globalTags: {
-                env: env.datadog.env || "production",
+                env: this.env.datadog.env || "production",
                 service: "campaign-service",
             },
         })
@@ -33,8 +35,36 @@ export class BullDatadogService implements OnModuleInit {
 
     @Cron(CronExpression.EVERY_10_SECONDS)
     async collectMetrics() {
-        await this.collectQueueMetrics("post-likes", this.postLikeQueue)
-        await this.collectQueueMetrics("donations", this.donationQueue)
+        // Skip metrics in development
+        if (this.env.nodeEnv === "development") {
+            return
+        }
+
+        try {
+            await this.collectQueueMetrics("post-likes", this.postLikeQueue)
+            await this.collectQueueMetrics(
+                "campaign-jobs",
+                this.campaignJobsQueue,
+            )
+        } catch (error) {
+            const errorMessage = error?.message || String(error)
+            const errorName = error?.name || ""
+
+            if (
+                errorMessage.includes("Connection is closed") ||
+                errorName === "MaxRetriesPerRequestError"
+            ) {
+                if (
+                    !this.lastErrorLog ||
+                    Date.now() - this.lastErrorLog > 60000
+                ) {
+                    this.logger.warn(
+                        "Valkey unavailable - skipping metrics collection",
+                    )
+                    this.lastErrorLog = Date.now()
+                }
+            }
+        }
     }
 
     private async collectQueueMetrics(queueName: string, queue: Queue) {
@@ -61,7 +91,6 @@ export class BullDatadogService implements OnModuleInit {
             )
             this.statsd.gauge(`queue.${queueName}.health_score`, healthScore)
 
-            // Only log if there are issues
             if (waiting > 100 || failed > 10 || healthScore < 70) {
                 this.logger.warn(`Queue ${queueName} needs attention`, {
                     waiting,
@@ -71,10 +100,17 @@ export class BullDatadogService implements OnModuleInit {
                 })
             }
         } catch (error) {
-            this.logger.error(
-                `Failed to collect metrics for ${queueName}`,
-                error,
-            )
+            const errorMessage = error?.message || String(error)
+            if (
+                !errorMessage.includes("Connection is closed") &&
+                !errorMessage.includes("MaxRetriesPerRequestError")
+            ) {
+                this.logger.error(
+                    `Failed to collect metrics for ${queueName}`,
+                    error,
+                )
+            }
+            throw error
         }
     }
 
@@ -95,16 +131,23 @@ export class BullDatadogService implements OnModuleInit {
     }
 
     trackJobStart(queueName: string, jobId: string) {
-        this.statsd.increment(`queue.${queueName}.job.started`)
+        this.statsd.increment(`queue.${queueName}.job.started`, {
+            job_id: jobId,
+        })
     }
 
     trackJobComplete(queueName: string, jobId: string, duration: number) {
-        this.statsd.increment(`queue.${queueName}.job.completed`)
-        this.statsd.timing(`queue.${queueName}.job.duration`, duration)
+        this.statsd.increment(`queue.${queueName}.job.completed`, {
+            job_id: jobId,
+        })
+        this.statsd.timing(`queue.${queueName}.job.duration`, duration, {
+            job_id: jobId,
+        })
     }
 
     trackJobFailed(queueName: string, jobId: string, error: Error) {
         this.statsd.increment(`queue.${queueName}.job.failed`, {
+            job_id: jobId,
             error_type: error.name,
         })
     }

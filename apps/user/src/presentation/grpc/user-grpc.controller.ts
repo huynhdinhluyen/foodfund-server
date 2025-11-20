@@ -253,6 +253,31 @@ interface GetUserOrganizationResponse {
     error?: string
 }
 
+interface GetUsersByIdsRequest {
+    userIds: string[]
+}
+
+interface GetUsersByIdsResponse {
+    success: boolean
+    users: Array<{
+        id: string
+        fullName: string
+        username: string
+        avatarUrl: string
+    }>
+    error?: string
+}
+
+interface GetUserDisplayNameRequest {
+    userId: string
+}
+
+interface GetUserDisplayNameResponse {
+    success: boolean
+    displayName: string
+    error?: string
+}
+
 @Controller()
 export class UserGrpcController {
     private readonly logger = new Logger(UserGrpcController.name)
@@ -290,7 +315,13 @@ export class UserGrpcController {
     /**
      * Helper: Create success response
      */
-    private createSuccessResponse(user: any): GetUserResponse | CreateUserResponse | UpdateUserResponse | GetUserByEmailResponse {
+    private createSuccessResponse(
+        user: any,
+    ):
+        | GetUserResponse
+        | CreateUserResponse
+        | UpdateUserResponse
+        | GetUserByEmailResponse {
         return {
             success: true,
             user: this.mapUserToResponse(user),
@@ -301,7 +332,13 @@ export class UserGrpcController {
     /**
      * Helper: Create error response
      */
-    private createErrorResponse(error: string): GetUserResponse | CreateUserResponse | UpdateUserResponse | GetUserByEmailResponse {
+    private createErrorResponse(
+        error: string,
+    ):
+        | GetUserResponse
+        | CreateUserResponse
+        | UpdateUserResponse
+        | GetUserByEmailResponse {
         return {
             success: false,
             user: null,
@@ -315,7 +352,11 @@ export class UserGrpcController {
     private async executeWalletOperation<T>(
         operationName: string,
         operation: () => Promise<T>,
-    ): Promise<{ success: boolean; walletTransactionId?: string; error?: string }> {
+    ): Promise<{
+        success: boolean
+        walletTransactionId?: string
+        error?: string
+    }> {
         try {
             const result = await operation()
             return {
@@ -323,8 +364,12 @@ export class UserGrpcController {
                 walletTransactionId: (result as any)?.id,
             }
         } catch (error) {
-            const errorMessage = error?.message || error?.toString() || "Unknown error"
-            this.logger.error(`[${operationName}] ❌ Failed:`, error?.stack || errorMessage)
+            const errorMessage =
+                error?.message || error?.toString() || "Unknown error"
+            this.logger.error(
+                `[${operationName}] ❌ Failed:`,
+                error?.stack || errorMessage,
+            )
             return {
                 success: false,
                 error: errorMessage,
@@ -348,7 +393,9 @@ export class UserGrpcController {
             const { cognitoId, email, fullName, cognitoAttributes } = data
 
             if (!cognitoId || !email) {
-                return this.createErrorResponse("Cognito ID and email are required")
+                return this.createErrorResponse(
+                    "Cognito ID and email are required",
+                )
             }
 
             const finalUsername = generateUniqueUsername(email)
@@ -382,7 +429,8 @@ export class UserGrpcController {
                 return this.createErrorResponse("Cognito ID is required")
             }
 
-            const user = await this.userCommonRepository.findUserByCognitoId(cognitoId)
+            const user =
+                await this.userCommonRepository.findUserByCognitoId(cognitoId)
 
             if (!user) {
                 return this.createErrorResponse("User not found")
@@ -409,7 +457,10 @@ export class UserGrpcController {
             if (avatarUrl) updateData.avatar_url = avatarUrl
             if (bio) updateData.bio = bio
 
-            const user = await this.userAdminRepository.updateUser(id, updateData)
+            const user = await this.userAdminRepository.updateUser(
+                id,
+                updateData,
+            )
 
             return this.createSuccessResponse(user)
         } catch (error) {
@@ -494,40 +545,45 @@ export class UserGrpcController {
             }
         }
 
-        return this.executeWalletOperation("CreditFundraiserWallet", async () => {
-            const user = await this.userCommonRepository.findUserById(fundraiserId)
-            if (!user) {
-                this.logger.error(
-                    `[CreditFundraiserWallet] ❌ Fundraiser ${fundraiserId} not found`,
+        return this.executeWalletOperation(
+            "CreditFundraiserWallet",
+            async () => {
+                const user =
+                    await this.userCommonRepository.findUserById(fundraiserId)
+                if (!user) {
+                    this.logger.error(
+                        `[CreditFundraiserWallet] ❌ Fundraiser ${fundraiserId} not found`,
+                    )
+                    throw new Error(`Fundraiser ${fundraiserId} not found`)
+                }
+
+                // Determine transaction type based on context
+                // If gateway is "SYSTEM", it's an admin adjustment (surplus settlement, refund, etc.)
+                // Otherwise, it's a donation received
+                const transactionType =
+                    gateway === "SYSTEM"
+                        ? Transaction_Type.ADMIN_ADJUSTMENT
+                        : Transaction_Type.DONATION_RECEIVED
+
+                // Credit wallet
+                const transaction = await this.walletRepository.creditWallet({
+                    userId: fundraiserId,
+                    walletType: Wallet_Type.FUNDRAISER,
+                    amount: BigInt(amount),
+                    transactionType,
+                    campaignId: campaignId || null,
+                    paymentTransactionId: paymentTransactionId || null,
+                    gateway,
+                    description: description || `Wallet credit via ${gateway}`,
+                })
+
+                this.logger.log(
+                    `[CreditFundraiserWallet] ✅ Success - Transaction ID: ${transaction.id}`,
                 )
-                throw new Error(`Fundraiser ${fundraiserId} not found`)
-            }
 
-            // Determine transaction type based on context
-            // If gateway is "SYSTEM", it's an admin adjustment (surplus settlement, refund, etc.)
-            // Otherwise, it's a donation received
-            const transactionType = gateway === "SYSTEM" 
-                ? Transaction_Type.ADMIN_ADJUSTMENT 
-                : Transaction_Type.DONATION_RECEIVED
-
-            // Credit wallet
-            const transaction = await this.walletRepository.creditWallet({
-                userId: fundraiserId,
-                walletType: Wallet_Type.FUNDRAISER,
-                amount: BigInt(amount),
-                transactionType,
-                campaignId: campaignId || null,
-                paymentTransactionId: paymentTransactionId || null,
-                gateway,
-                description: description || `Wallet credit via ${gateway}`,
-            })
-
-            this.logger.log(
-                `[CreditFundraiserWallet] ✅ Success - Transaction ID: ${transaction.id}`,
-            )
-
-            return transaction
-        })
+                return transaction
+            },
+        )
     }
 
     @GrpcMethod("UserService", "CreditAdminWallet")
@@ -824,32 +880,107 @@ export class UserGrpcController {
             }
         }
 
-        return this.executeWalletOperation("ProcessBankTransferOut", async () => {
-            // Build Sepay webhook payload
-            const payload = {
-                id: sepayId,
-                gateway,
-                transactionDate,
-                accountNumber: "", // Not needed for withdrawal
-                code: null,
-                content,
-                transferType: "out",
-                transferAmount: Number(amount),
-                accumulated: 0, // Not needed
-                subAccount: null,
-                referenceCode,
-                description,
+        return this.executeWalletOperation(
+            "ProcessBankTransferOut",
+            async () => {
+                // Build Sepay webhook payload
+                const payload = {
+                    id: sepayId,
+                    gateway,
+                    transactionDate,
+                    accountNumber: "", // Not needed for withdrawal
+                    code: null,
+                    content,
+                    transferType: "out",
+                    transferAmount: Number(amount),
+                    accumulated: 0, // Not needed
+                    subAccount: null,
+                    referenceCode,
+                    description,
+                }
+
+                // Process bank transfer out
+                await this.walletTransactionService.processBankTransferOut(
+                    payload,
+                )
+
+                this.logger.log(
+                    `[ProcessBankTransferOut] ✅ Successfully processed withdrawal - Sepay ID: ${sepayId}`,
+                )
+
+                return { id: sepayId.toString() }
+            },
+        )
+    }
+
+    @GrpcMethod("UserService", "GetUsersByIds")
+    async getUsersByIds(
+        data: GetUsersByIdsRequest,
+    ): Promise<GetUsersByIdsResponse> {
+        try {
+            const { userIds } = data
+
+            if (!userIds || userIds.length === 0) {
+                return {
+                    success: true,
+                    users: [],
+                }
             }
 
-            // Process bank transfer out
-            await this.walletTransactionService.processBankTransferOut(payload)
+            const users =
+                await this.userCommonRepository.findUsersByIds(userIds)
 
-            this.logger.log(
-                `[ProcessBankTransferOut] ✅ Successfully processed withdrawal - Sepay ID: ${sepayId}`,
-            )
+            const mappedUsers = users.map((user) => ({
+                id: user.id,
+                fullName: user.full_name || "",
+                username: user.user_name,
+                avatarUrl: user.avatar_url || "",
+            }))
 
-            return { id: sepayId.toString() }
-        })
+            return {
+                success: true,
+                users: mappedUsers,
+            }
+        } catch (error) {
+            this.logger.error("[GetUsersByIds] Failed:", error)
+            return {
+                success: false,
+                users: [],
+                error: error.message,
+            }
+        }
+    }
+
+    @GrpcMethod("UserService", "GetUserDisplayName")
+    async getUserDisplayName(
+        data: GetUserDisplayNameRequest,
+    ): Promise<GetUserDisplayNameResponse> {
+        const { userId } = data
+
+        if (!userId) {
+            return {
+                success: false,
+                displayName: "Unknown User",
+                error: "User ID is required",
+            }
+        }
+
+        const user = await this.userCommonRepository.findUserFullName(userId)
+
+        if (!user) {
+            return {
+                success: false,
+                displayName: "Unknown User",
+                error: "User not found",
+            }
+        }
+
+        const displayName = user.full_name || "Anonymous"
+
+        return {
+            success: true,
+            displayName,
+        }
     }
 
     @GrpcMethod("UserService", "AwardBadgeToDonor")
@@ -1154,4 +1285,3 @@ export class UserGrpcController {
         }
     }
 }
-

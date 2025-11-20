@@ -8,53 +8,62 @@ import {
 import { Logger } from "@nestjs/common"
 import { Job } from "bull"
 import tracer from "dd-trace"
-import {
-    QUEUE_NAMES,
-    PostLikeJob,
-    LikeAction,
-    BullDatadogService,
-} from "@libs/queue"
+import { QUEUE_NAMES, BullDatadogService, JOB_TYPES } from "@libs/queue"
 import { PostLikeRepository } from "../repositories/post-like.repository"
 import { PostCacheService } from "../services/post/post-cache.service"
+import { LikeAction, PostLikeJob } from "../../domain/interfaces/post"
+import { PostLikeEvent } from "../../domain/events"
+import { PostRepository } from "../repositories/post.repository"
+import { EventEmitter2 } from "@nestjs/event-emitter"
+import { UserClientService } from "../../shared"
 
-@Processor(QUEUE_NAMES.POST_LIKES)
+@Processor(QUEUE_NAMES.CAMPAIGN_JOBS)
 export class PostLikeProcessor {
     private readonly logger = new Logger(PostLikeProcessor.name)
 
     constructor(
         private readonly postLikeRepository: PostLikeRepository,
+        private readonly postRepository: PostRepository,
         private readonly postCacheService: PostCacheService,
         private readonly bullDatadog: BullDatadogService,
+        private readonly eventEmitter: EventEmitter2,
+        private readonly userClient: UserClientService,
     ) {}
 
-    @Process("process-like")
+    @Process(JOB_TYPES.POST_LIKE)
     async handleLike(job: Job<PostLikeJob>) {
         const span = tracer.scope().active()
         const startTime = Date.now()
+        this.logger.log(`🔄 Processing ${job.data.action} job ${job.id}`)
+        this.logger.debug("Job data:", {
+            jobId: job.id,
+            action: job.data.action,
+            postId: job.data.postId,
+            userId: job.data.userId,
+            timestamp: job.data.timestamp,
+        })
 
-        // Add Datadog trace tags
         span?.setTag("job.id", job.id)
-        span?.setTag("job.queue", "post-likes")
+        span?.setTag("job.queue", QUEUE_NAMES.CAMPAIGN_JOBS)
+        span?.setTag("job.type", JOB_TYPES.POST_LIKE)
         span?.setTag("job.data.postId", job.data.postId)
         span?.setTag("job.data.userId", job.data.userId)
         span?.setTag("job.data.action", job.data.action)
 
         try {
-            this.bullDatadog.trackJobStart("post-likes", job.id.toString())
+            this.bullDatadog.trackJobStart(
+                QUEUE_NAMES.CAMPAIGN_JOBS,
+                job.id.toString(),
+            )
 
             const { postId, userId, action } = job.data
-
-            this.logger.log(
-                `Processing ${action} for post ${postId} by user ${userId}`,
-            )
 
             if (action === LikeAction.LIKE) {
                 await this.processLike(postId, userId)
             } else if (action === LikeAction.UNLIKE) {
                 await this.processUnlike(postId, userId)
             } else {
-                this.logger.warn(`Unknown action: ${action}`)
-                return { success: false, error: "Unknown action" }
+                throw new Error(`Unknown action: ${action}`)
             }
 
             const duration = Date.now() - startTime
@@ -65,8 +74,16 @@ export class PostLikeProcessor {
             )
 
             span?.setTag("job.status", "completed")
+            this.logger.log(`✅ Job ${job.id} completed in ${duration}ms`)
+
             return { success: true, duration }
         } catch (error) {
+            this.logger.error(`❌ Job ${job.id} failed:`, error)
+            this.logger.error("Error details:", {
+                message: error instanceof Error ? error.message : String(error),
+                stack: error instanceof Error ? error.stack : undefined,
+                jobData: job.data,
+            })
             this.bullDatadog.trackJobFailed(
                 "post-likes",
                 job.id.toString(),
@@ -79,61 +96,89 @@ export class PostLikeProcessor {
     }
 
     private async processLike(postId: string, userId: string): Promise<void> {
-        const alreadyLiked =
-            await this.postLikeRepository.checkIfUserLikedPost(postId, userId)
+        const alreadyLiked = await this.postLikeRepository.checkIfUserLikedPost(
+            postId,
+            userId,
+        )
 
         if (alreadyLiked) {
-            this.logger.debug(`User ${userId} already liked post ${postId}`)
             return
         }
 
-        const result = await this.postLikeRepository.likePost(postId, userId)
+        const post = await this.postRepository.findPostById(postId)
+        if (!post) {
+            throw new Error(`Post ${postId} not found`)
+        }
 
-        await this.postCacheService.initializeDistributedLikeCounter(
-            postId,
-            result.likeCount,
+        const result = await this.postLikeRepository.likePost(postId, userId)
+        this.logger.log(
+            `✅ Like created: likeId=${result.likeId}, newCount=${result.likeCount}`,
         )
-        await this.postCacheService.deletePost(postId)
+
+        await Promise.all([
+            this.postCacheService.initializeDistributedLikeCounter(
+                postId,
+                result.likeCount,
+            ),
+            this.postCacheService.deletePost(postId),
+            this.postCacheService.deleteCampaignPosts(post.campaignId),
+            this.postCacheService.deleteAllPostLists(),
+        ])
+
+        if (post.createdBy !== userId) {
+            const likerName = await this.userClient.getUserDisplayName(userId)
+
+            this.eventEmitter.emit("post.liked", {
+                postId: post.id,
+                postTitle: post.title,
+                postAuthorId: post.createdBy,
+                likerId: userId,
+                likerName,
+                likeCount: result.likeCount,
+            } satisfies PostLikeEvent)
+        }
     }
 
-    private async processUnlike(
-        postId: string,
-        userId: string,
-    ): Promise<void> {
+    private async processUnlike(postId: string, userId: string): Promise<void> {
         const hasLiked = await this.postLikeRepository.checkIfUserLikedPost(
             postId,
             userId,
         )
 
         if (!hasLiked) {
-            this.logger.debug(`User ${userId} has not liked post ${postId}`)
             return
+        }
+
+        const post = await this.postRepository.findPostById(postId)
+        if (!post) {
+            throw new Error(`Post ${postId} not found`)
         }
 
         const result = await this.postLikeRepository.unlikePost(postId, userId)
 
-        await this.postCacheService.initializeDistributedLikeCounter(
-            postId,
-            result.likeCount,
-        )
-        await this.postCacheService.deletePost(postId)
+        await Promise.all([
+            this.postCacheService.initializeDistributedLikeCounter(
+                postId,
+                result.likeCount,
+            ),
+            this.postCacheService.deletePost(postId),
+            this.postCacheService.deleteCampaignPosts(post.campaignId),
+            this.postCacheService.deleteAllPostLists(),
+        ])
     }
 
     @OnQueueActive()
     onActive(job: Job) {
-        // Silent - only log errors
+        this.logger.log(`Job ${job.id} is now active`)
     }
 
     @OnQueueCompleted()
     onCompleted(job: Job, result: any) {
-        // Silent - only log errors
+        this.logger.log(`Job ${job.id} completed with result:`, result)
     }
 
     @OnQueueFailed()
     onFailed(job: Job, error: Error) {
-        this.logger.error(
-            `Job ${job.id} failed: ${error.message}`,
-            error.stack,
-        )
+        this.logger.error(`Job ${job.id} failed: ${error.message}`, error.stack)
     }
 }
