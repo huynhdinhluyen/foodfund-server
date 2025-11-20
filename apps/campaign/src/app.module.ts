@@ -100,7 +100,6 @@ import {
 } from "./application/builders/notification"
 import { NotificationQueryResolver } from "./presentation/graphql/notification/queries"
 import { NotificationMutationResolver } from "./presentation/graphql/notification/mutations"
-import { NotificationSubscriptionResolver } from "./presentation/graphql/notification/subscriptions"
 import { BullModule, getQueueToken } from "@nestjs/bull"
 import { PostLikeQueue } from "./application/workers/post-like/post-like.queue"
 import { NotificationQueue } from "./application/workers/notification/notification.queue"
@@ -112,7 +111,6 @@ import {
 } from "./application/handlers"
 import { CampaignFollowerService } from "./application/services/campaign/campaign-follower.service"
 import { Queue } from "bull"
-import { PubSubModule } from "@libs/pubsub"
 
 @Module({
     imports: [
@@ -145,7 +143,6 @@ import { PubSubModule } from "@libs/pubsub"
         ScheduleModule.forRoot(),
         GrpcModule,
         QueueModule,
-        PubSubModule.forRoot(),
         BullBoardModule.forRoot({
             route: "/admin/queues",
             adapter: ExpressAdapter,
@@ -230,7 +227,6 @@ import { PubSubModule } from "@libs/pubsub"
         PostCommentMutationResolver,
         NotificationQueryResolver,
         NotificationMutationResolver,
-        NotificationSubscriptionResolver,
 
         CampaignRepository,
         CampaignCategoryRepository,
