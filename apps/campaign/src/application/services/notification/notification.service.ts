@@ -240,12 +240,6 @@ export class NotificationService {
         await this.cacheService.decrementUnreadCount(userContext.userId)
         await this.cacheService.invalidateNotificationList(userContext.userId)
 
-        const newCount = await this.getUnreadCount(userContext.userId)
-        await this.cacheService.publishUnreadCountUpdate(
-            userContext.userId,
-            newCount,
-        )
-
         const updatedNotification = await this.getNotificationById(
             id,
             userContext,
@@ -258,7 +252,6 @@ export class NotificationService {
 
         await this.cacheService.setUnreadCount(userId, 0)
         await this.cacheService.invalidateNotificationList(userId)
-        await this.cacheService.publishUnreadCountUpdate(userId, 0)
 
         return count
     }
@@ -322,7 +315,6 @@ export class NotificationService {
         }
 
         await this.cacheService.invalidateNotificationList(input.userId)
-        await this.cacheService.publishNewNotification(input.userId, updatedNotification)
 
         return updatedNotification
     }
@@ -345,17 +337,6 @@ export class NotificationService {
                 10,
             )
         }
-
-        await this.cacheService.publishNewNotification(
-            notification.userId,
-            notification,
-        )
-
-        const unreadCount = await this.getUnreadCount(notification.userId)
-        await this.cacheService.publishUnreadCountUpdate(
-            notification.userId,
-            unreadCount,
-        )
     }
 
     private getEntityTypeFromNotificationType(type: NotificationType): string {
