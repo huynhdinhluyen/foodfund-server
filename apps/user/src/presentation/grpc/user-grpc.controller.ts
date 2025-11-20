@@ -166,6 +166,33 @@ interface GetUserBadgeResponse {
     error?: string
 }
 
+interface UpdateDonorStatsRequest {
+    donorId: string
+    amountToAdd: string
+    incrementCount: number
+    lastDonationAt: string 
+}
+
+interface UpdateDonorStatsResponse {
+    success: boolean
+    totalDonated?: string
+    donationCount?: number
+    error?: string
+}
+
+interface GetUserWithStatsRequest {
+    id: string
+}
+
+interface GetUserWithStatsResponse {
+    success: boolean
+    id?: string
+    totalDonated?: string
+    donationCount?: number
+    lastDonationAt?: string
+    error?: string
+}
+
 const ROLE_MAP = {
     DONOR: 0,
     FUNDRAISER: 1,
@@ -905,6 +932,101 @@ export class UserGrpcController {
             return {
                 success: false,
                 error: error.message || "Failed to fetch badge",
+            }
+        }
+    }
+
+    @GrpcMethod("UserService", "UpdateDonorStats")
+    async updateDonorStats(
+        data: UpdateDonorStatsRequest,
+    ): Promise<UpdateDonorStatsResponse> {
+        const { donorId, amountToAdd, incrementCount, lastDonationAt } = data
+
+        this.logger.log(
+            `[UpdateDonorStats] Updating stats for donor ${donorId} - Amount: ${amountToAdd}, Count: ${incrementCount}`,
+        )
+
+        if (!donorId || !amountToAdd) {
+            return {
+                success: false,
+                error: "donorId and amountToAdd are required",
+            }
+        }
+
+        try {
+            const updatedUser = await this.userCommonRepository.updateDonorStats({
+                donorId,
+                amountToAdd: BigInt(amountToAdd),
+                incrementCount: incrementCount || 1,
+                lastDonationAt: new Date(lastDonationAt),
+            })
+
+            this.logger.log(
+                `[UpdateDonorStats] ✅ Updated donor ${donorId} - Total: ${updatedUser.total_donated}, Count: ${updatedUser.donation_count}`,
+            )
+
+            return {
+                success: true,
+                totalDonated: (updatedUser.total_donated || BigInt(0)).toString(),
+                donationCount: updatedUser.donation_count || 0,
+            }
+        } catch (error) {
+            this.logger.error(
+                "[UpdateDonorStats] ❌ Failed to update stats:",
+                error.stack || error,
+            )
+            return {
+                success: false,
+                error: error.message || "Failed to update donor stats",
+            }
+        }
+    }
+
+    @GrpcMethod("UserService", "GetUserWithStats")
+    async getUserWithStats(
+        data: GetUserWithStatsRequest,
+    ): Promise<GetUserWithStatsResponse> {
+        const { id } = data
+
+        this.logger.log(`[GetUserWithStats] Fetching stats for user ${id}`)
+
+        if (!id) {
+            return {
+                success: false,
+                error: "id is required",
+            }
+        }
+
+        try {
+            const user = await this.userCommonRepository.findUserById(id)
+
+            if (!user) {
+                this.logger.warn(`[GetUserWithStats] User not found: ${id}`)
+                return {
+                    success: false,
+                    error: "User not found",
+                }
+            }
+
+            this.logger.log(
+                `[GetUserWithStats] ✅ Found user ${id} - Total: ${user.total_donated}, Count: ${user.donation_count}`,
+            )
+
+            return {
+                success: true,
+                id: user.id,
+                totalDonated: (user.total_donated || BigInt(0)).toString(),
+                donationCount: user.donation_count || 0,
+                lastDonationAt: user.last_donation_at?.toISOString() || "",
+            }
+        } catch (error) {
+            this.logger.error(
+                "[GetUserWithStats] ❌ Failed to fetch stats:",
+                error.stack || error,
+            )
+            return {
+                success: false,
+                error: error.message || "Failed to fetch user stats",
             }
         }
     }

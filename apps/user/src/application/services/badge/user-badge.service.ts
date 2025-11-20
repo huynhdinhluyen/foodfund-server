@@ -7,6 +7,7 @@ import {
 import { UserBadgeRepository, BadgeRepository } from "../../repositories"
 import { UserRepository } from "../../repositories/user.repository"
 import { Role } from "../../../domain/enums"
+import { BadgeEmailService } from "./badge-email.service"
 
 @Injectable()
 export class UserBadgeService {
@@ -16,22 +17,10 @@ export class UserBadgeService {
         private readonly userBadgeRepository: UserBadgeRepository,
         private readonly badgeRepository: BadgeRepository,
         private readonly userRepository: UserRepository,
+        private readonly badgeEmailService: BadgeEmailService,
     ) {}
 
-    async awardBadge(userId: string, badgeId: string, force = false) {
-        // Validate user exists
-        const user = await this.userRepository.findUserById(userId)
-        if (!user) {
-            throw new NotFoundException(`User with ID ${userId} not found`)
-        }
-
-        // Only DONOR can receive badges
-        if (user.role !== Role.DONOR) {
-            throw new BadRequestException(
-                `Only DONOR users can receive badges. User has role: ${user.role}`,
-            )
-        }
-
+    async awardBadge(userId: string, badgeId: string) {
         // Validate badge exists and is active
         const badge = await this.badgeRepository.findBadgeById(badgeId)
         if (!badge) {
@@ -49,23 +38,64 @@ export class UserBadgeService {
             await this.userBadgeRepository.findUserBadge(userId)
 
         if (existingBadge) {
-            // If not forcing, skip if same badge
-            if (!force && existingBadge.badge_id === badgeId) {
+            if (existingBadge.badge_id === badgeId) {
                 this.logger.log(
                     `User ${userId} already has badge ${badge.name}, skipping`,
                 )
                 return existingBadge
             }
 
-            // Replace existing badge (since schema is 1:1)
             this.logger.log(
-                `Replacing user ${userId} badge from ${existingBadge.badge.name} to ${badge.name}`,
+                `Upgrading user ${userId} badge from ${existingBadge.badge.name} to ${badge.name}`,
             )
-            await this.userBadgeRepository.revokeBadge(userId)
+            const userBadge = await this.userBadgeRepository.updateBadge(userId, badgeId)
+            
+            // Send email notification (non-blocking)
+            if (userBadge.user) {
+                this.sendBadgeEmailAsync(userBadge.user, badge)
+            }
+            
+            return userBadge
         }
 
-        this.logger.log(`Awarding badge ${badge.name} to user ${userId}`)
-        return this.userBadgeRepository.awardBadge(userId, badgeId)
+        // First badge - CREATE
+        this.logger.log(`Awarding first badge ${badge.name} to user ${userId}`)
+        const userBadge = await this.userBadgeRepository.awardBadge(userId, badgeId)
+        
+        // Send email notification (non-blocking)
+        if (userBadge.user) {
+            this.sendBadgeEmailAsync(userBadge.user, badge)
+        }
+        
+        return userBadge
+    }
+
+    /**
+     * Send badge award email asynchronously (non-blocking)
+     */
+    private async sendBadgeEmailAsync(user: any, badge: any): Promise<void> {
+        try {
+            // Format total donated amount
+            const totalDonated = user.total_donated
+                ? `${Number(user.total_donated).toLocaleString("vi-VN")} VNĐ`
+                : "0 VNĐ"
+
+            await this.badgeEmailService.sendBadgeAwardEmail({
+                userEmail: user.email,
+                userName: user.full_name || user.user_name,
+                badgeName: badge.name,
+                badgeDescription: badge.description,
+                badgeIconUrl: badge.icon_url,
+                totalDonated,
+                donationCount: user.donation_count || 0,
+            })
+        } catch (error) {
+            // Non-blocking: Just log error, don't throw
+            this.logger.error(
+                `Failed to send badge email to user ${user.id}:`,
+                error.message,
+            )
+        }
     }
 
     async getUserBadge(userId: string) {

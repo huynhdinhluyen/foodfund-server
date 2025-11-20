@@ -22,31 +22,31 @@ export class BadgeAwardService {
 
     private readonly milestones: BadgeMilestone[] = [
         {
-            name: "Diamond Donor",
+            name: "Diamond Star",
             badgeId: this.env.badge.diamondId,
             minAmount: BigInt(500_000_000), // 500M VND
             priority: 110,
         },
         {
-            name: "Platinum Donor",
+            name: "Platinum Star",
             badgeId: this.env.badge.platinumId,
             minAmount: BigInt(100_000_000), // 100M VND
             priority: 100,
         },
         {
-            name: "Gold Donor",
+            name: "Gold Star",
             badgeId: this.env.badge.goldId,
             minAmount: BigInt(10_000_000), // 10M VND
             priority: 90,
         },
         {
-            name: "Silver Donor",
+            name: "Silver Star",
             badgeId: this.env.badge.silverId,
             minAmount: BigInt(1_000_000), // 1M VND
             priority: 80,
         },
         {
-            name: "Bronze Donor",
+            name: "Bronze Star",
             badgeId: this.env.badge.bronzeId,
             minAmount: BigInt(100_000), // 100K VND
             priority: 70,
@@ -61,34 +61,53 @@ export class BadgeAwardService {
 
     constructor(private readonly grpcClient: GrpcClientService) {}
 
-    /**
-     * Check and award appropriate badge based on total donation amount
-     * Called after each successful donation (non-blocking)
-     *
-     * @param donorId - User ID of the donor
-     * @param totalDonationAmount - Total amount donated by user (in VND)
-     * @param isFirstDonation - Whether this is user's first donation
-     */
-    async checkAndAwardBadge(
-        donorId: string,
-        totalDonationAmount: bigint,
-        isFirstDonation: boolean,
-    ): Promise<void> {
+    async checkAndAwardBadge(donorId: string): Promise<void> {
         try {
-            const milestone = this.findHighestMilestone(totalDonationAmount)
+            // Step 1: Get user with cached stats from User DB via gRPC
+            const userResponse = await this.grpcClient.callUserService<
+                { id: string },
+                {
+                    success: boolean
+                    id?: string
+                    totalDonated?: string 
+                    donationCount?: number
+                    lastDonationAt?: string
+                    error?: string
+                }
+            >("GetUserWithStats", { id: donorId })
+
+            if (!userResponse.success || !userResponse.id) {
+                this.logger.error(
+                    `[BadgeAward] User not found: ${donorId}`,
+                )
+                return
+            }
+
+            // Step 2: Parse cached stats
+            const totalDonated = userResponse.totalDonated 
+                ? BigInt(userResponse.totalDonated) 
+                : BigInt(0)
+            const donationCount = userResponse.donationCount || 0
+
+            this.logger.log(
+                `[BadgeAward] Donor ${donorId} stats - Total: ${totalDonated}, Count: ${donationCount}`,
+            )
+
+            // Step 3: Find appropriate milestone
+            const milestone = this.findHighestMilestone(totalDonated)
 
             if (!milestone) {
                 this.logger.warn(
-                    `No badge milestone found for donor ${donorId} with amount ${totalDonationAmount}`,
+                    `[BadgeAward] No badge milestone found for donor ${donorId} with amount ${totalDonated}`,
                 )
                 return
             }
 
             this.logger.log(
-                `[BadgeAward] Donor ${donorId} qualifies for ${milestone.name} (total: ${totalDonationAmount})`,
+                `[BadgeAward] Donor ${donorId} qualifies for ${milestone.name} (total: ${totalDonated})`,
             )
 
-            // Award badge via gRPC (will auto-replace if lower priority)
+            // Step 4: Award badge via gRPC (will auto-replace if lower priority)
             const response = await this.grpcClient.callUserService(
                 "AwardBadgeToDonor",
                 {

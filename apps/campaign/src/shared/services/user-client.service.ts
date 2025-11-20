@@ -360,7 +360,7 @@ export class UserClientService {
             const response = await this.grpcClient.callUserService<
                 {
                     sepayId: number
-                    amount: string // gRPC uses string for bigint
+                    amount: string 
                     gateway: string
                     referenceCode: string
                     content: string
@@ -401,6 +401,60 @@ export class UserClientService {
                 error,
             )
             throw error
+        }
+    }
+
+    async updateDonorStats(data: {
+        donorId: string
+        amountToAdd: bigint
+        incrementCount: number
+        lastDonationAt: Date
+    }): Promise<void> {
+        try {
+            this.logger.log(
+                `[gRPC] Updating donor stats for ${data.donorId} - Amount: ${data.amountToAdd}, Count: ${data.incrementCount}`,
+            )
+
+            const response = await this.grpcClient.callUserService<
+                {
+                    donorId: string
+                    amountToAdd: string // BigInt as string
+                    incrementCount: number
+                    lastDonationAt: string // ISO timestamp
+                },
+                {
+                    success: boolean
+                    totalDonated?: string
+                    donationCount?: number
+                    error?: string
+                }
+            >(
+                "UpdateDonorStats",
+                {
+                    donorId: data.donorId,
+                    amountToAdd: data.amountToAdd.toString(),
+                    incrementCount: data.incrementCount,
+                    lastDonationAt: data.lastDonationAt.toISOString(),
+                },
+                { timeout: 3000, retries: 2 },
+            )
+
+            if (!response.success) {
+                throw new Error(
+                    response.error || "Failed to update donor stats",
+                )
+            }
+
+            this.logger.log(
+                `[gRPC] ✅ Donor stats updated - Total: ${response.totalDonated}, Count: ${response.donationCount}`,
+            )
+        } catch (error) {
+            this.logger.error(
+                `[gRPC] ❌ Failed to update donor stats for ${data.donorId}:`,
+                error,
+            )
+            // Don't throw - this is non-critical for donation flow
+            // Badge award will still work, just with extra queries
         }
     }
 }

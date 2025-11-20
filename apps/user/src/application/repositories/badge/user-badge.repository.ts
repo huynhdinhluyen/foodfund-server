@@ -29,6 +29,20 @@ export class UserBadgeRepository {
         })
     }
 
+    async updateBadge(userId: string, badgeId: string) {
+        return this.prisma.user_Badge.update({
+            where: { user_id: userId },
+            data: {
+                badge_id: badgeId,
+                awarded_at: new Date(), // Update timestamp when badge changes
+            },
+            include: {
+                badge: true,
+                user: true,
+            },
+        })
+    }
+
     async revokeBadge(userId: string) {
         return this.prisma.user_Badge.delete({
             where: { user_id: userId },

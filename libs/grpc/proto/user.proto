@@ -39,6 +39,12 @@ service UserService {
   // Badge operations
   rpc AwardBadgeToDonor(AwardBadgeRequest) returns (AwardBadgeResponse);
   rpc GetUserBadge(GetUserBadgeRequest) returns (GetUserBadgeResponse);
+  
+  // Update donor cached stats (for badge optimization)
+  rpc UpdateDonorStats(UpdateDonorStatsRequest) returns (UpdateDonorStatsResponse);
+  
+  // Get user with cached stats (for badge optimization)
+  rpc GetUserWithStats(GetUserWithStatsRequest) returns (GetUserWithStatsResponse);
 }
 
 // Messages
@@ -123,6 +129,20 @@ message GetUserRequest {
 // Get User by Database ID
 message GetUserByIdRequest {
   string id = 1; 
+}
+
+// Get User with Cached Stats (for badge optimization)
+message GetUserWithStatsRequest {
+  string id = 1;
+}
+
+message GetUserWithStatsResponse {
+  bool success = 1;
+  string id = 2;
+  string total_donated = 3; // BigInt as string
+  int32 donation_count = 4;
+  string last_donation_at = 5; // ISO timestamp
+  string error = 6;
 }
 
 message GetUserResponse {
@@ -260,5 +280,20 @@ message GetUserBadgeResponse {
   bool success = 1;
   Badge badge = 2;
   string awarded_at = 3;
+  string error = 4;
+}
+
+// Update Donor Stats (for badge optimization)
+message UpdateDonorStatsRequest {
+  string donor_id = 1;
+  string amount_to_add = 2; // BigInt as string
+  int32 increment_count = 3;
+  string last_donation_at = 4; // ISO timestamp
+}
+
+message UpdateDonorStatsResponse {
+  bool success = 1;
+  string total_donated = 2; // BigInt as string
+  int32 donation_count = 3;
   string error = 4;
 }

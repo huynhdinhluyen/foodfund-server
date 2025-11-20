@@ -76,4 +76,47 @@ export class UserCommonRepository {
             },
         })
     }
+
+    async updateDonorStats(data: {
+        donorId: string
+        amountToAdd: bigint
+        incrementCount: number
+        lastDonationAt: Date
+    }) {
+        return this.prisma.user.update({
+            where: { id: data.donorId },
+            data: {
+                total_donated: {
+                    increment: data.amountToAdd,
+                },
+                donation_count: {
+                    increment: data.incrementCount,
+                },
+                last_donation_at: data.lastDonationAt,
+            },
+            select: {
+                id: true,
+                total_donated: true,
+                donation_count: true,
+                last_donation_at: true,
+            },
+        })
+    }
+
+    /**
+     * Find user with badge (for badge award optimization)
+     * Single query with LEFT JOIN
+     */
+    async findUserWithBadge(userId: string) {
+        return this.prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                User_Badge: {
+                    include: {
+                        badge: true,
+                    },
+                },
+            },
+        })
+    }
 }

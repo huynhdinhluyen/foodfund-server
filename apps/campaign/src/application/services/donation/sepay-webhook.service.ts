@@ -240,9 +240,27 @@ export class SepayWebhookService {
                 "Sepay",
             )
 
-            // Step 5: Award badge (non-blocking, fire-and-forget)
+            // Step 5: Update donor cached stats and award badge
             if (donation.donor_id) {
-                this.awardBadgeAsync(donation.donor_id)
+                // Get user database ID from cognito_id
+                const donor = await this.userClientService.getUserByCognitoId(donation.donor_id)
+                
+                if (donor) {
+                    // Update cached stats (via gRPC)
+                    await this.userClientService.updateDonorStats({
+                        donorId: donor.id, // Use database ID, not cognito_id
+                        amountToAdd: BigInt(payload.transferAmount),
+                        incrementCount: 1,
+                        lastDonationAt: new Date(),
+                    })
+
+                    // Award badge (non-blocking, uses cached data)
+                    this.awardBadgeAsync(donor.id) // Use database ID, not cognito_id
+                } else {
+                    this.logger.warn(
+                        `[Sepay→Admin] Donor not found for cognito_id: ${donation.donor_id}`,
+                    )
+                }
             }
         } catch (error) {
             this.logger.error(
@@ -253,24 +271,12 @@ export class SepayWebhookService {
         }
     }
 
-    /**
-     * Award badge asynchronously (non-blocking)
-     * Get donor stats and award appropriate badge
-     */
     private async awardBadgeAsync(donorId: string): Promise<void> {
         try {
-            // Get donor donation stats
-            const stats = await this.donorRepository.getDonationStats(donorId)
-
-            // Check if this is first donation
-            const isFirstDonation = stats.donationCount === 1
-
-            // Award badge based on total amount
-            await this.badgeAwardService.checkAndAwardBadge(
-                donorId,
-                stats.totalDonated,
-                isFirstDonation,
-            )
+            // Call badge award service directly
+            // It will query User DB for cached stats (total_donated, donation_count)
+            // No need to query Campaign DB anymore!
+            await this.badgeAwardService.checkAndAwardBadge(donorId)
         } catch (error) {
             // Non-blocking: Just log error, don't throw
             this.logger.error(
@@ -350,6 +356,29 @@ export class SepayWebhookService {
                 result.campaign,
                 "Sepay",
             )
+
+            // Step 5: Update donor cached stats and award badge
+            if (donation.donor_id) {
+                // Get user database ID from cognito_id
+                const donor = await this.userClientService.getUserByCognitoId(donation.donor_id)
+                
+                if (donor) {
+                    // Update cached stats (via gRPC)
+                    await this.userClientService.updateDonorStats({
+                        donorId: donor.id, // Use database ID, not cognito_id
+                        amountToAdd: BigInt(payload.transferAmount),
+                        incrementCount: 1,
+                        lastDonationAt: new Date(),
+                    })
+
+                    // Award badge (non-blocking, uses cached data)
+                    this.awardBadgeAsync(donor.id) // Use database ID, not cognito_id
+                } else {
+                    this.logger.warn(
+                        `[Sepay→Admin] Donor not found for cognito_id: ${donation.donor_id}`,
+                    )
+                }
+            }
         } catch (error) {
             this.logger.error(
                 "[Sepay→Admin] ❌ Failed to process supplementary payment",

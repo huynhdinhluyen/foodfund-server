@@ -208,7 +208,7 @@ export class DonationWebhookService {
                 campaignId: campaignId,
                 paymentTransactionId: paymentTransaction.id,
                 amount: actualAmountReceived,
-                gateway: "PAYOS", 
+                gateway: "PAYOS",
                 description: `Donation from ${donation.donor_name || "Anonymous"} - Order ${orderCode}`,
             })
 
@@ -224,9 +224,27 @@ export class DonationWebhookService {
                 "PayOS",
             )
 
-            // Step 6: Award badge (non-blocking, fire-and-forget)
+            // Step 6: Update donor cached stats and award badge
             if (donation.donor_id) {
-                this.awardBadgeAsync(donation.donor_id)
+                // Get user database ID from cognito_id
+                const donor = await this.userClientService.getUserByCognitoId(donation.donor_id)
+                
+                if (donor) {
+                    // Update cached stats (via gRPC)
+                    await this.userClientService.updateDonorStats({
+                        donorId: donor.id, // Use database ID, not cognito_id
+                        amountToAdd: actualAmountReceived,
+                        incrementCount: 1,
+                        lastDonationAt: new Date(),
+                    })
+
+                    // Award badge (non-blocking, uses cached data)
+                    this.awardBadgeAsync(donor.id) // Use database ID, not cognito_id
+                } else {
+                    this.logger.warn(
+                        `[PayOS] Donor not found for cognito_id: ${donation.donor_id}`,
+                    )
+                }
             }
         } catch (error) {
             this.logger.error(
@@ -237,24 +255,9 @@ export class DonationWebhookService {
         }
     }
 
-    /**
-     * Award badge asynchronously (non-blocking)
-     * Get donor stats and award appropriate badge
-     */
     private async awardBadgeAsync(donorId: string): Promise<void> {
         try {
-            // Get donor donation stats
-            const stats = await this.donorRepository.getDonationStats(donorId)
-
-            // Check if this is first donation
-            const isFirstDonation = stats.donationCount === 1
-
-            // Award badge based on total amount
-            await this.badgeAwardService.checkAndAwardBadge(
-                donorId,
-                stats.totalDonated,
-                isFirstDonation,
-            )
+            await this.badgeAwardService.checkAndAwardBadge(donorId)
         } catch (error) {
             // Non-blocking: Just log error, don't throw
             this.logger.error(
@@ -264,10 +267,6 @@ export class DonationWebhookService {
         }
     }
 
-    /**
-     * Process failed PayOS payment
-     * Update payment_transaction with error details
-     */
     private async processFailedPayment(
         paymentTransaction: any,
         errorCode: string,
@@ -304,5 +303,4 @@ export class DonationWebhookService {
         const adminId = envConfig().systemAdminId || "admin-system-001"
         return adminId
     }
-
 }

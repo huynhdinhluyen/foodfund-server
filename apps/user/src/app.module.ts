@@ -23,6 +23,8 @@ import {
 } from "./application/services"
 import { WalletTransactionService } from "./application/services/common/wallet-transaction.service"
 import { BadgeService, UserBadgeService } from "./application/services/badge"
+import { BadgeEmailService } from "./application/services/badge/badge-email.service"
+import { BrevoEmailService } from "@libs/email"
 import {
     UserRepository,
     OrganizationRepository,
@@ -124,6 +126,8 @@ import { HealthController } from "./presentation/http/controllers"
         WalletTransactionService,
         BadgeService,
         UserBadgeService,
+        BadgeEmailService,
+        BrevoEmailService,
         SpacesUploadService,
 
         // Presentation - Resolvers
