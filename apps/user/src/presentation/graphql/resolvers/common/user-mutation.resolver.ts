@@ -2,16 +2,13 @@ import { Resolver, Mutation, Args } from "@nestjs/graphql"
 import { UseGuards, ValidationPipe, Logger } from "@nestjs/common"
 
 import { CognitoGraphQLGuard, AwsCognitoService } from "@libs/aws-cognito"
-import { CurrentUser, CurrentUserType, RequireRole } from "libs/auth"
+import { CurrentUser, CurrentUserType } from "libs/auth"
 import { UpdateMyProfileInput } from "@app/user/src/application/dtos"
 import {
     UserMutationService,
     UserQueryService,
-    OrganizationService,
 } from "@app/user/src/application/services"
 import { UserProfileSchema } from "@app/user/src/domain/entities"
-import { LeaveOrganizationResponse } from "@app/user/src/shared/types"
-import { Role } from "@libs/databases"
 
 @Resolver(() => UserProfileSchema)
 export class UserMutationResolver {
@@ -21,7 +18,6 @@ export class UserMutationResolver {
         private readonly userMutationService: UserMutationService,
         private readonly userQueryService: UserQueryService,
         private readonly awsCognitoService: AwsCognitoService,
-        private readonly organizationService: OrganizationService,
     ) {}
 
     @Mutation(() => UserProfileSchema)
@@ -88,14 +84,5 @@ export class UserMutationResolver {
 
         this.logger.log(`Profile updated successfully for user: ${cognitoId}`)
         return updatedUser
-    }
-
-    @Mutation(() => LeaveOrganizationResponse, {
-        description:
-            "Leave organization voluntarily (Staff only: KITCHEN_STAFF, DELIVERY_STAFF)",
-    })
-    @RequireRole(Role.KITCHEN_STAFF, Role.DELIVERY_STAFF)
-    async leaveOrganization(@CurrentUser() user: CurrentUserType) {
-        return this.organizationService.leaveOrganization(user.cognitoId)
     }
 }

@@ -44,6 +44,7 @@ import {
     BadgeQueryResolver,
     BadgeMutationResolver,
     UserFieldResolver,
+    OrganizationMutationResolver,
 } from "./presentation/graphql/resolvers"
 import { HealthController } from "./presentation/http/controllers"
 
@@ -125,6 +126,7 @@ import { HealthController } from "./presentation/http/controllers"
         BadgeQueryResolver,
         BadgeMutationResolver,
         UserFieldResolver,
+        OrganizationMutationResolver,
     ],
     exports: [UserRepository],
 })
