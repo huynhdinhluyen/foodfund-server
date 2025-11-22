@@ -35,6 +35,8 @@ import {
     UserQueryResolver,
     UserMutationResolver,
     UserAdminResolver,
+    OrganizationQueryResolver,
+    OrganizationAdminResolver,
     AdminWalletResolver,
     DonorProfileResolver,
     FundraiserProfileResolver,
@@ -43,7 +45,6 @@ import {
     WalletFieldResolver,
     BadgeQueryResolver,
     BadgeMutationResolver,
-    UserFieldResolver,
     OrganizationMutationResolver,
 } from "./presentation/graphql/resolvers"
 import { HealthController } from "./presentation/http/controllers"
@@ -117,6 +118,8 @@ import { HealthController } from "./presentation/http/controllers"
         UserQueryResolver,
         UserMutationResolver,
         UserAdminResolver,
+        OrganizationQueryResolver,
+        OrganizationAdminResolver,
         AdminWalletResolver,
         DonorProfileResolver,
         FundraiserProfileResolver,
@@ -125,7 +128,6 @@ import { HealthController } from "./presentation/http/controllers"
         WalletFieldResolver,
         BadgeQueryResolver,
         BadgeMutationResolver,
-        UserFieldResolver,
         OrganizationMutationResolver,
     ],
     exports: [UserRepository],
