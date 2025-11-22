@@ -179,6 +179,34 @@ export class NotificationRepository {
         return notification ? this.mapToGraphQLModel(notification) : null
     }
 
+    async deleteNotification(
+        notificationId: string,
+        userId: string,
+    ): Promise<boolean> {
+        const existing = await this.prisma.notification.findFirst({
+            where: {
+                id: notificationId,
+                user_id: userId,
+            },
+            select: { id: true, created_at: true },
+        })
+
+        if (!existing) {
+            return false
+        }
+
+        await this.prisma.notification.delete({
+            where: {
+                id_created_at: {
+                    id: existing.id,
+                    created_at: existing.created_at,
+                },
+            },
+        })
+
+        return true
+    }
+
     private mapToGraphQLModel(dbNotification: any): Notification {
         const notification = new Notification()
         notification.id = dbNotification.id
