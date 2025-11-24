@@ -19,7 +19,7 @@ import {
 } from "../../../application/dtos/auth.input"
 import { CognitoGraphQLGuard } from "@libs/aws-cognito"
 import { UseGuards } from "@nestjs/common"
-import { CurrentUser } from "libs/auth"
+import { CurrentUser, CurrentUserType } from "libs/auth"
 import { UserService } from "../../../application/services"
 
 @Resolver(() => AuthUser)
@@ -61,10 +61,10 @@ export class UserResolver {
     @Mutation(() => CheckPasswordResponse)
     @UseGuards(CognitoGraphQLGuard)
     async checkCurrentPassword(
-        @CurrentUser() { id }: { id: string },
+        @CurrentUser() user: CurrentUserType,
         @Args("input") input: CheckCurrentPasswordInput,
     ): Promise<CheckPasswordResponse> {
-        return this.userService.checkCurrentPassword(id, input)
+        return this.userService.checkCurrentPassword(user.username, input)
     }
 
     @Mutation(() => GoogleAuthResponse)
