@@ -17,11 +17,13 @@ import { PrismaCampaignService } from "./infrastructure/database/prisma-campaign
 import { PrismaClient } from "./generated/campaign-client"
 import { SpacesUploadService } from "@libs/s3-storage"
 import { CampaignCacheService } from "./application/services/campaign/campaign-cache.service"
+import { CampaignSearchService } from "./application/services/campaign/campaign-search.service"
 import { CampaignService } from "./application/services/campaign/campaign.service"
 import { CampaignSettlementService } from "./application/services/campaign/campaign-settlement.service"
 import { CampaignEmailService } from "./application/services/campaign/campaign-email.service"
 import { AuthorizationService, UserClientService, UserDataLoader, UserResolver } from "./shared"
 import { CampaignQueryResolver } from "./presentation/graphql/campaign/queries"
+import { CampaignSearchResolver } from "./presentation/graphql/campaign/queries/campaign-search.resolver"
 import { CampaignStatsQueryResolver } from "./presentation/graphql/campaign/queries/campaign-stats-query.resolver"
 import { CampaignMutationResolver } from "./presentation/graphql/campaign/mutations"
 import { CampaignRepository } from "./application/repositories/campaign.repository"
@@ -171,6 +173,7 @@ import { CampaignFollowerService } from "./application/services/campaign/campaig
         AuthorizationService,
         CampaignSchedulerService,
         CampaignCacheService,
+        CampaignSearchService,
         CampaignService,
         CampaignSettlementService,
         CampaignEmailService,
@@ -195,6 +198,7 @@ import { CampaignFollowerService } from "./application/services/campaign/campaig
 
         UserResolver,
         CampaignQueryResolver,
+        CampaignSearchResolver,
         CampaignStatsQueryResolver,
         CampaignMutationResolver,
         CampaignCategoryQueryResolver,
@@ -251,4 +255,4 @@ import { CampaignFollowerService } from "./application/services/campaign/campaig
         SystemAnnouncementBuilder,
     ],
 })
-export class AppModule {}
+export class AppModule { }

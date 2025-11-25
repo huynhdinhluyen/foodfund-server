@@ -7,49 +7,73 @@ import { CampaignService } from "@app/campaign/src/application/services/campaign
 import { CampaignFilterInput, CampaignSortOrder } from "@app/campaign/src/application/dtos/campaign/request"
 import { createUserContextFromToken, CurrentUser } from "@app/campaign/src/shared"
 
+import { CampaignSearchService } from "@app/campaign/src/application/services/campaign/campaign-search.service"
+import { CampaignSortBy } from "@app/campaign/src/presentation/dtos/search-campaign.input"
+
 @Resolver(() => Campaign)
 @UseInterceptors(SentryInterceptor)
 export class CampaignQueryResolver {
-    constructor(private readonly campaignService: CampaignService) {}
+    constructor(
+        private readonly campaignService: CampaignService,
+        private readonly campaignSearchService: CampaignSearchService,
+    ) { }
 
     @Query(() => [Campaign], {
         description: "Get campaigns with filtering, search, and pagination",
     })
     async campaigns(
         @Args("filter", { type: () => CampaignFilterInput, nullable: true })
-            filter?: CampaignFilterInput,
+        filter?: CampaignFilterInput,
         @Args("search", { type: () => String, nullable: true })
-            search?: string,
+        search?: string,
         @Args("sortBy", {
             type: () => CampaignSortOrder,
             nullable: true,
             defaultValue: CampaignSortOrder.ACTIVE_FIRST,
         })
-            sortBy: CampaignSortOrder = CampaignSortOrder.ACTIVE_FIRST,
+        sortBy: CampaignSortOrder = CampaignSortOrder.ACTIVE_FIRST,
         @Args("limit", {
             type: () => Int,
             nullable: true,
             defaultValue: 10,
             description: "Number of campaigns to return (max 100)",
         })
-            limit: number = 10,
+        limit: number = 10,
         @Args("offset", {
             type: () => Int,
             nullable: true,
             defaultValue: 0,
             description: "Number of campaigns to skip",
         })
-            offset: number = 0,
+        offset: number = 0,
     ): Promise<Campaign[]> {
         const safeLimit = Math.min(Math.max(limit, 1), 100)
         const safeOffset = Math.max(offset, 0)
-        return this.campaignService.getCampaigns(
-            filter,
-            search,
-            sortBy,
-            safeLimit,
-            safeOffset,
-        )
+        const page = Math.floor(safeOffset / safeLimit) + 1
+
+        try {
+            const result = await this.campaignSearchService.search({
+                query: search,
+                categoryId: filter?.categoryId,
+                creatorId: filter?.creatorId,
+                status: filter?.status,
+                sortBy: sortBy as unknown as CampaignSortBy,
+                page,
+                limit: safeLimit,
+            })
+            return result.items
+        } catch (error) {
+            console.warn(
+                `OpenSearch failed, falling back to database. Error: ${error.message}`,
+            )
+            return this.campaignService.getCampaigns(
+                filter,
+                search,
+                sortBy,
+                safeLimit,
+                safeOffset,
+            )
+        }
     }
 
     @Query(() => Campaign, {
@@ -73,19 +97,19 @@ export class CampaignQueryResolver {
             nullable: true,
             defaultValue: CampaignSortOrder.NEWEST_FIRST,
         })
-            sortBy: CampaignSortOrder = CampaignSortOrder.NEWEST_FIRST,
+        sortBy: CampaignSortOrder = CampaignSortOrder.NEWEST_FIRST,
         @Args("limit", {
             type: () => Int,
             nullable: true,
             defaultValue: 10,
         })
-            limit: number = 10,
+        limit: number = 10,
         @Args("offset", {
             type: () => Int,
             nullable: true,
             defaultValue: 0,
         })
-            offset: number = 0,
+        offset: number = 0,
     ): Promise<Campaign[]> {
         const userContext = createUserContextFromToken(decodedToken)
         const safeLimit = Math.min(Math.max(limit, 1), 100)

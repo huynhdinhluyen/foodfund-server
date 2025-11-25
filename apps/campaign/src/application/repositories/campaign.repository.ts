@@ -106,7 +106,7 @@ export class CampaignRepository {
         },
     } as const
 
-    constructor(private readonly prisma: PrismaClient) {}
+    constructor(private readonly prisma: PrismaClient) { }
 
     async create(data: CreateCampaignData): Promise<Campaign> {
         const { phases, ...campaignData } = data
@@ -240,6 +240,14 @@ export class CampaignRepository {
             orderBy: this.buildOrderByClause(sortBy),
         })
 
+        return campaigns.map((c) => this.mapToGraphQLModel(c))
+    }
+
+    async findAll(): Promise<Campaign[]> {
+        const campaigns = await this.prisma.campaign.findMany({
+            where: { is_active: true },
+            include: this.CAMPAIGN_JOIN_FIELDS,
+        })
         return campaigns.map((c) => this.mapToGraphQLModel(c))
     }
 
@@ -610,22 +618,22 @@ export class CampaignRepository {
 
     private buildOrderByClause(sortBy: CampaignSortOrder): any {
         switch (sortBy) {
-        case CampaignSortOrder.ACTIVE_FIRST:
-            return [{ status: "asc" }, { created_at: "desc" }]
-        case CampaignSortOrder.NEWEST_FIRST:
-            return { created_at: "desc" }
-        case CampaignSortOrder.OLDEST_FIRST:
-            return { created_at: "asc" }
-        case CampaignSortOrder.TARGET_AMOUNT_ASC:
-            return { target_amount: "asc" }
-        case CampaignSortOrder.TARGET_AMOUNT_DESC:
-            return { target_amount: "desc" }
-        case CampaignSortOrder.MOST_DONATED:
-            return { donation_count: "desc" }
-        case CampaignSortOrder.LEAST_DONATED:
-            return { donation_count: "asc" }
-        default:
-            return { created_at: "desc" }
+            case CampaignSortOrder.ACTIVE_FIRST:
+                return [{ status: "asc" }, { created_at: "desc" }]
+            case CampaignSortOrder.NEWEST_FIRST:
+                return { created_at: "desc" }
+            case CampaignSortOrder.OLDEST_FIRST:
+                return { created_at: "asc" }
+            case CampaignSortOrder.TARGET_AMOUNT_ASC:
+                return { target_amount: "asc" }
+            case CampaignSortOrder.TARGET_AMOUNT_DESC:
+                return { target_amount: "desc" }
+            case CampaignSortOrder.MOST_DONATED:
+                return { donation_count: "desc" }
+            case CampaignSortOrder.LEAST_DONATED:
+                return { donation_count: "asc" }
+            default:
+                return { created_at: "desc" }
         }
     }
 
@@ -685,20 +693,20 @@ export class CampaignRepository {
                 const ingredientFunds =
                     fundableAmount > 0n
                         ? (fundableAmount *
-                              BigInt(Math.floor(ingredientPct * 10000))) /
-                          10000n
+                            BigInt(Math.floor(ingredientPct * 10000))) /
+                        10000n
                         : 0n
                 const cookingFunds =
                     fundableAmount > 0n
                         ? (fundableAmount *
-                              BigInt(Math.floor(cookingPct * 10000))) /
-                          10000n
+                            BigInt(Math.floor(cookingPct * 10000))) /
+                        10000n
                         : 0n
                 const deliveryFunds =
                     fundableAmount > 0n
                         ? (fundableAmount *
-                              BigInt(Math.floor(deliveryPct * 10000))) /
-                          10000n
+                            BigInt(Math.floor(deliveryPct * 10000))) /
+                        10000n
                         : 0n
 
                 return {
@@ -817,7 +825,7 @@ export class CampaignRepository {
             daysActive =
                 Math.floor(
                     (todayMidnight.getTime() - startMidnight.getTime()) /
-                        msPerDay,
+                    msPerDay,
                 ) + 1
         }
 
