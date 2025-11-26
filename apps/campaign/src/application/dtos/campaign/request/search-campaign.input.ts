@@ -1,5 +1,5 @@
 import { Field, Float, InputType, Int, registerEnumType } from "@nestjs/graphql"
-import { CampaignStatus } from "../../domain/enums/campaign/campaign.enum"
+import { CampaignStatus } from "../../../../domain/enums/campaign/campaign.enum"
 
 export enum CampaignSortBy {
     NEWEST = "NEWEST",
@@ -27,49 +27,49 @@ export class SearchCampaignInput {
     @Field(() => String, { nullable: true })
     @IsOptional()
     @IsString()
-    query?: string
+        query?: string
 
     @Field(() => String, { nullable: true })
     @IsOptional()
     @IsUUID()
-    categoryId?: string
+        categoryId?: string
 
     @Field(() => String, { nullable: true })
     @IsOptional()
     @IsUUID()
-    creatorId?: string
+        creatorId?: string
 
     @Field(() => [CampaignStatus], { nullable: true })
     @IsOptional()
     @IsEnum(CampaignStatus, { each: true })
-    status?: CampaignStatus[]
+        status?: CampaignStatus[]
 
     @Field(() => Float, { nullable: true })
     @IsOptional()
     @IsNumber()
     @Min(0)
-    minTargetAmount?: number
+        minTargetAmount?: number
 
     @Field(() => Float, { nullable: true })
     @IsOptional()
     @IsNumber()
     @Min(0)
-    maxTargetAmount?: number
+        maxTargetAmount?: number
 
     @Field(() => CampaignSortBy, { nullable: true })
     @IsOptional()
     @IsEnum(CampaignSortBy)
-    sortBy?: CampaignSortBy
+        sortBy?: CampaignSortBy
 
     @Field(() => Int, { defaultValue: 1 })
     @IsOptional()
     @IsInt()
     @Min(1)
-    page: number
+        page: number
 
     @Field(() => Int, { defaultValue: 10 })
     @IsOptional()
     @IsInt()
     @Min(1)
-    limit: number
+        limit: number
 }

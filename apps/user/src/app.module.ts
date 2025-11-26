@@ -20,8 +20,8 @@ import {
     UserMutationService,
     WalletService,
 } from "./application/services"
-import { WalletTransactionService } from "./application/services/common/wallet-transaction.service"
-import { WalletTransactionSearchService } from "./application/services/common/wallet-transaction-search.service"
+import { WalletTransactionService } from "./application/services/wallet/wallet-transaction.service"
+import { WalletTransactionSearchService } from "./application/services/wallet/wallet-transaction-search.service"
 import { BadgeService, UserBadgeService } from "./application/services/badge"
 import { BadgeEmailService } from "./application/services/badge/badge-email.service"
 import { BrevoEmailService } from "@libs/email"

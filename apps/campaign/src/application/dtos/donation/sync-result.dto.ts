@@ -4,8 +4,8 @@ import { Directive, Field, ObjectType, Int } from "@nestjs/graphql"
 @Directive("@shareable")
 export class SyncResult {
     @Field(() => Int)
-    successCount: number
+        successCount: number
 
     @Field(() => Int)
-    failCount: number
+        failCount: number
 }

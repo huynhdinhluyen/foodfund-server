@@ -4,17 +4,17 @@ import { WalletTransactionSchema } from "../../domain/entities"
 @ObjectType()
 export class WalletTransactionSearchResult {
     @Field(() => [WalletTransactionSchema])
-    items: WalletTransactionSchema[]
+        items: WalletTransactionSchema[]
 
     @Field(() => Int)
-    total: number
+        total: number
 
     @Field(() => Int)
-    page: number
+        page: number
 
     @Field(() => Int)
-    limit: number
+        limit: number
 
     @Field(() => Int)
-    totalPages: number
+        totalPages: number
 }

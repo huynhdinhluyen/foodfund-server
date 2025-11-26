@@ -1,26 +1,26 @@
 import { Args, Mutation, Query, Resolver } from "@nestjs/graphql"
 import { CampaignSearchService } from "@app/campaign/src/application/services/campaign/campaign-search.service"
-import { SearchCampaignInput } from "@app/campaign/src/presentation/dtos/search-campaign.input"
+import { SearchCampaignInput } from "@app/campaign/src/application/dtos/campaign/request/search-campaign.input"
 import { Campaign } from "@app/campaign/src/domain/entities/campaign.model"
 import { ObjectType, Field, Int } from "@nestjs/graphql"
-import { SyncCampaignsResponse } from "../../../dtos/sync-campaigns.response"
+import { SyncCampaignsResponse } from "../../../../application/dtos/campaign/response/sync-campaigns.response"
 
 @ObjectType()
 export class SearchCampaignResponse {
     @Field(() => [Campaign])
-    items: Campaign[]
+        items: Campaign[]
 
     @Field(() => Int)
-    total: number
+        total: number
 
     @Field(() => Int)
-    page: number
+        page: number
 
     @Field(() => Int)
-    limit: number
+        limit: number
 
     @Field(() => Int)
-    totalPages: number
+        totalPages: number
 }
 
 @Resolver(() => Campaign)

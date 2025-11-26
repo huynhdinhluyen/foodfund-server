@@ -3,8 +3,8 @@ import { Field, Int, ObjectType } from "@nestjs/graphql"
 @ObjectType()
 export class SyncCampaignsResponse {
     @Field(() => Int)
-    successCount: number
+        successCount: number
 
     @Field(() => Int)
-    failCount: number
+        failCount: number
 }

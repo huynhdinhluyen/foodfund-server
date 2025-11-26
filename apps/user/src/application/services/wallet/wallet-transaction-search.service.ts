@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common"
 import { OpenSearchService } from "@libs/aws-opensearch"
 import { WalletRepository } from "../../repositories/wallet.repository"
-import { SearchWalletTransactionInput } from "../../../presentation/dtos/search-wallet-transaction.input"
+import { SearchWalletTransactionInput } from "../../dtos/search-wallet-transaction.input"
 
 @Injectable()
 export class WalletTransactionSearchService implements OnModuleInit {

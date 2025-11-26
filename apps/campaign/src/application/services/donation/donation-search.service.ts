@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common"
 import { OpenSearchService } from "@libs/aws-opensearch"
 import { Donation } from "../../../domain/entities/donation.model"
-import { DonationSortBy, SearchDonationInput } from "../../../presentation/dtos/search-donation.input"
+import { DonationSortBy, SearchDonationInput } from "../../dtos/campaign/request/search-donation.input"
 import { DonorRepository } from "../../repositories/donor.repository"
 
 @Injectable()
@@ -245,16 +245,16 @@ export class DonationSearchService implements OnModuleInit {
                     // Extract bank info from metadata
                     let bankName = ""
                     let bankAccount = ""
-                    let gateway = activeTx?.gateway || "UNKNOWN"
-                    let paymentStatus = activeTx?.payment_status || "PENDING"
-                    let receivedAmount = activeTx?.received_amount?.toString() || "0"
-                    let currency = activeTx?.currency || "VND"
-                    let errorCode = activeTx?.error_code || ""
-                    let errorDescription = activeTx?.error_description || ""
-                    let refundedAt = activeTx?.refunded_at || null
-                    let processedByWebhook = activeTx?.processed_by_webhook || false
-                    let payosMetadata = activeTx?.payos_metadata || null
-                    let sepayMetadata = activeTx?.sepay_metadata || null
+                    const gateway = activeTx?.gateway || "UNKNOWN"
+                    const paymentStatus = activeTx?.payment_status || "PENDING"
+                    const receivedAmount = activeTx?.received_amount?.toString() || "0"
+                    const currency = activeTx?.currency || "VND"
+                    const errorCode = activeTx?.error_code || ""
+                    const errorDescription = activeTx?.error_description || ""
+                    const refundedAt = activeTx?.refunded_at || null
+                    const processedByWebhook = activeTx?.processed_by_webhook || false
+                    const payosMetadata = activeTx?.payos_metadata || null
+                    const sepayMetadata = activeTx?.sepay_metadata || null
 
                     if (activeTx) {
                         if (activeTx.gateway === "PAYOS" && activeTx.payos_metadata) {

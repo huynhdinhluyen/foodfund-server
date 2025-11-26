@@ -78,7 +78,7 @@ export class DonorRepository {
                 donation_id: data.donation_id,
                 order_code: data.order_code,
                 amount: data.amount,
-                received_amount: BigInt(0), // Initialize to 0
+                received_amount: BigInt(0),
                 description: data.description,
                 payos_metadata: {
                     checkout_url: data.checkout_url,

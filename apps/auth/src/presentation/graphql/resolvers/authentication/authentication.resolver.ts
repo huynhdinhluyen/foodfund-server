@@ -7,13 +7,13 @@ import {
     SignInResponse,
     RefreshTokenResponse,
     SignOutResponse,
-} from "../../../domain/entities"
-import { SignInInput, RefreshTokenInput } from "../../../application/dtos"
+} from "../../../../domain/entities"
+import { SignInInput, RefreshTokenInput } from "../../../../application/dtos"
 import { CognitoGraphQLGuard } from "libs/aws-cognito/guards"
 import {
     AuthenticationService,
     UserService,
-} from "../../../application/services"
+} from "../../../../application/services"
 
 @Resolver()
 export class AuthenticationResolver {

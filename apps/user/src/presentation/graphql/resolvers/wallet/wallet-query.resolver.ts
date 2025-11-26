@@ -1,12 +1,12 @@
 import { Args, Int, Query, Resolver } from "@nestjs/graphql"
-import { WalletService } from "../../../../application/services/common/wallet.service"
+import { WalletService } from "@app/user/src/application/services"
 import {
     WalletSchema,
     WalletTransactionSchema,
 } from "../../../../domain/entities"
-import { WalletTransactionSearchService } from "../../../../application/services/common/wallet-transaction-search.service"
-import { SearchWalletTransactionInput } from "../../../dtos/search-wallet-transaction.input"
-import { WalletTransactionSearchResult } from "../../../dtos/wallet-transaction-search-result.dto"
+import { WalletTransactionSearchResult } from "../../../../application/dtos/wallet-transaction-search-result.dto"
+import { WalletTransactionSearchService } from "@app/user/src/application/services"
+import { SearchWalletTransactionInput } from "@app/user/src/application/dtos"
 
 @Resolver()
 export class WalletQueryResolver {
@@ -48,14 +48,14 @@ export class WalletQueryResolver {
             defaultValue: 0,
             description: "Number of transactions to skip",
         })
-        skip = 0,
+            skip = 0,
         @Args("limit", {
             type: () => Int,
             nullable: true,
             defaultValue: 50,
             description: "Number of transactions to return",
         })
-        limit = 50,
+            limit = 50,
     ): Promise<WalletTransactionSchema[]> {
         return this.walletService.getWalletTransactionsByWalletId(
             walletId,

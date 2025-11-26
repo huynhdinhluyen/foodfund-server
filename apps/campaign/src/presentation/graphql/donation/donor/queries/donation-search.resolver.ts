@@ -2,7 +2,7 @@ import { Args, Query, Resolver, Mutation } from "@nestjs/graphql"
 import { UseInterceptors } from "@nestjs/common"
 import { SentryInterceptor } from "@libs/observability/sentry.interceptor"
 import { DonationSearchService } from "../../../../../application/services/donation/donation-search.service"
-import { SearchDonationInput } from "../../../../dtos/search-donation.input"
+import { SearchDonationInput } from "../../../../../application/dtos/campaign/request/search-donation.input"
 import { CampaignDonationSummary, CampaignDonationStatementResponse } from "../../../../../application/dtos/donation"
 import { SyncResult } from "../../../../../application/dtos/donation/sync-result.dto"
 
