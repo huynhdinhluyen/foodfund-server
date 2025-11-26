@@ -3,11 +3,10 @@ import { envConfig } from "libs/env"
 import { SentryModule } from "@libs/observability/sentry.module"
 import { GraphQLSubgraphModule } from "@libs/graphql/subgraph"
 import { ScheduleModule } from "@nestjs/schedule"
-import { User } from "./shared/model/user.model"
 import { EnvModule } from "@libs/env/env.module"
 import { OpenSearchModule } from "@libs/aws-opensearch"
 import { GrpcModule } from "@libs/grpc"
-import { QueueModule, QUEUE_NAMES } from "@libs/queue"
+import { QueueModule } from "@libs/queue"
 import { BullBoardModule } from "@bull-board/nestjs"
 import { ExpressAdapter } from "@bull-board/express"
 import { DatadogModule } from "@libs/observability"
@@ -21,7 +20,13 @@ import { CampaignSearchService } from "./application/services/campaign/campaign-
 import { CampaignService } from "./application/services/campaign/campaign.service"
 import { CampaignSettlementService } from "./application/services/campaign/campaign-settlement.service"
 import { CampaignEmailService } from "./application/services/campaign/campaign-email.service"
-import { AuthorizationService, UserClientService, UserDataLoader, UserResolver } from "./shared"
+import {
+    AuthorizationService,
+    User,
+    UserClientService,
+    UserDataLoader,
+    UserResolver,
+} from "./shared"
 import { CampaignQueryResolver } from "./presentation/graphql/campaign/queries"
 import { CampaignSearchResolver } from "./presentation/graphql/campaign/queries/campaign-search.resolver"
 import { CampaignStatsQueryResolver } from "./presentation/graphql/campaign/queries/campaign-stats-query.resolver"
@@ -107,6 +112,7 @@ import {
     PostNotificationHandler,
 } from "./application/handlers"
 import { CampaignFollowerService } from "./application/services/campaign/campaign-follower.service"
+import { Organization } from "./shared/model"
 
 import { DonationSearchService } from "./application/services/donation/donation-search.service"
 import { DonationSearchResolver } from "./presentation/graphql/donation/donor/queries/donation-search.resolver"
@@ -119,7 +125,7 @@ import { DonationSearchResolver } from "./presentation/graphql/donation/donor/qu
             federationVersion: 2,
             path: "/graphql",
             buildSchemaOptions: {
-                orphanedTypes: [User],
+                orphanedTypes: [User, Organization],
             },
         }),
         EnvModule.forRoot(),

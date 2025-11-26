@@ -54,6 +54,7 @@ import {
     CampaignCompletedEvent,
     CampaignRejectedEvent,
 } from "@app/campaign/src/domain/events"
+import { GrpcClientService } from "@libs/grpc"
 
 interface CoverImageUpdateResult {
     updateData: {
@@ -153,6 +154,18 @@ export class CampaignService {
                 "create campaign",
             )
 
+            const userBasicInfo = await this.userClientService.getUserBasicInfo(
+                userContext.userId,
+            )
+
+            const organizationId = userBasicInfo.user?.organizationId || null
+
+            if (!organizationId) {
+                throw new BadRequestException(
+                    "You must be a member of an organization to create a campaign",
+                )
+            }
+
             // await this.validateNoActiveCampaign(userContext.userId)
 
             if (input.categoryId) {
@@ -213,6 +226,7 @@ export class CampaignService {
                 fundraisingStartDate: input.fundraisingStartDate,
                 fundraisingEndDate: input.fundraisingEndDate,
                 createdBy: userContext.userId,
+                organizationId,
                 status: CampaignStatus.PENDING,
                 categoryId: input.categoryId,
                 phases: input.phases.map((phase) => ({
