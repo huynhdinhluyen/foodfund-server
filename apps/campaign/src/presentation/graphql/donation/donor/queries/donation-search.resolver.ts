@@ -56,7 +56,7 @@ export class DonationSearchResolver {
             transactions: result.items.flatMap((item: any) => {
                 return (item.paymentTransactions || []).map((tx: any) => {
                     let maskedBankAccount = ""
-                    const bankAccount = tx.bankAccount || "";
+                    const bankAccount = tx.bankAccount || ""
                     if (bankAccount && bankAccount.length > 4) {
                         maskedBankAccount = "****" + bankAccount.slice(-4)
                     } else {

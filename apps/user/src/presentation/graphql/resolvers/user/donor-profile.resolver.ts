@@ -77,12 +77,12 @@ export class DonorProfileResolver {
 
         let roleMessage = ""
         switch (input.requested_role) {
-            case JoinOrganizationRole.KITCHEN_STAFF:
-                roleMessage = "Kitchen Staff (food preparation)"
-                break
-            case JoinOrganizationRole.DELIVERY_STAFF:
-                roleMessage = "Delivery Staff (food distribution)"
-                break
+        case JoinOrganizationRole.KITCHEN_STAFF:
+            roleMessage = "Kitchen Staff (food preparation)"
+            break
+        case JoinOrganizationRole.DELIVERY_STAFF:
+            roleMessage = "Delivery Staff (food distribution)"
+            break
         }
 
         return {

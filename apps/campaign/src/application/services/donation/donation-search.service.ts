@@ -132,7 +132,7 @@ export class DonationSearchService implements OnModuleInit {
                 message: donation.message,
                 createdAt: donation.created_at,
                 paymentTransactions: transactions.map((tx) => {
-                    const sepayMetadata = tx.sepay_metadata ? (typeof tx.sepay_metadata === 'string' ? JSON.parse(tx.sepay_metadata) : tx.sepay_metadata) : {};
+                    const sepayMetadata = tx.sepay_metadata ? (typeof tx.sepay_metadata === "string" ? JSON.parse(tx.sepay_metadata) : tx.sepay_metadata) : {}
                     return {
                         id: tx.id,
                         amount: parseFloat(tx.amount.toString()),
@@ -143,7 +143,7 @@ export class DonationSearchService implements OnModuleInit {
                         bankName: sepayMetadata.bank_name || null,
                         bankAccount: sepayMetadata.bank_account || null,
                         createdAt: tx.created_at,
-                    };
+                    }
                 }),
             }
 
