@@ -54,7 +54,6 @@ import {
     CampaignCompletedEvent,
     CampaignRejectedEvent,
 } from "@app/campaign/src/domain/events"
-import { GrpcClientService } from "@libs/grpc"
 
 interface CoverImageUpdateResult {
     updateData: {
@@ -252,6 +251,7 @@ export class CampaignService {
             await this.cacheService.invalidateAll(
                 campaign.id,
                 userContext.userId,
+                campaign.slug,
                 input.categoryId,
             )
 
@@ -326,6 +326,23 @@ export class CampaignService {
         return campaign
     }
 
+    async findCampaignBySlug(slug: string): Promise<Campaign> {
+        const cached = await this.cacheService.getCampaignBySlug(slug)
+        if (cached) {
+            return cached
+        }
+
+        const campaign = await this.campaignRepository.findBySlug(slug)
+        if (!campaign) {
+            throw new CampaignNotFoundException(`with slug: ${slug}`)
+        }
+
+        await this.cacheService.setCampaign(campaign.id, campaign)
+        await this.cacheService.setCampaignBySlug(slug, campaign)
+
+        return campaign
+    }
+
     async getCampaignIdByPhaseId(phaseId: string): Promise<string | null> {
         return this.campaignPhaseRepository.getCampaignIdByPhaseId(phaseId)
     }
@@ -365,7 +382,7 @@ export class CampaignService {
             Object.assign(updateData, coverImageResult.updateData)
 
             this.processFundraisingDatesUpdate(input, campaign, updateData)
-            this.processBasicFieldUpdates(input, updateData)
+            this.processBasicFieldUpdates(id, input, updateData)
             this.handleStatusReversion(campaign, updateData)
 
             const updatedCampaign = await this.campaignRepository.update(
@@ -378,6 +395,7 @@ export class CampaignService {
                 updatedCampaign,
                 userContext.userId,
                 campaign.categoryId,
+                campaign.slug,
                 input.categoryId,
             )
 
@@ -521,6 +539,7 @@ export class CampaignService {
             await this.cacheService.invalidateAll(
                 id,
                 campaign.createdBy,
+                campaign.slug,
                 campaign.categoryId,
             )
 
@@ -603,6 +622,7 @@ export class CampaignService {
                 this.cacheService.invalidateAll(
                     id,
                     userContext.userId,
+                    campaign.slug,
                     campaign.categoryId,
                 ),
             ])
@@ -662,6 +682,7 @@ export class CampaignService {
             await this.cacheService.invalidateAll(
                 id,
                 userContext.userId,
+                campaign.slug,
                 campaign.categoryId,
             )
 
@@ -897,11 +918,17 @@ export class CampaignService {
     }
 
     private processBasicFieldUpdates(
+        id: string,
         input: UpdateCampaignInput,
         updateData: any,
     ): void {
         if (input.title) {
             updateData.title = input.title
+        }
+
+        if (input.title && input.title !== updateData.title) {
+            const newSlug = this.campaignRepository.updateSlug(id, input.title)
+            updateData.slug = newSlug
         }
 
         if (input.description) {
@@ -931,6 +958,7 @@ export class CampaignService {
         updatedCampaign: Campaign,
         userId: string,
         oldCategoryId?: string,
+        slug?: string,
         newCategoryId?: string,
     ): Promise<void> {
         await this.cacheService.setCampaign(campaignId, updatedCampaign)
@@ -938,6 +966,7 @@ export class CampaignService {
         await this.cacheService.invalidateAll(
             campaignId,
             userId,
+            slug,
             oldCategoryId ?? newCategoryId,
         )
     }
@@ -1406,7 +1435,11 @@ export class CampaignService {
         })
 
         await this.cacheService.deleteCampaign(campaignId)
-        await this.cacheService.invalidateAll()
+        await this.cacheService.invalidateAll(
+            campaignId,
+            undefined,
+            campaign.slug,
+        )
 
         return campaign
     }
