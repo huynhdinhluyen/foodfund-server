@@ -183,30 +183,6 @@ export class SepayWebhookService {
                 `[Sepay→Admin] ✅ Payment updated to SUCCESS with PARTIAL status - orderCode=${orderCode}, amount=${payload.transferAmount}/${paymentTransaction.amount}`,
             )
 
-            if (donation) {
-                await this.donationSearchService.indexDonation({
-                    ...donation,
-                    amount: donation.amount.toString(),
-                    status: "SUCCESS",
-                    orderCode: orderCode.toString(),
-                    transactionDatetime: new Date(payload.transactionDate),
-                    created_at: donation.created_at,
-                    updated_at: new Date(),
-                    campaignTitle: result.campaign.title,
-                    description: payload.description,
-                    gateway: "SEPAY",
-                    paymentStatus: "PARTIAL",
-                    receivedAmount: payload.transferAmount.toString(),
-                    bankName: payload.gateway || "",
-                    bankAccount: payload.subAccount || "",
-                    currency: "VND",
-                    errorCode: "00",
-                    errorDescription: "Success",
-                    processedByWebhook: true,
-                    sepayMetadata: payload,
-                } as any)
-            }
-
             this.checkAndEmitSurplusEvent(result.campaign)
 
             const adminUserId = this.getSystemAdminId()
@@ -216,7 +192,7 @@ export class SepayWebhookService {
                 campaignId: campaignId,
                 paymentTransactionId: paymentTransaction.id,
                 amount: BigInt(payload.transferAmount),
-                gateway: "SEPAY", 
+                gateway: "SEPAY",
                 description: `Thanh toán qua Sepay - Đơn hàng ${orderCode} | Ref: ${payload.referenceCode}`,
             })
 
@@ -308,38 +284,10 @@ export class SepayWebhookService {
                 `[Sepay→Admin] ✅ Supplementary payment created - Payment ID: ${result.payment.id}, amount=${payload.transferAmount}`,
             )
 
-            // Update OpenSearch index
-            if (donation) {
-                await this.donationSearchService.indexDonation({
-                    ...donation,
-                    amount: donation.amount.toString(),
-                    status: "SUCCESS",
-                    orderCode: originalPayment.order_code?.toString() || "",
-                    transactionDatetime: new Date(payload.transactionDate),
-                    created_at: donation.created_at,
-                    updated_at: new Date(),
-                    campaignTitle: result.campaign.title,
-                    description: payload.description,
-                    gateway: "SEPAY",
-                    paymentStatus: "COMPLETED", // Supplementary is usually completed
-                    receivedAmount: payload.transferAmount.toString(),
-                    bankName: payload.gateway || "",
-                    bankAccount: payload.subAccount || "",
-                    currency: "VND",
-                    errorCode: "00",
-                    errorDescription: "Success",
-                    processedByWebhook: true,
-                    sepayMetadata: payload,
-                } as any)
-            }
-
-            // 🆕 Check for campaign surplus and emit event
             this.checkAndEmitSurplusEvent(result.campaign)
 
-            // Step 2: Get system admin ID
             const adminUserId = this.getSystemAdminId()
 
-            // Step 3: Credit Admin Wallet
             await this.userClientService.creditAdminWallet({
                 adminId: adminUserId,
                 campaignId: campaignId,
@@ -353,7 +301,6 @@ export class SepayWebhookService {
                 `[Sepay→Admin] ✅ Admin wallet credited for supplementary payment - amount=${payload.transferAmount}`,
             )
 
-            // Step 4: Send donation confirmation email (if donor is not anonymous)
             await this.donationEmailService.sendDonationConfirmation(
                 donation,
                 BigInt(payload.transferAmount),
@@ -361,7 +308,6 @@ export class SepayWebhookService {
                 "Sepay",
             )
 
-            // Step 5: Update donor cached stats and award badge
             if (donation.donor_id) {
                 const donor = await this.userClientService.getUserByCognitoId(donation.donor_id)
 
