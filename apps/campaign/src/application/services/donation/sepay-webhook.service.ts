@@ -305,67 +305,12 @@ export class SepayWebhookService {
                 `[Sepay→Admin] ✅ Supplementary payment created & Outbox event created`,
             )
 
-            // this.checkAndEmitSurplusEvent(result.campaign)
-
-            // const adminUserId = this.getSystemAdminId()
-
-            // await this.userClientService.creditAdminWallet({
-            //     adminId: adminUserId,
-            //     campaignId: campaignId,
-            //     paymentTransactionId: result.payment.id,
-            //     amount: BigInt(payload.transferAmount),
-            //     gateway: "SEPAY", // For logging only
-            //     description: `Thanh toán qua Sepay | Ref: ${payload.referenceCode}`,
-            // })
-
-            // this.logger.log(
-            //     `[Sepay→Admin] ✅ Admin wallet credited for supplementary payment - amount=${payload.transferAmount}`,
-            // )
-
-            // await this.donationEmailService.sendDonationConfirmation(
-            //     donation,
-            //     BigInt(payload.transferAmount),
-            //     result.campaign,
-            //     "Sepay",
-            // )
-
-            // if (donation.donor_id) {
-            //     const donor = await this.userClientService.getUserByCognitoId(donation.donor_id)
-
-            //     if (donor) {
-            //         await this.userClientService.updateDonorStats({
-            //             donorId: donor.id,
-            //             amountToAdd: BigInt(payload.transferAmount),
-            //             incrementCount: 1,
-            //             lastDonationAt: new Date(),
-            //         })
-
-            //         this.awardBadgeAsync(donor.id)
-            //     } else {
-            //         this.logger.warn(
-            //             `[Sepay→Admin] Donor not found for cognito_id: ${donation.donor_id}`,
-            //         )
-            //     }
-            // }
         } catch (error) {
             this.logger.error(
                 "[Sepay→Admin] ❌ Failed to process supplementary payment",
                 error.stack,
             )
             throw error
-        }
-    }
-
-    private checkAndEmitSurplusEvent(campaign: any): void {
-        if (campaign.received_amount > campaign.target_amount && campaign.status === CampaignStatus.ACTIVE) {
-            const surplus = campaign.received_amount - campaign.target_amount
-            this.logger.log(
-                `[Sepay→Admin] 🎯 Surplus detected for campaign ${campaign.id} - Surplus: ${surplus.toString()} VND`,
-            )
-            this.eventEmitter.emit("campaign.surplus.detected", {
-                campaignId: campaign.id,
-                surplus: surplus.toString(),
-            })
         }
     }
 

@@ -5,11 +5,11 @@ import { DonationEmailService } from "../services/donation/donation-email.servic
 import { BadgeAwardService } from "../services/donation/badge-award.service"
 import { CampaignFollowerService } from "../services/campaign/campaign-follower.service"
 import { OutBoxRepository } from "../repositories/outbox.repository"
-import { DonorRepository } from "../repositories/donor.repository" // Import thêm cái này
+import { DonorRepository } from "../repositories/donor.repository"
 import { OutboxStatus } from "@app/campaign/src/domain/enums/outbox/outbox.enum"
 import { envConfig } from "@libs/env"
-import { EventEmitter2 } from "@nestjs/event-emitter" // Import thêm cái này
-import { CampaignStatus } from "@app/campaign/src/domain/enums/campaign/campaign.enum" // Import thêm cái này
+import { EventEmitter2 } from "@nestjs/event-emitter"
+import { CampaignStatus } from "@app/campaign/src/domain/enums/campaign/campaign.enum"
 
 @Injectable()
 export class OutboxProcessor {
@@ -56,6 +56,8 @@ export class OutboxProcessor {
 
             if (event_type === "DONATION_PAYMENT_SUCCEEDED") {
                 await this.handleDonationSuccess(payload)
+            } else if (event_type === "CAMPAIGN_SURPLUS_SETTLED") {
+                await this.handleCampaignSurplusSettled(payload)
             }
 
             await this.outboxRepository.updateStatus(event.id, OutboxStatus.COMPLETED)
@@ -137,5 +139,26 @@ export class OutboxProcessor {
         }
 
         await this.campaignFollowerService.invalidateFollowersCache(campaignId)
+    }
+
+    private async handleCampaignSurplusSettled(payload: any) {
+        const { campaignId, campaignTitle, fundraiserId, surplus, settlementId } = payload
+
+        this.logger.log(`[Outbox] Processing surplus settlement for campaign ${campaignId}`)
+
+        try {
+            await this.userClientService.creditFundraiserWallet({
+                fundraiserId,
+                campaignId,
+                paymentTransactionId: settlementId || `SURPLUS-${campaignId}-${Date.now()}`, // Use unique ID
+                amount: BigInt(surplus),
+                gateway: "SYSTEM",
+                description: `Ngân sách tồn dư của chiến dịch: ${campaignTitle} (Tồn dư: ${surplus} VND)`,
+            })
+            this.logger.log(`[Outbox] ✅ Surplus credited to fundraiser ${fundraiserId}`)
+        } catch (error) {
+            this.logger.error(`[Outbox] ❌ Failed to credit surplus to fundraiser ${fundraiserId}`, error.stack)
+            throw error // Rethrow to trigger retry logic
+        }
     }
 }
