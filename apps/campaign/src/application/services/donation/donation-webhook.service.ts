@@ -8,6 +8,7 @@ import { CampaignStatus } from "@app/campaign/src/domain/enums/campaign/campaign
 import { DonationEmailService } from "./donation-email.service"
 import { BadgeAwardService } from "./badge-award.service"
 import { CampaignFollowerService } from "../campaign/campaign-follower.service"
+import { DonationSearchService } from "./donation-search.service"
 
 interface PayOSWebhookData {
     orderCode: number
@@ -28,8 +29,6 @@ interface PayOSWebhookData {
     virtualAccountName?: string
     virtualAccountNumber?: string
 }
-
-import { DonationSearchService } from "./donation-search.service"
 
 @Injectable()
 export class DonationWebhookService {
@@ -133,6 +132,16 @@ export class DonationWebhookService {
                 `[PayOS] Processing ${actualAmountReceived === originalAmount ? "COMPLETED" : "OVERPAID"} payment - ${actualAmountReceived}/${originalAmount}`,
             )
 
+            const outboxPayload = {
+                orderCode: orderCode.toString(),
+                amount: actualAmountReceived.toString(),
+                paymentTransactionId: paymentTransaction.id,
+                donorId: paymentTransaction.donation?.donor_id,
+                campaignId: paymentTransaction.donation?.campaign_id,
+                donorName: paymentTransaction.donation?.donor_name,
+                gateway: "PAYOS"
+            }
+
             const result =
                 await this.donorRepository.updatePaymentTransactionSuccess({
                     order_code: BigInt(orderCode),
@@ -155,83 +164,87 @@ export class DonationWebhookService {
                         virtual_account_number:
                             webhookData.virtualAccountNumber,
                     },
+                    outbox_event: {
+                        event_type: "DONATION_PAYMENT_SUCCEEDED",
+                        payload: outboxPayload
+                    }
                 })
 
             this.logger.log(
-                `[PayOS] ✅ Payment transaction updated - Order ${orderCode}, Amount Paid: ${actualAmountReceived}`,
+                `[PayOS] ✅ Payment transaction updated & Outbox event created - Order ${orderCode}`,
             )
 
-            const { campaign } = result
-            if (
-                campaign.received_amount > campaign.target_amount &&
-                campaign.status === CampaignStatus.ACTIVE
-            ) {
-                const surplus =
-                    campaign.received_amount - campaign.target_amount
-                this.logger.log(
-                    `[PayOS] 🎯 Surplus detected for campaign ${campaign.id} - Surplus: ${surplus.toString()} VND`,
-                )
-                this.eventEmitter.emit("campaign.surplus.detected", {
-                    campaignId: campaign.id,
-                    surplus: surplus.toString(),
-                })
-            }
+            // const { campaign } = result
+            // if (
+            //     campaign.received_amount > campaign.target_amount &&
+            //     campaign.status === CampaignStatus.ACTIVE
+            // ) {
+            //     const surplus =
+            //         campaign.received_amount - campaign.target_amount
+            //     this.logger.log(
+            //         `[PayOS] 🎯 Surplus detected for campaign ${campaign.id} - Surplus: ${surplus.toString()} VND`,
+            //     )
+            //     this.eventEmitter.emit("campaign.surplus.detected", {
+            //         campaignId: campaign.id,
+            //         surplus: surplus.toString(),
+            //     })
+            // }
 
-            const donation = paymentTransaction.donation
-            if (!donation) {
-                this.logger.error(
-                    `[PayOS] Donation not found for payment ${paymentTransaction.id}`,
-                )
-                return
-            }
+            // const donation = paymentTransaction.donation
+            // if (!donation) {
+            //     this.logger.error(
+            //         `[PayOS] Donation not found for payment ${paymentTransaction.id}`,
+            //     )
+            //     return
+            // }
 
-            const campaignId = donation.campaign_id
+            // const campaignId = donation.campaign_id
 
-            const adminUserId = this.getSystemAdminId()
+            // const adminUserId = this.getSystemAdminId()
 
-            await this.userClientService.creditAdminWallet({
-                adminId: adminUserId,
-                campaignId: campaignId,
-                paymentTransactionId: paymentTransaction.id,
-                amount: actualAmountReceived,
-                gateway: "PAYOS",
-                description: `Ủng hộ từ ${donation.donor_name || "Anonymous"} - Đơn hàng ${orderCode}`,
-            })
+            // await this.userClientService.creditAdminWallet({
+            //     adminId: adminUserId,
+            //     campaignId: campaignId,
+            //     paymentTransactionId: paymentTransaction.id,
+            //     amount: actualAmountReceived,
+            //     gateway: "PAYOS",
+            //     description: `Ủng hộ từ ${donation.donor_name || "Anonymous"} - Đơn hàng ${orderCode}`,
+            // })
 
-            this.logger.log(
-                `[PayOS] ✅ Admin wallet credited - Order ${orderCode}, Amount: ${actualAmountReceived} (Original: ${paymentTransaction.amount})`,
-            )
+            // this.logger.log(
+            //     `[PayOS] ✅ Admin wallet credited - Order ${orderCode}, Amount: ${actualAmountReceived} (Original: ${paymentTransaction.amount})`,
+            // )
 
-            await this.donationEmailService.sendDonationConfirmation(
-                donation,
-                actualAmountReceived,
-                result.campaign,
-                "PayOS",
-            )
+            // await this.donationEmailService.sendDonationConfirmation(
+            //     donation,
+            //     actualAmountReceived,
+            //     result.campaign,
+            //     "PayOS",
+            // )
 
-            if (donation.donor_id) {
-                const donor = await this.userClientService.getUserByCognitoId(
-                    donation.donor_id,
-                )
+            // if (donation.donor_id) {
+            //     const donor = await this.userClientService.getUserByCognitoId(
+            //         donation.donor_id,
+            //     )
 
-                if (donor) {
-                    await this.userClientService.updateDonorStats({
-                        donorId: donor.id,
-                        amountToAdd: actualAmountReceived,
-                        incrementCount: 1,
-                        lastDonationAt: new Date(),
-                    })
+            //     if (donor) {
+            //         await this.userClientService.updateDonorStats({
+            //             donorId: donor.id,
+            //             amountToAdd: actualAmountReceived,
+            //             incrementCount: 1,
+            //             lastDonationAt: new Date(),
+            //         })
 
-                    this.awardBadgeAsync(donor.id)
-                } else {
-                    this.logger.warn(
-                        `[PayOS] Donor not found for cognito_id: ${donation.donor_id}`,
-                    )
-                }
-            }
-            await this.campaignFollowerService.invalidateFollowersCache(
-                donation.campaign_id,
-            )
+            //         this.awardBadgeAsync(donor.id)
+            //     } else {
+            //         this.logger.warn(
+            //             `[PayOS] Donor not found for cognito_id: ${donation.donor_id}`,
+            //         )
+            //     }
+            // }
+            // await this.campaignFollowerService.invalidateFollowersCache(
+            //     donation.campaign_id,
+            // )
         } catch (error) {
             this.logger.error(
                 `[PayOS] ❌ Failed to process successful payment for order ${orderCode}`,
