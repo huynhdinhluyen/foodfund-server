@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto"
+
 const VIETNAMESE_MAP: Record<string, string> = {
     à: "a",
     á: "a",
@@ -177,9 +179,8 @@ export function generateUniqueSlug(
 
 export function generateRandomSuffix(length: number = 6): string {
     const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
-    let result = ""
-    for (let i = 0; i < length; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-    return result
+    const bytes = randomBytes(length)
+    const result = new Array(length)
+    for (let i = 0; i < length; i++) result[i] = chars[bytes[i] % chars.length]
+    return result.join("")
 }
