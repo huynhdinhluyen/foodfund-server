@@ -62,12 +62,12 @@ export class OrganizationService {
 
     private convertJoinRoleToRole(joinRole: JoinOrganizationRole): Role {
         switch (joinRole) {
-        case JoinOrganizationRole.KITCHEN_STAFF:
-            return Role.KITCHEN_STAFF
-        case JoinOrganizationRole.DELIVERY_STAFF:
-            return Role.DELIVERY_STAFF
-        default:
-            throw new BadRequestException(`Invalid join role: ${joinRole}`)
+            case JoinOrganizationRole.KITCHEN_STAFF:
+                return Role.KITCHEN_STAFF
+            case JoinOrganizationRole.DELIVERY_STAFF:
+                return Role.DELIVERY_STAFF
+            default:
+                throw new BadRequestException(`Invalid join role: ${joinRole}`)
         }
     }
 
@@ -786,6 +786,7 @@ export class OrganizationService {
                     member_role: member.member_role,
                     status: member.status,
                     joined_at: member.joined_at,
+                    cognito_id: member.member.cognito_id,
                 })) || [],
             total_members: organization.Organization_Member?.length || 0,
             active_members:
