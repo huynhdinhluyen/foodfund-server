@@ -3,7 +3,7 @@ import { PrismaClient } from "@app/campaign/src/generated/campaign-client"
 import { UserClientService } from "@app/campaign/src/shared"
 import { Injectable, Logger } from "@nestjs/common"
 import { OnEvent } from "@nestjs/event-emitter"
-import * as crypto from 'crypto'
+import * as crypto from "crypto"
 
 @Injectable()
 export class CampaignSettlementService {
@@ -121,7 +121,7 @@ export class CampaignSettlementService {
                     },
                 })
             } catch (error) {
-                if (error.code === 'P2025') {
+                if (error.code === "P2025") {
                     this.logger.warn(`[SETTLEMENT] Campaign ${campaign.id} is no longer ACTIVE. Skipping settlement to prevent duplicate.`)
                     return
                 }

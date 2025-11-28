@@ -302,7 +302,7 @@ export class SepayWebhookService {
             })
 
             this.logger.log(
-                `[Sepay→Admin] ✅ Supplementary payment created & Outbox event created`,
+                "[Sepay→Admin] ✅ Supplementary payment created & Outbox event created",
             )
 
         } catch (error) {

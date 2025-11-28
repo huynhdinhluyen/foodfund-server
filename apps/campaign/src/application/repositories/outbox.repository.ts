@@ -1,6 +1,6 @@
-import { Injectable } from "@nestjs/common";
-import { PrismaClient } from "../../generated/campaign-client";
-import { OutboxStatus } from "../../domain/enums/outbox/outbox.enum";
+import { Injectable } from "@nestjs/common"
+import { PrismaClient } from "../../generated/campaign-client"
+import { OutboxStatus } from "../../domain/enums/outbox/outbox.enum"
 
 @Injectable()
 export class OutBoxRepository {
