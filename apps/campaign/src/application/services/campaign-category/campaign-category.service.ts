@@ -62,16 +62,6 @@ export class CampaignCategoryService {
 
             await this.cacheService.invalidateAll()
 
-            this.sentryService.addBreadcrumb("Category created", "category", {
-                categoryId: category.id,
-                title: category.title,
-                createdBy: {
-                    userId: userContext.userId,
-                    username: userContext.username,
-                    role: userContext.role,
-                },
-            })
-
             return category
         } catch (error) {
             if (!(error instanceof BadRequestException)) {
@@ -94,18 +84,10 @@ export class CampaignCategoryService {
 
     async findCategoryById(id: string): Promise<CampaignCategory> {
         try {
-            const cached = await this.cacheService.getCategory(id)
-            if (cached) {
-                return cached
-            }
-
             const category = await this.categoryRepository.findById(id)
             if (category == null) {
                 throw new NotFoundException(`Category with ID ${id} not found`)
             }
-
-            await this.cacheService.setCategory(id, category)
-
             return category
         } catch (error) {
             if (error instanceof NotFoundException) {
@@ -202,17 +184,6 @@ export class CampaignCategoryService {
 
             await this.cacheService.invalidateAll(id)
 
-            this.sentryService.addBreadcrumb("Category updated", "category", {
-                categoryId: id,
-                title: category.title,
-                updateFields: Object.keys(updateData),
-                updatedBy: {
-                    userId: userContext.userId,
-                    username: userContext.username,
-                    role: userContext.role,
-                },
-            })
-
             return category
         } catch (error) {
             if (
@@ -249,19 +220,6 @@ export class CampaignCategoryService {
 
             if (result) {
                 await this.cacheService.invalidateAll(id)
-
-                this.sentryService.addBreadcrumb(
-                    "Category deleted",
-                    "category",
-                    {
-                        categoryId: id,
-                        deletedBy: {
-                            userId: userContext.userId,
-                            username: userContext.username,
-                            role: userContext.role,
-                        },
-                    },
-                )
             }
 
             return result
