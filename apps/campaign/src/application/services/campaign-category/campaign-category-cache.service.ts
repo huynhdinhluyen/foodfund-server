@@ -21,25 +21,6 @@ export class CampaignCategoryCacheService extends BaseCacheService<CampaignCateg
         super(redis)
     }
 
-    // ==================== Single Category ====================
-
-    async getCategory(id: string): Promise<CampaignCategory | null> {
-        return this.getSingle(this.KEYS.SINGLE, id)
-    }
-
-    async setCategory(id: string, category: CampaignCategory): Promise<void> {
-        return this.setSingle(
-            this.KEYS.SINGLE,
-            id,
-            category,
-            this.TTL.SINGLE_CATEGORY,
-        )
-    }
-
-    async deleteCategory(id: string): Promise<void> {
-        return this.deleteSingle(this.KEYS.SINGLE, id)
-    }
-
     // ==================== Category Stats ====================
 
     async getCategoryStats(): Promise<Array<
@@ -67,17 +48,12 @@ export class CampaignCategoryCacheService extends BaseCacheService<CampaignCateg
             this.deleteCategoryStats(),
         ]
 
-        if (categoryId) {
-            operations.push(this.deleteCategory(categoryId))
-        }
-
         return this.invalidateMultiple(...operations)
     }
 
     // ==================== Cache Warming ====================
 
     async warmUpCache(
-        categories: CampaignCategory[],
         stats?: Array<CampaignCategory & { campaignCount: number }>,
     ): Promise<void> {
         const operations: Promise<void>[] = []
