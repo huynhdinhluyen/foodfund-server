@@ -6,8 +6,14 @@ import {
 import { SentryService } from "@libs/observability/sentry.service"
 import { CampaignCategoryRepository } from "../../repositories/campaign-category.repository"
 import { CampaignCategoryCacheService } from "./campaign-category-cache.service"
-import { AuthorizationService, createUserContextFromToken } from "@app/campaign/src/shared"
-import { CreateCampaignCategoryInput, UpdateCampaignCategoryInput } from "../../dtos/campaign-category/request"
+import {
+    AuthorizationService,
+    createUserContextFromToken,
+} from "@app/campaign/src/shared"
+import {
+    CreateCampaignCategoryInput,
+    UpdateCampaignCategoryInput,
+} from "../../dtos/campaign-category/request"
 import { CampaignCategory } from "@app/campaign/src/domain/entities/campaign-category.model"
 
 @Injectable()
@@ -56,16 +62,6 @@ export class CampaignCategoryService {
 
             await this.cacheService.invalidateAll()
 
-            this.sentryService.addBreadcrumb("Category created", "category", {
-                categoryId: category.id,
-                title: category.title,
-                createdBy: {
-                    userId: userContext.userId,
-                    username: userContext.username,
-                    role: userContext.role,
-                },
-            })
-
             return category
         } catch (error) {
             if (!(error instanceof BadRequestException)) {
@@ -86,41 +82,12 @@ export class CampaignCategoryService {
         }
     }
 
-    async getCategories(): Promise<CampaignCategory[]> {
-        try {
-            const cached = await this.cacheService.getAllActiveCategories()
-            if (cached) {
-                return cached
-            }
-            const categories = await this.categoryRepository.findMany({
-                limit: 100,
-                includeInactive: false,
-            })
-            await this.cacheService.setAllActiveCategories(categories)
-            return categories
-        } catch (error) {
-            this.sentryService.captureError(error as Error, {
-                operation: "getCategories",
-                service: "campaign-category-service",
-            })
-            throw error
-        }
-    }
-
     async findCategoryById(id: string): Promise<CampaignCategory> {
         try {
-            const cached = await this.cacheService.getCategory(id)
-            if (cached) {
-                return cached
-            }
-
             const category = await this.categoryRepository.findById(id)
             if (category == null) {
                 throw new NotFoundException(`Category with ID ${id} not found`)
             }
-
-            await this.cacheService.setCategory(id, category)
-
             return category
         } catch (error) {
             if (error instanceof NotFoundException) {
@@ -217,17 +184,6 @@ export class CampaignCategoryService {
 
             await this.cacheService.invalidateAll(id)
 
-            this.sentryService.addBreadcrumb("Category updated", "category", {
-                categoryId: id,
-                title: category.title,
-                updateFields: Object.keys(updateData),
-                updatedBy: {
-                    userId: userContext.userId,
-                    username: userContext.username,
-                    role: userContext.role,
-                },
-            })
-
             return category
         } catch (error) {
             if (
@@ -264,19 +220,6 @@ export class CampaignCategoryService {
 
             if (result) {
                 await this.cacheService.invalidateAll(id)
-
-                this.sentryService.addBreadcrumb(
-                    "Category deleted",
-                    "category",
-                    {
-                        categoryId: id,
-                        deletedBy: {
-                            userId: userContext.userId,
-                            username: userContext.username,
-                            role: userContext.role,
-                        },
-                    },
-                )
             }
 
             return result

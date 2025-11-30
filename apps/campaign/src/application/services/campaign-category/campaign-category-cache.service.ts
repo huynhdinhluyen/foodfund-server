@@ -21,61 +21,6 @@ export class CampaignCategoryCacheService extends BaseCacheService<CampaignCateg
         super(redis)
     }
 
-    // ==================== Single Category ====================
-
-    async getCategory(id: string): Promise<CampaignCategory | null> {
-        return this.getSingle(this.KEYS.SINGLE, id)
-    }
-
-    async setCategory(id: string, category: CampaignCategory): Promise<void> {
-        return this.setSingle(
-            this.KEYS.SINGLE,
-            id,
-            category,
-            this.TTL.SINGLE_CATEGORY,
-        )
-    }
-
-    async deleteCategory(id: string): Promise<void> {
-        return this.deleteSingle(this.KEYS.SINGLE, id)
-    }
-
-    // ==================== All Active Categories ====================
-
-    async getAllActiveCategories(): Promise<CampaignCategory[] | null> {
-        if (!this.redis.isAvailable()) {
-            return null
-        }
-
-        const cached = await this.redis.get(this.KEYS.ALL_ACTIVE)
-
-        if (cached) {
-            return JSON.parse(cached) as CampaignCategory[]
-        }
-
-        return null
-    }
-
-    async setAllActiveCategories(
-        categories: CampaignCategory[],
-    ): Promise<void> {
-        if (!this.redis.isAvailable()) {
-            return
-        }
-
-        await this.redis.set(this.KEYS.ALL_ACTIVE, JSON.stringify(categories), {
-            ex: this.TTL.ALL_CATEGORIES,
-        })
-    }
-
-    async deleteAllActiveCategories(): Promise<void> {
-        if (!this.redis.isAvailable()) {
-            return
-        }
-
-        await this.redis.del(this.KEYS.ALL_ACTIVE)
-    }
-
     // ==================== Category Stats ====================
 
     async getCategoryStats(): Promise<Array<
@@ -100,13 +45,8 @@ export class CampaignCategoryCacheService extends BaseCacheService<CampaignCateg
 
     async invalidateAll(categoryId?: string): Promise<void> {
         const operations: Promise<void>[] = [
-            this.deleteAllActiveCategories(),
             this.deleteCategoryStats(),
         ]
-
-        if (categoryId) {
-            operations.push(this.deleteCategory(categoryId))
-        }
 
         return this.invalidateMultiple(...operations)
     }
@@ -114,12 +54,9 @@ export class CampaignCategoryCacheService extends BaseCacheService<CampaignCateg
     // ==================== Cache Warming ====================
 
     async warmUpCache(
-        categories: CampaignCategory[],
         stats?: Array<CampaignCategory & { campaignCount: number }>,
     ): Promise<void> {
-        const operations: Promise<void>[] = [
-            this.setAllActiveCategories(categories.filter((c) => c.isActive)),
-        ]
+        const operations: Promise<void>[] = []
 
         if (stats) {
             operations.push(this.setCategoryStats(stats))
