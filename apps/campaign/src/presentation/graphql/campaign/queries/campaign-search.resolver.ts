@@ -1,8 +1,15 @@
-import { Args, Mutation, Query, Resolver } from "@nestjs/graphql"
+import {
+    Args,
+    Mutation,
+    Query,
+    Resolver,
+    ObjectType,
+    Field,
+    Int,
+} from "@nestjs/graphql"
 import { CampaignSearchService } from "@app/campaign/src/application/services/campaign/campaign-search.service"
 import { SearchCampaignInput } from "@app/campaign/src/application/dtos/campaign/request/search-campaign.input"
 import { Campaign } from "@app/campaign/src/domain/entities/campaign.model"
-import { ObjectType, Field, Int } from "@nestjs/graphql"
 import { SyncCampaignsResponse } from "../../../../application/dtos/campaign/response/sync-campaigns.response"
 
 @ObjectType()
@@ -25,7 +32,9 @@ export class SearchCampaignResponse {
 
 @Resolver(() => Campaign)
 export class CampaignSearchResolver {
-    constructor(private readonly campaignSearchService: CampaignSearchService) { }
+    constructor(
+        private readonly campaignSearchService: CampaignSearchService,
+    ) {}
 
     @Query(() => SearchCampaignResponse, { name: "searchCampaigns" })
     async searchCampaigns(

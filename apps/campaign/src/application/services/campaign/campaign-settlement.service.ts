@@ -3,7 +3,7 @@ import { PrismaClient } from "@app/campaign/src/generated/campaign-client"
 import { UserClientService } from "@app/campaign/src/shared"
 import { Injectable, Logger } from "@nestjs/common"
 import { OnEvent } from "@nestjs/event-emitter"
-import * as crypto from "crypto"
+import * as crypto from "node:crypto"
 
 @Injectable()
 export class CampaignSettlementService {

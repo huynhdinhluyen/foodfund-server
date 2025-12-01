@@ -79,17 +79,6 @@ export interface CategoryStatsData {
     totalReceivedAmount: bigint
 }
 
-export interface TrendingCampaignData {
-    id: string
-    title: string
-    coverImage: string
-    targetAmount: bigint
-    receivedAmount: bigint
-    donationCount: number
-    fundraisingEndDate: Date
-    createdBy: string
-}
-
 @Injectable()
 export class CampaignRepository {
     private readonly CAMPAIGN_JOIN_FIELDS = {
@@ -280,9 +269,7 @@ export class CampaignRepository {
         return campaign ? this.mapToGraphQLModel(campaign) : null
     }
 
-    async findApprovedCampaignsToActivateForJob(
-        limit: number = 1000,
-    ): Promise<Pick<Campaign, "id" | "status">[]> {
+    async findApprovedCampaignsToActivateForJob(): Promise<Pick<Campaign, "id" | "status">[]> {
         const today = new Date()
         today.setHours(0, 0, 0, 0)
 
@@ -298,7 +285,6 @@ export class CampaignRepository {
                 id: true,
                 status: true,
             },
-            take: limit,
             orderBy: {
                 fundraising_start_date: "asc",
             },
@@ -310,9 +296,7 @@ export class CampaignRepository {
         }))
     }
 
-    async findActiveCampaignsToCompleteForJob(
-        limit: number = 1000,
-    ): Promise<
+    async findActiveCampaignsToCompleteForJob(): Promise<
         Pick<
             Campaign,
             | "id"
@@ -322,7 +306,7 @@ export class CampaignRepository {
             | "createdBy"
             | "title"
         >[]
-    > {
+        > {
         const today = new Date()
         today.setHours(23, 59, 59, 999)
 
@@ -347,7 +331,6 @@ export class CampaignRepository {
                 created_by: true,
                 title: true,
             },
-            take: limit,
             orderBy: { fundraising_end_date: "asc" },
         })
 
@@ -361,9 +344,7 @@ export class CampaignRepository {
         }))
     }
 
-    async findExpiredCampaignsForJob(
-        limit: number = 1000,
-    ): Promise<Pick<Campaign, "id" | "status">[]> {
+    async findExpiredCampaignsForJob(): Promise<Pick<Campaign, "id" | "status">[]> {
         const today = new Date()
         today.setHours(23, 59, 59, 999)
 
@@ -381,7 +362,6 @@ export class CampaignRepository {
                 id: true,
                 status: true,
             },
-            take: limit,
             orderBy: {
                 fundraising_end_date: "asc",
             },
