@@ -182,7 +182,7 @@ export class CampaignCategoryService {
                 updateData,
             )
 
-            await this.cacheService.invalidateAll(id)
+            await this.cacheService.invalidateAll()
 
             return category
         } catch (error) {
@@ -219,7 +219,7 @@ export class CampaignCategoryService {
             const result = await this.categoryRepository.delete(id)
 
             if (result) {
-                await this.cacheService.invalidateAll(id)
+                await this.cacheService.invalidateAll()
             }
 
             return result
