@@ -21,12 +21,7 @@ export class CampaignCacheService extends BaseCacheService<Campaign> {
     protected readonly TTL = {
         SINGLE_CAMPAIGN: 60 * 60, // 1 hour
         CAMPAIGN_LIST: 60 * 15, // 15 minutes
-        USER_CAMPAIGNS: 60 * 30, // 30 minutes
-        CATEGORY_CAMPAIGNS: 60 * 30, // 30 minutes
-        ACTIVE_CAMPAIGNS: 60 * 5, // 5 minutes
         PLATFORM_STATS: 60 * 10, // 10 minutes
-        TRENDING_24H: 60 * 5, // 5 minutes
-        TRENDING_7D: 60 * 5, // 5 minutes
         CATEGORY_STATS: 60 * 15, // 15 minutes
         USER_STATS: 60 * 10, // 10 minutes
     }
@@ -35,11 +30,7 @@ export class CampaignCacheService extends BaseCacheService<Campaign> {
         SINGLE: "campaign",
         SLUG: "campaign:slug",
         LIST: "campaigns:list",
-        USER: "campaigns:user",
-        CATEGORY: "campaigns:category",
-        ACTIVE: "campaigns:active",
         PLATFORM_STATS: "campaigns:stats:platform",
-        TRENDING: "campaigns:stats:trending",
         CATEGORY_STATS: "campaigns:stats:category",
         USER_STATS: "campaigns:stats:user",
     }
@@ -110,84 +101,6 @@ export class CampaignCacheService extends BaseCacheService<Campaign> {
         return this.deleteAllLists(this.KEYS.LIST)
     }
 
-    // ==================== User Campaigns ====================
-
-    async getUserCampaigns(userId: string): Promise<Campaign[] | null> {
-        return this.getRelatedList(this.KEYS.USER, userId)
-    }
-
-    async setUserCampaigns(
-        userId: string,
-        campaigns: Campaign[],
-    ): Promise<void> {
-        return this.setRelatedList(
-            this.KEYS.USER,
-            userId,
-            campaigns,
-            this.TTL.USER_CAMPAIGNS,
-        )
-    }
-
-    async deleteUserCampaigns(userId: string): Promise<void> {
-        return this.deleteRelatedList(this.KEYS.USER, userId)
-    }
-
-    // ==================== Category Campaigns ====================
-
-    async getCategoryCampaigns(categoryId: string): Promise<Campaign[] | null> {
-        return this.getRelatedList(this.KEYS.CATEGORY, categoryId)
-    }
-
-    async setCategoryCampaigns(
-        categoryId: string,
-        campaigns: Campaign[],
-    ): Promise<void> {
-        return this.setRelatedList(
-            this.KEYS.CATEGORY,
-            categoryId,
-            campaigns,
-            this.TTL.CATEGORY_CAMPAIGNS,
-        )
-    }
-
-    async deleteCategoryCampaigns(categoryId: string): Promise<void> {
-        return this.deleteRelatedList(this.KEYS.CATEGORY, categoryId)
-    }
-
-    // ==================== Active Campaigns ====================
-
-    async getActiveCampaigns(): Promise<Campaign[] | null> {
-        if (!this.redis.isAvailable()) {
-            return null
-        }
-
-        const cached = await this.redis.get(this.KEYS.ACTIVE)
-
-        if (cached) {
-            return JSON.parse(cached) as Campaign[]
-        }
-
-        return null
-    }
-
-    async setActiveCampaigns(campaigns: Campaign[]): Promise<void> {
-        if (!this.redis.isAvailable()) {
-            return
-        }
-
-        await this.redis.set(this.KEYS.ACTIVE, JSON.stringify(campaigns), {
-            ex: this.TTL.ACTIVE_CAMPAIGNS,
-        })
-    }
-
-    async deleteActiveCampaigns(): Promise<void> {
-        if (!this.redis.isAvailable()) {
-            return
-        }
-
-        await this.redis.del(this.KEYS.ACTIVE)
-    }
-
     // ==================== Platform Stats ====================
 
     async getPlatformStats(
@@ -210,25 +123,6 @@ export class CampaignCacheService extends BaseCacheService<Campaign> {
 
     async deletePlatformStats(filter: string): Promise<void> {
         return this.deleteStats(this.KEYS.PLATFORM_STATS, filter)
-    }
-
-    // ==================== Trending Campaigns ====================
-
-    async getTrendingCampaigns(period: "24h" | "7d"): Promise<any[] | null> {
-        return this.getStats(this.KEYS.TRENDING, period)
-    }
-
-    async setTrendingCampaigns(
-        period: "24h" | "7d",
-        campaigns: any[],
-    ): Promise<void> {
-        const ttl =
-            period === "24h" ? this.TTL.TRENDING_24H : this.TTL.TRENDING_7D
-        return this.setStats(this.KEYS.TRENDING, campaigns, ttl, period)
-    }
-
-    async deleteTrendingCampaigns(period: "24h" | "7d"): Promise<void> {
-        return this.deleteStats(this.KEYS.TRENDING, period)
     }
 
     // ==================== Category Stats ====================
@@ -283,13 +177,10 @@ export class CampaignCacheService extends BaseCacheService<Campaign> {
 
     async invalidateAll(
         campaignId?: string,
-        userId?: string,
         slug?: string,
-        categoryId?: string,
     ): Promise<void> {
         const operations: Promise<void>[] = [
             this.deleteAllCampaignLists(),
-            this.deleteActiveCampaigns(),
         ]
 
         if (campaignId) {
@@ -300,32 +191,7 @@ export class CampaignCacheService extends BaseCacheService<Campaign> {
             operations.push(this.deleteCampaignBySlug(slug))
         }
 
-        if (userId) {
-            operations.push(this.deleteUserCampaigns(userId))
-        }
-
-        if (categoryId) {
-            operations.push(this.deleteCategoryCampaigns(categoryId))
-        }
-
         return this.invalidateMultiple(...operations)
-    }
-
-    async invalidateAllStats(): Promise<void> {
-        return this.invalidateByPatterns(
-            `${this.KEYS.PLATFORM_STATS}:*`,
-            `${this.KEYS.TRENDING}:*`,
-            `${this.KEYS.CATEGORY_STATS}:*`,
-            `${this.KEYS.USER_STATS}:*`,
-        )
-    }
-
-    async invalidateUserStats(userId: string): Promise<void> {
-        return this.deleteUserCampaignStats(userId)
-    }
-
-    async invalidateCategoryStats(categoryId: string): Promise<void> {
-        return this.deleteCategoryStats(categoryId)
     }
 
     // ==================== Cache Warming ====================
