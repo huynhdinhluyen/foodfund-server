@@ -224,21 +224,15 @@ export class CampaignSchedulerService {
     }
 
     private async findApprovedCampaignsToActivate() {
-        return this.campaignRepository.findApprovedCampaignsToActivateForJob(
-            this.BATCH_CONFIG.maxCampaigns,
-        )
+        return this.campaignRepository.findApprovedCampaignsToActivateForJob()
     }
 
     private async findActiveCampaignsToComplete() {
-        return this.campaignRepository.findActiveCampaignsToCompleteForJob(
-            this.BATCH_CONFIG.maxCampaigns,
-        )
+        return this.campaignRepository.findActiveCampaignsToCompleteForJob()
     }
 
     private async findExpiredCampaigns() {
-        return this.campaignRepository.findExpiredCampaignsForJob(
-            this.BATCH_CONFIG.maxCampaigns,
-        )
+        return this.campaignRepository.findExpiredCampaignsForJob()
     }
 
     /**
