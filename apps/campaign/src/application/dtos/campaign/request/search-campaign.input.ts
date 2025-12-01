@@ -1,5 +1,6 @@
 import { Field, Float, InputType, Int, registerEnumType } from "@nestjs/graphql"
 import { CampaignStatus } from "../../../../domain/enums/campaign/campaign.enum"
+import { IsEnum, IsInt, IsNumber, IsOptional, IsString, IsUUID, Min } from "class-validator"
 
 export enum CampaignSortBy {
     NEWEST = "NEWEST",
@@ -19,8 +20,6 @@ export enum CampaignSortBy {
 registerEnumType(CampaignSortBy, {
     name: "CampaignSortBy",
 })
-
-import { IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from "class-validator"
 
 @InputType()
 export class SearchCampaignInput {
