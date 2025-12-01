@@ -3,7 +3,6 @@ import { Cron, CronExpression } from "@nestjs/schedule"
 import { OpenSearchService } from "@libs/aws-opensearch"
 import { Campaign } from "../../../domain/entities/campaign.model"
 import { CampaignSortBy, SearchCampaignInput } from "../../dtos/campaign/request/search-campaign.input"
-import { CampaignStatus } from "../../../domain/enums/campaign/campaign.enum"
 import { CampaignRepository } from "../../repositories/campaign.repository"
 
 @Injectable()
@@ -123,8 +122,8 @@ export class CampaignSearchService implements OnModuleInit {
                 categoryId: campaign.categoryId,
                 creatorId: campaign.createdBy,
                 status: campaign.status,
-                targetAmount: parseFloat(campaign.targetAmount),
-                receivedAmount: parseFloat(campaign.receivedAmount),
+                targetAmount: Number.parseFloat(campaign.targetAmount),
+                receivedAmount: Number.parseFloat(campaign.receivedAmount),
                 donationCount: campaign.donationCount,
                 fundingProgress: campaign.fundingProgress,
                 fundraisingStartDate: campaign.fundraisingStartDate,

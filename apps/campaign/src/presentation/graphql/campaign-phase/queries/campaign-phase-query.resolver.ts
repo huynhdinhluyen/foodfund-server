@@ -56,6 +56,7 @@ export class CampaignPhaseQueryResolver {
                 phase.campaign = campaign
             } catch (error) {
                 phase.campaign = undefined
+                throw error
             }
         }
 

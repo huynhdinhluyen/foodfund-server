@@ -123,16 +123,11 @@ export class CampaignPhaseService {
 
             await this.campaignCacheService.deleteCampaign(campaignId)
             await this.campaignCacheService.invalidateAll(
-                campaignId,
-                campaign.createdBy,
-                campaign.categoryId,
+                campaignId
             )
 
             if (campaign.status === CampaignStatus.APPROVED) {
-                await this.campaignService.revertToPending(
-                    campaignId,
-                    "Phases modified - requires re-approval",
-                )
+                await this.campaignService.revertToPending(campaignId)
             }
 
             const mappedPhases = result.phases.map((p) =>

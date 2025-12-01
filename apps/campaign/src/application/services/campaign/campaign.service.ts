@@ -246,13 +246,9 @@ export class CampaignService {
                 })),
             })
 
-            await this.cacheService.setCampaign(campaign.id, campaign)
-
             await this.cacheService.invalidateAll(
                 campaign.id,
-                userContext.userId,
                 campaign.slug,
-                input.categoryId,
             )
 
             return campaign
@@ -392,11 +388,7 @@ export class CampaignService {
 
             await this.updateCampaignCache(
                 id,
-                updatedCampaign,
-                userContext.userId,
-                campaign.categoryId,
                 campaign.slug,
-                input.categoryId,
             )
 
             if (coverImageResult.oldFileKeyToDelete) {
@@ -538,9 +530,7 @@ export class CampaignService {
 
             await this.cacheService.invalidateAll(
                 id,
-                campaign.createdBy,
                 campaign.slug,
-                campaign.categoryId,
             )
 
             return updatedCampaign
@@ -621,9 +611,7 @@ export class CampaignService {
                 this.cacheService.deleteCampaign(id),
                 this.cacheService.invalidateAll(
                     id,
-                    userContext.userId,
                     campaign.slug,
-                    campaign.categoryId,
                 ),
             ])
 
@@ -681,9 +669,7 @@ export class CampaignService {
 
             await this.cacheService.invalidateAll(
                 id,
-                userContext.userId,
                 campaign.slug,
-                campaign.categoryId,
             )
 
             if (campaign.coverImageFileKey) {
@@ -836,6 +822,21 @@ export class CampaignService {
         return stats
     }
 
+    async revertToPending(campaignId: string): Promise<Campaign> {
+        const campaign = await this.campaignRepository.update(campaignId, {
+            status: CampaignStatus.PENDING,
+            changedStatusAt: null,
+        })
+
+        await this.cacheService.deleteCampaign(campaignId)
+        await this.cacheService.invalidateAll(
+            campaignId,
+            campaign.slug,
+        )
+
+        return campaign
+    }
+
     private async processCoverImageUpdate(
         coverImageFileKey: string | undefined,
         campaign: Campaign,
@@ -955,19 +956,11 @@ export class CampaignService {
 
     private async updateCampaignCache(
         campaignId: string,
-        updatedCampaign: Campaign,
-        userId: string,
-        oldCategoryId?: string,
         slug?: string,
-        newCategoryId?: string,
     ): Promise<void> {
-        await this.cacheService.setCampaign(campaignId, updatedCampaign)
-
         await this.cacheService.invalidateAll(
             campaignId,
-            userId,
             slug,
-            oldCategoryId ?? newCategoryId,
         )
     }
 
@@ -1423,25 +1416,6 @@ export class CampaignService {
 
             throw new BadRequestException("Invalid category ID provided")
         }
-    }
-
-    async revertToPending(
-        campaignId: string,
-        reason: string,
-    ): Promise<Campaign> {
-        const campaign = await this.campaignRepository.update(campaignId, {
-            status: CampaignStatus.PENDING,
-            changedStatusAt: null,
-        })
-
-        await this.cacheService.deleteCampaign(campaignId)
-        await this.cacheService.invalidateAll(
-            campaignId,
-            undefined,
-            campaign.slug,
-        )
-
-        return campaign
     }
 
     private async autoTransferWalletToCampaign(

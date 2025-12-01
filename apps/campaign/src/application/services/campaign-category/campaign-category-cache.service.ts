@@ -6,14 +6,10 @@ import { Injectable } from "@nestjs/common"
 @Injectable()
 export class CampaignCategoryCacheService extends BaseCacheService<CampaignCategory> {
     protected readonly TTL = {
-        SINGLE_CATEGORY: 60 * 60, // 1 hour
-        ALL_CATEGORIES: 60 * 30, // 30 minutes
         CATEGORY_STATS: 60 * 15, // 15 minutes
     }
 
     protected readonly KEYS = {
-        SINGLE: "category",
-        ALL_ACTIVE: "categories:all:active",
         STATS: "categories:stats",
     }
 
@@ -43,7 +39,7 @@ export class CampaignCategoryCacheService extends BaseCacheService<CampaignCateg
 
     // ==================== Invalidation ====================
 
-    async invalidateAll(categoryId?: string): Promise<void> {
+    async invalidateAll(): Promise<void> {
         const operations: Promise<void>[] = [
             this.deleteCategoryStats(),
         ]
