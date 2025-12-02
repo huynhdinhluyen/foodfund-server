@@ -5,7 +5,7 @@ import { Role, VerificationStatus } from "../../../domain/enums"
 
 @Injectable()
 export class OrganizationRepository {
-    constructor(private readonly prisma: PrismaClient) {}
+    constructor(private readonly prisma: PrismaClient) { }
 
     async createOrganization(cognitoId: string, data: CreateOrganizationInput) {
         const { website, ...organizationData } = data
@@ -194,7 +194,7 @@ export class OrganizationRepository {
 
     async findJoinRequestsByOrganizationWithPagination(
         organizationId: string,
-        options: { offset: number; limit: number; status?: string },
+        options: { offset: number; limit: number; status?: string; excludeMemberId?: string },
     ) {
         const whereClause: any = {
             organization_id: organizationId,
@@ -203,6 +203,13 @@ export class OrganizationRepository {
         // Add status filter if provided
         if (options.status) {
             whereClause.status = options.status
+        }
+
+        // Exclude specific member (e.g., representative) if provided
+        if (options.excludeMemberId) {
+            whereClause.member_id = {
+                not: options.excludeMemberId,
+            }
         }
 
         // Get total count
