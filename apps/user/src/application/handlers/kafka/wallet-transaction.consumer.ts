@@ -17,7 +17,8 @@ export class WalletTransactionConsumer {
             // Or sometimes just { before: ..., after: ..., op: ... } depending on converter config
             // We'll assume the standard JSON converter structure where the value is the payload
 
-            const payload = message
+            this.logger.debug(`Received Kafka message keys: ${Object.keys(message || {})}`)
+            const payload = message.payload || message
 
             if (!payload || !payload.op) {
                 // Sometimes heartbeat messages or schema changes come through
