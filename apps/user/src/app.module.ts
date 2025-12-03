@@ -54,6 +54,8 @@ import {
 } from "./presentation/graphql/resolvers"
 import { HealthController } from "./presentation/http/controllers"
 
+import { WalletTransactionConsumer } from "./application/handlers/kafka/wallet-transaction.consumer"
+
 @Module({
     imports: [
         EnvModule.forRoot(),
@@ -91,6 +93,9 @@ import { HealthController } from "./presentation/http/controllers"
 
         // Presentation - gRPC Controller
         UserGrpcController,
+
+        // Kafka Consumers
+        WalletTransactionConsumer,
     ],
     providers: [
         // Infrastructure - Database

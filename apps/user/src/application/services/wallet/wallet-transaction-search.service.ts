@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common"
-import { Cron, CronExpression } from "@nestjs/schedule"
+
 import { OpenSearchService } from "@libs/aws-opensearch"
 import { WalletRepository } from "../../repositories/wallet.repository"
 import { SearchWalletTransactionInput } from "../../dtos/search-wallet-transaction.input"
@@ -190,34 +190,5 @@ export class WalletTransactionSearchService implements OnModuleInit {
         }
     }
 
-    @Cron(CronExpression.EVERY_MINUTE)
-    async syncAll(since?: Date) {
-        this.logger.log("Starting scheduled wallet transaction sync...")
-        const fiveMinutesAgo = since || new Date(Date.now() - 5 * 60 * 1000)
-        const transactions = await this.walletRepository.findRecentlyUpdatedTransactions(fiveMinutesAgo)
 
-        if (transactions.length === 0) {
-            return { successCount: 0, failCount: 0 }
-        }
-
-        this.logger.log(`Found ${transactions.length} wallet transactions to sync`)
-
-        let successCount = 0
-        let failCount = 0
-
-        for (const transaction of transactions) {
-            try {
-                await this.indexTransaction(transaction)
-                successCount++
-            } catch (error) {
-                this.logger.error(`Failed to sync wallet transaction ${transaction.id}`, error)
-                failCount++
-            }
-        }
-
-        this.logger.log(
-            `Sync completed. Success: ${successCount}, Failed: ${failCount}`,
-        )
-        return { successCount, failCount }
-    }
 }

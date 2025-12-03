@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common"
-import { Cron, CronExpression } from "@nestjs/schedule"
+
 import { OpenSearchService } from "@libs/aws-opensearch"
 import { Campaign } from "../../../domain/entities/campaign.model"
 import { CampaignSortBy, SearchCampaignInput } from "../../dtos/campaign/request/search-campaign.input"
@@ -223,39 +223,39 @@ export class CampaignSearchService implements OnModuleInit {
         const sort: any[] = []
         if (sortBy) {
             switch (sortBy) {
-            case CampaignSortBy.NEWEST:
-            case CampaignSortBy.NEWEST_FIRST:
-                sort.push({ createdAt: "desc" })
-                break
-            case CampaignSortBy.OLDEST:
-            case CampaignSortBy.OLDEST_FIRST:
-                sort.push({ createdAt: "asc" })
-                break
-            case CampaignSortBy.MOST_FUNDED:
-                sort.push({ fundingProgress: "desc" })
-                break
-            case CampaignSortBy.LEAST_FUNDED:
-                sort.push({ fundingProgress: "asc" })
-                break
-            case CampaignSortBy.ENDING_SOON:
-                sort.push({ fundraisingEndDate: "asc" })
-                break
-            case CampaignSortBy.TARGET_AMOUNT_ASC:
-                sort.push({ targetAmount: "asc" })
-                break
-            case CampaignSortBy.TARGET_AMOUNT_DESC:
-                sort.push({ targetAmount: "desc" })
-                break
-            case CampaignSortBy.MOST_DONATED:
-                sort.push({ donationCount: "desc" })
-                break
-            case CampaignSortBy.LEAST_DONATED:
-                sort.push({ donationCount: "asc" })
-                break
-            case CampaignSortBy.ACTIVE_FIRST:
-                sort.push({ status: "asc" })
-                sort.push({ createdAt: "desc" })
-                break
+                case CampaignSortBy.NEWEST:
+                case CampaignSortBy.NEWEST_FIRST:
+                    sort.push({ createdAt: "desc" })
+                    break
+                case CampaignSortBy.OLDEST:
+                case CampaignSortBy.OLDEST_FIRST:
+                    sort.push({ createdAt: "asc" })
+                    break
+                case CampaignSortBy.MOST_FUNDED:
+                    sort.push({ fundingProgress: "desc" })
+                    break
+                case CampaignSortBy.LEAST_FUNDED:
+                    sort.push({ fundingProgress: "asc" })
+                    break
+                case CampaignSortBy.ENDING_SOON:
+                    sort.push({ fundraisingEndDate: "asc" })
+                    break
+                case CampaignSortBy.TARGET_AMOUNT_ASC:
+                    sort.push({ targetAmount: "asc" })
+                    break
+                case CampaignSortBy.TARGET_AMOUNT_DESC:
+                    sort.push({ targetAmount: "desc" })
+                    break
+                case CampaignSortBy.MOST_DONATED:
+                    sort.push({ donationCount: "desc" })
+                    break
+                case CampaignSortBy.LEAST_DONATED:
+                    sort.push({ donationCount: "asc" })
+                    break
+                case CampaignSortBy.ACTIVE_FIRST:
+                    sort.push({ status: "asc" })
+                    sort.push({ createdAt: "desc" })
+                    break
             }
         } else {
             sort.push({ createdAt: "desc" })
@@ -306,34 +306,5 @@ export class CampaignSearchService implements OnModuleInit {
         }
     }
 
-    @Cron(CronExpression.EVERY_MINUTE)
-    async syncAll(since?: Date) {
-        this.logger.log("Starting scheduled campaign sync...")
-        const fiveMinutesAgo = since || new Date(Date.now() - 5 * 60 * 1000)
-        const campaigns = await this.campaignRepository.findRecentlyUpdated(fiveMinutesAgo)
 
-        if (campaigns.length === 0) {
-            return { successCount: 0, failCount: 0 }
-        }
-
-        this.logger.log(`Found ${campaigns.length} campaigns to sync`)
-
-        let successCount = 0
-        let failCount = 0
-
-        for (const campaign of campaigns) {
-            try {
-                await this.indexCampaign(campaign)
-                successCount++
-            } catch (error) {
-                this.logger.error(`Failed to sync campaign ${campaign.id}`, error)
-                failCount++
-            }
-        }
-
-        this.logger.log(
-            `Sync completed. Success: ${successCount}, Failed: ${failCount}`,
-        )
-        return { successCount, failCount }
-    }
 }

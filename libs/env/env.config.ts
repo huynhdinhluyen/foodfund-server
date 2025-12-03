@@ -199,6 +199,8 @@ export const envConfig = (): EnvironmentConfig => ({
     },
 
     frontEndUrl: process.env.FRONTEND_URL as string,
+
+    kafkaUrl: process.env.KAFKA_URL as string,
 })
 
 // Utility functions

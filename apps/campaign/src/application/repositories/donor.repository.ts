@@ -408,6 +408,8 @@ export class DonorRepository {
         }
     }) {
         return this.prisma.$transaction(async (tx) => {
+            await tx.$executeRaw`SELECT 1 FROM "payment_transactions" WHERE "order_code" = ${data.order_code} FOR UPDATE`
+
             const originalPayment = await tx.payment_Transaction.findUnique({
                 where: { order_code: data.order_code },
                 include: {
@@ -434,6 +436,10 @@ export class DonorRepository {
                 payment_status = "OVERPAID"
             }
 
+            const previousReceived = originalPayment.received_amount || BigInt(0)
+            const newReceived = data.amount_paid
+            const incrementAmount = newReceived - previousReceived
+
             const payment = await tx.payment_Transaction.update({
                 where: { order_code: data.order_code },
                 data: {
@@ -444,7 +450,7 @@ export class DonorRepository {
                     processed_by_webhook: data.processed_by_webhook,
                     payos_metadata: data.payos_metadata,
                     sepay_metadata: data.sepay_metadata,
-                    description: data.description, // Update description
+                    description: data.description,
                     updated_at: new Date(),
                 },
                 include: {
@@ -456,25 +462,36 @@ export class DonorRepository {
                 },
             })
 
-            const updatedCampaign = await tx.campaign.update({
-                where: { id: payment.donation.campaign_id },
-                data: {
-                    received_amount: {
-                        increment: data.amount_paid,
+            // 3. Update Campaign Stats safely
+            const campaignUpdateData: any = {}
+
+            if (incrementAmount > BigInt(0)) {
+                campaignUpdateData.received_amount = {
+                    increment: incrementAmount,
+                }
+            }
+
+            if (originalPayment.status !== TransactionStatus.SUCCESS) {
+                campaignUpdateData.donation_count = {
+                    increment: 1,
+                }
+            }
+
+            let updatedCampaign = payment.donation.campaign
+            if (Object.keys(campaignUpdateData).length > 0) {
+                updatedCampaign = await tx.campaign.update({
+                    where: { id: payment.donation.campaign_id },
+                    data: campaignUpdateData,
+                    select: {
+                        id: true,
+                        title: true,
+                        received_amount: true,
+                        target_amount: true,
+                        status: true,
+                        created_by: true,
                     },
-                    donation_count: {
-                        increment: 1,
-                    },
-                },
-                select: {
-                    id: true,
-                    title: true,
-                    received_amount: true,
-                    target_amount: true,
-                    status: true,
-                    created_by: true,
-                },
-            })
+                }) as any
+            }
 
             if (data.outbox_event) {
                 await tx.outboxEvent.create({
