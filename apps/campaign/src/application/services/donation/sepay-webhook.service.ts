@@ -120,8 +120,23 @@ export class SepayWebhookService {
             }
 
             if (paymentTransaction.gateway === "PAYOS") {
+                const payosMetadata = paymentTransaction.payos_metadata as any
+                if (payosMetadata && payosMetadata.reference && payosMetadata.reference === payload.referenceCode) {
+                    this.logger.log(
+                        `[Sepay] ⚠️ Skipping - Duplicate transaction detected by Reference Code (${payload.referenceCode}). Already processed by PayOS.`,
+                    )
+                    return
+                }
+
+                if (BigInt(sepayAmount) === BigInt(paymentTransaction.received_amount || 0)) {
+                    this.logger.log(
+                        `[Sepay] ⚠️ Skipping - Transaction already processed by PayOS with same amount (${sepayAmount}). Assumed duplicate.`,
+                    )
+                    return
+                }
+
                 this.logger.warn(
-                    "[Sepay] ⚠️ Original payment was PayOS. Processing this Sepay event as SUPPLEMENTARY. Ensure this is not a duplicate bank transaction!",
+                    "[Sepay] ⚠️ Original payment was PayOS but Reference/Amount differs. Processing this Sepay event as SUPPLEMENTARY.",
                 )
             }
 

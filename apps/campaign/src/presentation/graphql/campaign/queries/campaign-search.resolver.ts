@@ -34,7 +34,7 @@ export class SearchCampaignResponse {
 export class CampaignSearchResolver {
     constructor(
         private readonly campaignSearchService: CampaignSearchService,
-    ) {}
+    ) { }
 
     @Query(() => SearchCampaignResponse, { name: "searchCampaigns" })
     async searchCampaigns(
@@ -44,8 +44,8 @@ export class CampaignSearchResolver {
         return this.campaignSearchService.search(input)
     }
 
-    @Mutation(() => SyncCampaignsResponse, { name: "syncCampaigns" })
-    async syncCampaigns(): Promise<SyncCampaignsResponse> {
-        return this.campaignSearchService.syncAll()
-    }
+    // @Mutation(() => SyncCampaignsResponse, { name: "syncCampaigns" })
+    // async syncCampaigns(): Promise<SyncCampaignsResponse> {
+    //     return this.campaignSearchService.syncAll()
+    // }
 }

@@ -23,7 +23,7 @@ async function bootstrap() {
     const datadogInterceptor = app.get(DatadogInterceptor)
 
     app.useGlobalPipes(new CustomValidationPipe())
-    if(process.env.NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production") {
         app.useGlobalFilters(new GraphQLExceptionFilter(sentryService))
     }
     app.useGlobalInterceptors(datadogInterceptor)
@@ -37,6 +37,18 @@ async function bootstrap() {
             package: "foodfund.campaign",
             protoPath: join(__dirname, "../../../libs/grpc/proto/campaign.proto"),
             url: `0.0.0.0:${grpcPort}`,
+        },
+    })
+
+    app.connectMicroservice<MicroserviceOptions>({
+        transport: Transport.KAFKA,
+        options: {
+            client: {
+                brokers: [env.kafkaUrl],
+            },
+            consumer: {
+                groupId: "campaign-service-consumer",
+            },
         },
     })
 

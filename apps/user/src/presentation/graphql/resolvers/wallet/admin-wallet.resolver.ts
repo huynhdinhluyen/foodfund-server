@@ -112,12 +112,12 @@ export class AdminWalletResolver {
         return this.walletService.getPlatformWalletStats()
     }
 
-    @Mutation(() => SyncResult, {
-        description: "Sync all wallet transactions to OpenSearch (Admin only)",
-    })
-    @RequireRole(Role.ADMIN)
-    async syncWalletTransactions(): Promise<SyncResult> {
-        return this.walletTransactionSearchService.syncAll()
-    }
+    // @Mutation(() => SyncResult, {
+    //     description: "Sync all wallet transactions to OpenSearch (Admin only)",
+    // })
+    // @RequireRole(Role.ADMIN)
+    // async syncWalletTransactions(): Promise<SyncResult> {
+    //     return this.walletTransactionSearchService.syncAll()
+    // }
 }
 

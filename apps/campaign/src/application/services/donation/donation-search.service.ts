@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common"
-import { Cron, CronExpression } from "@nestjs/schedule"
+
 import { OpenSearchService } from "@libs/aws-opensearch"
 import { DonorRepository } from "../../repositories/donor.repository"
 import { SearchDonationInput } from "../../dtos/campaign/request/search-donation.input"
@@ -231,34 +231,5 @@ export class DonationSearchService implements OnModuleInit {
         }
     }
 
-    @Cron(CronExpression.EVERY_MINUTE)
-    async syncAll(since?: Date) {
-        this.logger.log("Starting scheduled donation sync...")
-        const syncSince = since || new Date(Date.now() - 5 * 60 * 1000)
-        const donations = await this.donorRepository.findRecentlyUpdated(syncSince)
 
-        if (donations.length === 0) {
-            return { successCount: 0, failCount: 0 }
-        }
-
-        this.logger.log(`Found ${donations.length} donations to sync`)
-
-        let successCount = 0
-        let failCount = 0
-
-        for (const donation of donations) {
-            try {
-                await this.indexDonation(donation)
-                successCount++
-            } catch (error) {
-                this.logger.error(`Failed to sync donation ${donation.id}`, error)
-                failCount++
-            }
-        }
-
-        this.logger.log(
-            `Sync completed. Success: ${successCount}, Failed: ${failCount}`,
-        )
-        return { successCount, failCount }
-    }
 }

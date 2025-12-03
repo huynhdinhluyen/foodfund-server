@@ -163,6 +163,8 @@ export interface EnvironmentConfig {
     badge: Badge
 
     frontEndUrl: string
+
+    kafkaUrl: string
 }
 
 export interface EnvModuleOptions {
