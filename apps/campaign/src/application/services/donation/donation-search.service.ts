@@ -233,16 +233,16 @@ export class DonationSearchService implements OnModuleInit {
 
     private getSort(sortBy?: DonationSortBy): any[] {
         switch (sortBy) {
-            case DonationSortBy.NEWEST:
-                return [{ createdAt: "desc" }]
-            case DonationSortBy.OLDEST:
-                return [{ createdAt: "asc" }]
-            case DonationSortBy.HIGHEST_AMOUNT:
-                return [{ amount: "desc" }]
-            case DonationSortBy.LOWEST_AMOUNT:
-                return [{ amount: "asc" }]
-            default:
-                return [{ createdAt: "desc" }]
+        case DonationSortBy.NEWEST:
+            return [{ createdAt: "desc" }]
+        case DonationSortBy.OLDEST:
+            return [{ createdAt: "asc" }]
+        case DonationSortBy.HIGHEST_AMOUNT:
+            return [{ amount: "desc" }]
+        case DonationSortBy.LOWEST_AMOUNT:
+            return [{ amount: "asc" }]
+        default:
+            return [{ createdAt: "desc" }]
         }
     }
 }
