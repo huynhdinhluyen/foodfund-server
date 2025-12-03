@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common"
-import { Cron, CronExpression } from "@nestjs/schedule"
+
 import { OpenSearchService } from "@libs/aws-opensearch"
 import { Campaign } from "../../../domain/entities/campaign.model"
 import { CampaignSortBy, SearchCampaignInput } from "../../dtos/campaign/request/search-campaign.input"
@@ -306,34 +306,5 @@ export class CampaignSearchService implements OnModuleInit {
         }
     }
 
-    @Cron(CronExpression.EVERY_MINUTE)
-    async syncAll(since?: Date) {
-        this.logger.log("Starting scheduled campaign sync...")
-        const fiveMinutesAgo = since || new Date(Date.now() - 5 * 60 * 1000)
-        const campaigns = await this.campaignRepository.findRecentlyUpdated(fiveMinutesAgo)
 
-        if (campaigns.length === 0) {
-            return { successCount: 0, failCount: 0 }
-        }
-
-        this.logger.log(`Found ${campaigns.length} campaigns to sync`)
-
-        let successCount = 0
-        let failCount = 0
-
-        for (const campaign of campaigns) {
-            try {
-                await this.indexCampaign(campaign)
-                successCount++
-            } catch (error) {
-                this.logger.error(`Failed to sync campaign ${campaign.id}`, error)
-                failCount++
-            }
-        }
-
-        this.logger.log(
-            `Sync completed. Success: ${successCount}, Failed: ${failCount}`,
-        )
-        return { successCount, failCount }
-    }
 }

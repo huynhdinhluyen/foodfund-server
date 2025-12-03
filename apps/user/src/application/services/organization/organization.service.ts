@@ -475,6 +475,7 @@ export class OrganizationService {
                     offset: options?.offset || 0,
                     limit: options?.limit || 10,
                     status: options?.status,
+                    excludeMemberId: fundraiserUser.id, // Exclude representative from join requests
                 },
             )
 

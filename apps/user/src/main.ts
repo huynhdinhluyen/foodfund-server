@@ -43,6 +43,18 @@ async function bootstrap() {
         },
     })
 
+    app.connectMicroservice<MicroserviceOptions>({
+        transport: Transport.KAFKA,
+        options: {
+            client: {
+                brokers: [env.kafkaUrl],
+            },
+            consumer: {
+                groupId: "user-service-consumer",
+            },
+        },
+    })
+
     await app.startAllMicroservices()
     await app.listen(port)
 

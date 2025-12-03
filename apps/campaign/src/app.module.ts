@@ -122,6 +122,9 @@ import { ReassignmentMutationResolver } from "./presentation/graphql/campaign-re
 import { ReassignmentExpiryJob } from "./application/workers/campaign-reassignment/campaign-reassignment-expiry.job"
 import { OutBoxRepository } from "./application/repositories/outbox.repository"
 
+import { CampaignConsumer } from "./application/handlers/kafka/campaign.consumer"
+import { DonationConsumer } from "./application/handlers/kafka/donation.consumer"
+
 @Module({
     imports: [
         GraphQLSubgraphModule.forRoot({
@@ -174,6 +177,8 @@ import { OutBoxRepository } from "./application/repositories/outbox.repository"
         CampaignGrpcService,
         DonationWebhookController,
         SepayWebhookController,
+        CampaignConsumer,
+        DonationConsumer,
     ],
     providers: [
         PrismaCampaignService,
