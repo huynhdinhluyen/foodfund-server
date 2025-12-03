@@ -507,17 +507,17 @@ export class DonorService {
             let compareValue = 0
 
             switch (sortBy) {
-            case "AMOUNT":
-                compareValue = Number(a.amount) - Number(b.amount)
-                break
-            case "TRANSACTION_DATE":
-            case "CREATED_AT":
-                compareValue =
+                case "AMOUNT":
+                    compareValue = Number(a.amount) - Number(b.amount)
+                    break
+                case "TRANSACTION_DATE":
+                case "CREATED_AT":
+                    compareValue =
                         new Date(a.transactionDatetime).getTime() -
                         new Date(b.transactionDatetime).getTime()
-                break
-            default:
-                compareValue = 0
+                    break
+                default:
+                    compareValue = 0
             }
 
             return sortOrder === "ASC" ? compareValue : -compareValue
@@ -569,7 +569,7 @@ export class DonorService {
             isAnonymous: donation.is_anonymous ?? false,
             status: latestTx?.status || "PENDING",
             orderCode: latestTx?.order_code?.toString() || null,
-            transactionDatetime: successfulTx?.transaction_datetime || null,
+            transactionDatetime: successfulTx?.updated_at || successfulTx?.created_at || null,
             created_at: donation.created_at,
             updated_at: donation.updated_at,
         }
