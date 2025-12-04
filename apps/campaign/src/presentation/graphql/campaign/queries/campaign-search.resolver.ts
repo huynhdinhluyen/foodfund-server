@@ -44,8 +44,8 @@ export class CampaignSearchResolver {
         return this.campaignSearchService.search(input)
     }
 
-    // @Mutation(() => SyncCampaignsResponse, { name: "syncCampaigns" })
-    // async syncCampaigns(): Promise<SyncCampaignsResponse> {
-    //     return this.campaignSearchService.syncAll()
-    // }
+    @Mutation(() => SyncCampaignsResponse, { name: "syncCampaigns" })
+    async syncCampaigns(): Promise<SyncCampaignsResponse> {
+        return this.campaignSearchService.syncAll()
+    }
 }

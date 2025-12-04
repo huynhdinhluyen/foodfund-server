@@ -569,7 +569,7 @@ export class DonorService {
             isAnonymous: donation.is_anonymous ?? false,
             status: latestTx?.status || "PENDING",
             orderCode: latestTx?.order_code?.toString() || null,
-            transactionDatetime: successfulTx?.transaction_datetime || null,
+            transactionDatetime: successfulTx?.updated_at || successfulTx?.created_at || null,
             created_at: donation.created_at,
             updated_at: donation.updated_at,
         }
