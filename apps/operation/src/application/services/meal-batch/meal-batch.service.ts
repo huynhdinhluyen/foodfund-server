@@ -80,16 +80,6 @@ export class MealBatchService {
                     input.campaignPhaseId,
                 )
 
-            this.sentryService.addBreadcrumb(
-                "Generated meal batch media upload URLs",
-                "meal-batch",
-                {
-                    userId: userContext.userId,
-                    campaignPhaseId: input.campaignPhaseId,
-                    fileCount: input.fileCount,
-                },
-            )
-
             return {
                 success: true,
                 message: `Generated ${input.fileCount} upload URL(s) for meal batch media`,
@@ -100,10 +90,6 @@ export class MealBatchService {
                     expiresAt: result.expiresAt,
                     fileType: result.fileType || "image",
                 })),
-                instructions:
-                    "1. Upload files to the provided uploadUrl using PUT request. " +
-                    "2. After uploading all files, call createMealBatch mutation with the fileKeys. " +
-                    "3. Files will be accessible via the cdnUrl after upload.",
             }
         } catch (error) {
             this.sentryService.captureError(error as Error, {
@@ -188,7 +174,7 @@ export class MealBatchService {
 
             const validation = await this.spacesUploadService.validateFileKeys(
                 input.mediaFileKeys,
-                userContext.userId!,
+                userContext.userId,
                 "meal-batches",
             )
 
@@ -205,7 +191,7 @@ export class MealBatchService {
 
             const mealBatch = await this.mealBatchRepository.create({
                 campaignPhaseId: input.campaignPhaseId,
-                kitchenStaffId: userContext.userId!,
+                kitchenStaffId: userContext.userId,
                 foodName: input.foodName,
                 quantity: input.quantity,
                 media: mediaUrls,
@@ -213,27 +199,13 @@ export class MealBatchService {
                 ingredientIds: input.ingredientIds,
             })
 
-            // ✅ Cache new batch and invalidate related caches
             await Promise.all([
                 this.cacheService.setBatch(mealBatch.id, mealBatch),
                 this.cacheService.deletePhaseBatches(input.campaignPhaseId),
-                this.cacheService.deleteUserBatches(userContext.userId!),
+                this.cacheService.deleteUserBatches(userContext.userId),
                 this.cacheService.deleteAllBatchLists(),
                 this.cacheService.deletePhaseStats(input.campaignPhaseId),
             ])
-
-            this.sentryService.addBreadcrumb(
-                "Meal batch created",
-                "meal-batch",
-                {
-                    mealBatchId: mealBatch.id,
-                    kitchenStaffId: userContext.userId,
-                    campaignPhaseId: input.campaignPhaseId,
-                    foodName: input.foodName,
-                    quantity: input.quantity,
-                    ingredientCount: input.ingredientIds.length,
-                },
-            )
 
             return mealBatch
         } catch (error) {
