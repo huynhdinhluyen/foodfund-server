@@ -17,37 +17,37 @@ export class SearchWalletTransactionInput {
     @Field(() => String)
     @IsNotEmpty()
     @IsUUID()
-    walletId: string
+        walletId: string
 
     @Field(() => String, { nullable: true })
     @IsOptional()
     @IsString()
-    query?: string
+        query?: string
 
     @Field(() => Float, { nullable: true })
     @IsOptional()
     @IsNumber()
-    minAmount?: number
+        minAmount?: number
 
     @Field(() => Float, { nullable: true })
     @IsOptional()
     @IsNumber()
-    maxAmount?: number
+        maxAmount?: number
 
     @Field(() => WalletTransactionSortBy, { nullable: true })
     @IsOptional()
     @IsEnum(WalletTransactionSortBy)
-    sortBy?: WalletTransactionSortBy
+        sortBy?: WalletTransactionSortBy
 
     @Field(() => Int, { defaultValue: 1 })
     @IsOptional()
     @IsInt()
     @Min(1)
-    page: number
+        page: number
 
     @Field(() => Int, { defaultValue: 10 })
     @IsOptional()
     @IsInt()
     @Min(1)
-    limit: number
+        limit: number
 }

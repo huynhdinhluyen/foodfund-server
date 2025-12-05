@@ -3,17 +3,17 @@ import { Field, ObjectType, Int } from "@nestjs/graphql"
 @ObjectType()
 export class BadgeMilestone {
     @Field()
-    name: string
+        name: string
 
     @Field()
-    badgeId: string
+        badgeId: string
 
     @Field()
-    minAmount: string // BigInt as string for GraphQL
+        minAmount: string // BigInt as string for GraphQL
 
     @Field(() => Int)
-    priority: number
+        priority: number
 
     @Field({ nullable: true })
-    description?: string
+        description?: string
 }
