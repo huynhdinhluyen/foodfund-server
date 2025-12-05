@@ -23,7 +23,7 @@ import {
 } from "./application/services"
 import { WalletTransactionService } from "./application/services/wallet/wallet-transaction.service"
 import { WalletTransactionSearchService } from "./application/services/wallet/wallet-transaction-search.service"
-import { BadgeService, UserBadgeService } from "./application/services/badge"
+import { BadgeService, UserBadgeService, BadgeMilestoneService } from "./application/services/badge"
 import { BadgeEmailService } from "./application/services/badge/badge-email.service"
 import { BrevoEmailService } from "@libs/email"
 import {
@@ -49,6 +49,7 @@ import {
     WalletFieldResolver,
     BadgeQueryResolver,
     BadgeMutationResolver,
+    BadgeFieldResolver,
     OrganizationMutationResolver,
     OrganizationReferenceResolver,
 } from "./presentation/graphql/resolvers"
@@ -126,6 +127,7 @@ import { WalletTransactionConsumer } from "./application/handlers/kafka/wallet-t
         WalletTransactionSearchService,
         BadgeService,
         UserBadgeService,
+        BadgeMilestoneService,
         BadgeEmailService,
         BrevoEmailService,
         SpacesUploadService,
@@ -144,6 +146,7 @@ import { WalletTransactionConsumer } from "./application/handlers/kafka/wallet-t
         WalletFieldResolver,
         BadgeQueryResolver,
         BadgeMutationResolver,
+        BadgeFieldResolver,
         OrganizationMutationResolver,
         OrganizationReferenceResolver,
     ],
