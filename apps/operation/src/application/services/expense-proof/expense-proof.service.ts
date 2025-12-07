@@ -58,7 +58,6 @@ export class ExpenseProofService extends BaseOperationService {
             expiresAt: Date
             fileType: string
         }>
-        instructions: string
     }> {
         this.authorizationService.requireRole(
             userContext,
@@ -74,12 +73,6 @@ export class ExpenseProofService extends BaseOperationService {
             if (!request) {
                 throw new NotFoundException(
                     `Ingredient request not found: ${input.requestId}`,
-                )
-            }
-
-            if (request.status !== "APPROVED") {
-                throw new BadRequestException(
-                    `Can only upload proof for APPROVED requests. Current status: ${request.status}`,
                 )
             }
 
@@ -121,8 +114,6 @@ export class ExpenseProofService extends BaseOperationService {
                     expiresAt: result.expiresAt,
                     fileType: result.fileType || "image",
                 })),
-                instructions:
-                    "Upload your files (bill/receipts/ingredient photos) to the provided URLs within 5 minutes. Then call createExpenseProof with the fileKeys.",
             }
         } catch (error) {
             this.sentryService.captureError(error as Error, {
@@ -155,9 +146,9 @@ export class ExpenseProofService extends BaseOperationService {
                 )
             }
 
-            if (request.status !== "APPROVED") {
+            if (request.status !== "DISBURSED") {
                 throw new BadRequestException(
-                    `Can only create proof for APPROVED requests. Current status: ${request.status}`,
+                    `Can only create proof for DISBURSED requests. Current status: ${request.status}`,
                 )
             }
 
@@ -325,11 +316,6 @@ export class ExpenseProofService extends BaseOperationService {
                 )
 
                 if (campaignPhases.length === 0) {
-                    this.sentryService.addBreadcrumb(
-                        "No campaign phases found for campaign",
-                        "warning",
-                        { campaignId: filter.campaignId },
-                    )
                     return []
                 }
 
@@ -463,55 +449,6 @@ export class ExpenseProofService extends BaseOperationService {
                 operation: "ExpenseProofService.getExpenseProofStats",
             })
             throw error
-        }
-    }
-
-    private async checkFundraiserCampaignOwnership(
-        requestId: string,
-        fundraiserId: string,
-    ): Promise<boolean> {
-        try {
-            const request =
-                await this.ingredientRequestRepository.findById(requestId)
-
-            if (!request || !request.campaignPhaseId) {
-                return false
-            }
-
-            const campaignId =
-                await this.ingredientRequestRepository.getCampaignIdFromPhaseId(
-                    request.campaignPhaseId,
-                )
-
-            if (!campaignId) {
-                return false
-            }
-
-            const response = await this.grpcClient.callCampaignService<
-                { id: string },
-                {
-                    success: boolean
-                    campaign?: {
-                        id: string
-                        createdBy: string
-                    }
-                    error?: string
-                }
-            >("GetCampaign", { id: campaignId }, { timeout: 5000, retries: 2 })
-
-            if (!response.success || !response.campaign) {
-                return false
-            }
-
-            return response.campaign.createdBy === fundraiserId
-        } catch (error) {
-            this.sentryService.captureError(error as Error, {
-                operation:
-                    "ExpenseProofService.checkFundraiserCampaignOwnership",
-                requestId,
-                fundraiserId,
-            })
-            return false
         }
     }
 

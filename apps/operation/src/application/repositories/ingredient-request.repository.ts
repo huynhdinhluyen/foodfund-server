@@ -38,9 +38,11 @@ export class IngredientRequestRepository {
                     create: input.items.map((item) => ({
                         ingredient_name: item.ingredientName,
                         quantity: item.quantity,
+                        unit: item.unit,
                         estimated_unit_price: item.estimatedUnitPrice,
                         estimated_total_price: item.estimatedTotalPrice,
                         supplier: item.supplier,
+                        planned_ingredient_id: item.plannedIngredientId,
                     })),
                 },
             },
@@ -317,14 +319,16 @@ export class IngredientRequestRepository {
         return this.mapToGraphQLModel(request)
     }
 
-    async hasPendingOrApprovedRequest(
-        campaignPhaseId: string,
-    ): Promise<boolean> {
+    async hasActiveRequest(campaignPhaseId: string): Promise<boolean> {
         const count = await this.prisma.ingredient_Request.count({
             where: {
                 campaign_phase_id: campaignPhaseId,
                 status: {
-                    in: ["PENDING", "APPROVED"],
+                    in: [
+                        IngredientRequestStatus.PENDING,
+                        IngredientRequestStatus.APPROVED,
+                        IngredientRequestStatus.DISBURSED,
+                    ],
                 },
             },
         })
@@ -360,9 +364,11 @@ export class IngredientRequestRepository {
                 requestId: item.request_id,
                 ingredientName: item.ingredient_name,
                 quantity: item.quantity,
+                unit: item.unit,
                 estimatedUnitPrice: item.estimated_unit_price,
                 estimatedTotalPrice: item.estimated_total_price,
                 supplier: item.supplier,
+                plannedIngredientId: item.planned_ingredient_id,
             })),
             kitchenStaff: {
                 __typename: "User",

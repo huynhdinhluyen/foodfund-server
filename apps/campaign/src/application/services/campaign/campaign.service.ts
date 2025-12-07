@@ -250,6 +250,8 @@ export class CampaignService {
                     deliveryBudgetPercentage: Number.parseFloat(
                         phase.deliveryBudgetPercentage,
                     ),
+                    plannedMeals: phase.plannedMeals,
+                    plannedIngredients: phase.plannedIngredients,
                 })),
             })
 
