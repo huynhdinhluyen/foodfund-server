@@ -38,16 +38,19 @@ model Ingredient_Request_Item {
   id                    String  @id @default(uuid())
   request_id            String
   ingredient_name       String  @db.VarChar(100)
-  quantity              String  @db.VarChar(50)
+  quantity              Int     @default(0)
+  unit                  String  @db.VarChar(50)
   estimated_unit_price  Int     @default(0)
   estimated_total_price Int     @default(0)
   supplier              String? @db.VarChar(200)
+  planned_ingredient_id String?
 
   request           Ingredient_Request            @relation(fields: [request_id], references: [id], onDelete: Cascade)
   meal_batch_usages Meal_Batch_Ingredient_Usage[]
 
   @@index([request_id])
   @@index([ingredient_name])
+  @@index([planned_ingredient_id])
   @@map("ingredient_request_items")
 }
 
