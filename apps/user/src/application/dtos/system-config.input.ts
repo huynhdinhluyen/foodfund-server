@@ -5,19 +5,19 @@ import { IsString, IsOptional } from "class-validator"
 export class UpdateSystemConfigInput {
     @Field()
     @IsString()
-    key: string
+        key: string
 
     @Field()
     @IsString()
-    value: string
+        value: string
 
     @Field({ nullable: true })
     @IsOptional()
     @IsString()
-    description?: string
+        description?: string
 
     @Field({ nullable: true })
     @IsOptional()
     @IsString()
-    dataType?: string
+        dataType?: string
 }

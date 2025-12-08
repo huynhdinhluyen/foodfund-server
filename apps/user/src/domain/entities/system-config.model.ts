@@ -3,17 +3,17 @@ import { Field, ObjectType } from "@nestjs/graphql"
 @ObjectType()
 export class SystemConfig {
     @Field()
-    key: string
+        key: string
 
     @Field()
-    value: string
+        value: string
 
     @Field({ nullable: true })
-    description?: string
+        description?: string
 
     @Field()
-    dataType: string
+        dataType: string
 
     @Field()
-    updatedAt: Date
+        updatedAt: Date
 }
