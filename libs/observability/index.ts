@@ -3,3 +3,4 @@ export * from "./sentry.service"
 export * from "./sentry.interceptor"
 
 export * from "./datadog"
+export * from "./winston"

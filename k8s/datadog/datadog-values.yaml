@@ -46,7 +46,12 @@ datadog:
   # Live Container Monitoring
   containerCollectAll: true
   
-  # Disable problematic auto-discovery
+  # Disable problematic auto-discovery (Cilium not installed)
+  confd:
+    cilium.yaml: |-
+      init_config:
+      instances: []
+  
   env:
     - name: DD_IGNORE_AUTOCONF
       value: "cilium"

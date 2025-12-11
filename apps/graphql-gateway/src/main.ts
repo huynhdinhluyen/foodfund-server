@@ -2,7 +2,7 @@ import { NestFactory } from "@nestjs/core"
 import { ApiGatewayModule } from "./app.module"
 import * as compression from "compression"
 import { envConfig } from "@libs/env"
-import { DatadogInterceptor, initDatadogTracer } from "@libs/observability"
+import { DatadogInterceptor, initDatadogTracer, WinstonLoggerService } from "@libs/observability"
 
 initDatadogTracer({
     serviceName: "graphql-gateway",
@@ -11,7 +11,9 @@ initDatadogTracer({
 })
 
 async function bootstrap() {
+    const logger = new WinstonLoggerService("graphql-gateway")
     const app = await NestFactory.create(ApiGatewayModule, {
+        logger,
         bufferLogs: true,
     })
 

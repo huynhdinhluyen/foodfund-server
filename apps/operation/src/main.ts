@@ -3,7 +3,7 @@ import { MicroserviceOptions, Transport } from "@nestjs/microservices"
 import { AppModule } from "./app.module"
 import { ValidationPipe } from "@nestjs/common"
 import { envConfig } from "@libs/env"
-import { DatadogInterceptor, initDatadogTracer } from "@libs/observability"
+import { DatadogInterceptor, initDatadogTracer, WinstonLoggerService } from "@libs/observability"
 import { join } from "node:path"
 
 initDatadogTracer({
@@ -13,7 +13,10 @@ initDatadogTracer({
 })
 
 async function bootstrap() {
-    const app = await NestFactory.create(AppModule)
+    const logger = new WinstonLoggerService("operation-service")
+    const app = await NestFactory.create(AppModule, {
+        logger,
+    })
     const datadogInterceptor = app.get(DatadogInterceptor)
 
     app.useGlobalPipes(
