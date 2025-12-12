@@ -11,18 +11,18 @@ import { Field, ObjectType } from "@nestjs/graphql"
 @ObjectType()
 export class DeleteSystemConfigResponse {
     @Field()
-        success: boolean
+    success: boolean
 
     @Field()
-        message: string
+    message: string
 }
 
 @Resolver()
-@UseGuards(CognitoGraphQLGuard)
 export class SystemConfigResolver {
     constructor(private readonly systemConfigService: SystemConfigService) { }
 
     @Query(() => [SystemConfig], { name: "getSystemConfigs" })
+    @UseGuards(CognitoGraphQLGuard)
     @RequireRole(Role.ADMIN)
     async getSystemConfigs(): Promise<SystemConfig[]> {
         const configs = await this.systemConfigService.getAllConfigs()
@@ -33,7 +33,6 @@ export class SystemConfigResolver {
     }
 
     @Query(() => SystemConfig, { name: "getSystemConfig", nullable: true })
-    @RequireRole(Role.ADMIN)
     async getSystemConfig(
         @Args("key") key: string,
     ): Promise<SystemConfig | null> {
@@ -46,6 +45,7 @@ export class SystemConfigResolver {
     }
 
     @Mutation(() => SystemConfig, { name: "updateSystemConfig" })
+    @UseGuards(CognitoGraphQLGuard)
     @RequireRole(Role.ADMIN)
     async updateSystemConfig(
         @Args("input") input: UpdateSystemConfigInput,
@@ -63,6 +63,7 @@ export class SystemConfigResolver {
     }
 
     @Mutation(() => DeleteSystemConfigResponse, { name: "deleteSystemConfig" })
+    @UseGuards(CognitoGraphQLGuard)
     @RequireRole(Role.ADMIN)
     async deleteSystemConfig(
         @Args("key") key: string,
