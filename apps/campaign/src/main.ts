@@ -5,7 +5,7 @@ import { CustomValidationPipe } from "libs/validation"
 import { SentryService } from "@libs/observability/sentry.service"
 import { GraphQLExceptionFilter } from "@libs/exceptions"
 import { envConfig } from "@libs/env"
-import { DatadogInterceptor, initDatadogTracer } from "@libs/observability"
+import { DatadogInterceptor, initDatadogTracer, WinstonLoggerService } from "@libs/observability"
 import { join } from "node:path"
 
 initDatadogTracer({
@@ -15,7 +15,9 @@ initDatadogTracer({
 })
 
 async function bootstrap() {
+    const logger = new WinstonLoggerService("campaign-service")
     const app = await NestFactory.create(AppModule, {
+        logger,
         bufferLogs: true,
     })
     const env = envConfig()
@@ -55,7 +57,7 @@ async function bootstrap() {
     await app.startAllMicroservices()
     await app.listen(port)
 
-    console.log(`🚀 Campaign Service is running on port ${port}`)
+    console.log(`🚀 Campaign Service is running on port: ${port}`)
     console.log(`🔌 gRPC server is listening on 0.0.0.0:${grpcPort}`)
     console.log(`🔗 gRPC clients should connect to: ${grpcUrl}`)
 }

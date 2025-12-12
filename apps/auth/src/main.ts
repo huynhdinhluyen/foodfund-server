@@ -7,7 +7,8 @@ import { SentryService } from "libs/observability/sentry.service"
 import {
     DatadogInterceptor,
     initDatadogTracer,
-} from "@libs/observability/datadog"
+    WinstonLoggerService,
+} from "@libs/observability"
 import { envConfig } from "libs/env"
 import { join } from "path"
 
@@ -18,7 +19,10 @@ initDatadogTracer({
 })
 
 async function bootstrap() {
-    const app = await NestFactory.create(AppModule)
+    const logger = new WinstonLoggerService("auth-service")
+    const app = await NestFactory.create(AppModule, {
+        logger,
+    })
 
     const sentryService = app.get(SentryService)
     const datadogInterceptor = app.get(DatadogInterceptor)
@@ -45,7 +49,7 @@ async function bootstrap() {
     await app.startAllMicroservices()
     await app.listen(port)
 
-    console.log(`🚀 Auth Service is running on port ${port}`)
+    console.log(`🚀 Auth Service is running on port: ${port}`)
     console.log(`🔌 gRPC server is listening on 0.0.0.0:${grpcPort}`)
     console.log(`🔗 gRPC clients should connect to: ${grpcUrl}`)
     console.log(
