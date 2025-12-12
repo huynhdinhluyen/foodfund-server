@@ -7,7 +7,8 @@ import { SentryService } from "libs/observability/sentry.service"
 import {
     DatadogInterceptor,
     initDatadogTracer,
-} from "@libs/observability/datadog"
+    WinstonLoggerService,
+} from "@libs/observability"
 import { envConfig } from "@libs/env"
 import { join } from "path"
 
@@ -18,7 +19,9 @@ initDatadogTracer({
 })
 
 async function bootstrap() {
+    const logger = new WinstonLoggerService("user-service")
     const app = await NestFactory.create(AppModule, {
+        logger,
         bufferLogs: true,
     })
 
