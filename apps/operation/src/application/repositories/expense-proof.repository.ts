@@ -22,7 +22,11 @@ export class ExpenseProofRepository {
         return await this.prisma.expense_Proof.findUnique({
             where: { id },
             include: {
-                request: true,
+                request: {
+                    include: {
+                        items: true,
+                    },
+                },
             },
         })
     }
@@ -31,7 +35,11 @@ export class ExpenseProofRepository {
         return await this.prisma.expense_Proof.findMany({
             where: { request_id: requestId },
             include: {
-                request: true,
+                request: {
+                    include: {
+                        items: true,
+                    },
+                },
             },
             orderBy: { created_at: "desc" },
         })
@@ -49,7 +57,11 @@ export class ExpenseProofRepository {
                 },
             },
             include: {
-                request: true,
+                request: {
+                    include: {
+                        items: true,
+                    },
+                },
             },
             orderBy: { created_at: "desc" },
         })
@@ -59,7 +71,11 @@ export class ExpenseProofRepository {
         return await this.prisma.expense_Proof.findFirst({
             where: { request_id: requestId },
             include: {
-                request: true,
+                request: {
+                    include: {
+                        items: true,
+                    },
+                },
             },
             orderBy: { created_at: "desc" },
         })
