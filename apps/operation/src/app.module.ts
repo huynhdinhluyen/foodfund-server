@@ -23,9 +23,7 @@ import {
 import {
     AuthorizationService,
     CampaignPhase,
-    CampaignPhaseResolver,
     User,
-    UserResolver,
     UserClientService,
 } from "./shared"
 import { PrismaOperationService } from "./infrastructure"
@@ -63,6 +61,7 @@ import { MealBatchService } from "./application/services/meal-batch/meal-batch.s
 import { DeliveryTaskCacheService } from "./application/services/delivery-task"
 import { IngredientRequestCacheService } from "./application/services/ingredient-request"
 import { Organization } from "./shared/model"
+import { InflowTransactionNotificationService } from "./application/services/inflow-transaction"
 
 @Module({
     imports: [
@@ -129,9 +128,8 @@ import { Organization } from "./shared/model"
         DeliveryTaskService,
         InflowTransactionService,
         InflowTransactionValidationService,
+        InflowTransactionNotificationService,
 
-        UserResolver,
-        CampaignPhaseResolver,
         IngredientRequestMutationResolver,
         IngredientRequestQueryResolver,
         ExpenseProofMutationResolver,

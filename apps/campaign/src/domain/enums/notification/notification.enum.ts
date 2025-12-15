@@ -14,10 +14,13 @@ export enum NotificationType {
 
     POST_COMMENT = "POST_COMMENT",
     POST_REPLY = "POST_REPLY",
-
     POST_LIKE = "POST_LIKE",
 
     INGREDIENT_REQUEST_APPROVED = "INGREDIENT_REQUEST_APPROVED",
+    INGREDIENT_DISBURSEMENT_COMPLETED = "INGREDIENT_DISBURSEMENT_COMPLETED",
+    COOKING_DISBURSEMENT_COMPLETED = "COOKING_DISBURSEMENT_COMPLETED",
+    DELIVERY_DISBURSEMENT_COMPLETED = "DELIVERY_DISBURSEMENT_COMPLETED",
+
     DELIVERY_TASK_ASSIGNED = "DELIVERY_TASK_ASSIGNED",
     SURPLUS_TRANSFERRED = "SURPLUS_TRANSFERRED",
 
@@ -77,6 +80,15 @@ registerEnumType(NotificationType, {
         },
         INGREDIENT_REQUEST_APPROVED: {
             description: "Ingredient request has been approved",
+        },
+        INGREDIENT_DISBURSEMENT_COMPLETED: {
+            description: "Ingredient disbursement has been completed by admin",
+        },
+        COOKING_DISBURSEMENT_COMPLETED: {
+            description: "Cooking disbursement has been completed by admin",
+        },
+        DELIVERY_DISBURSEMENT_COMPLETED: {
+            description: "Delivery disbursement has been completed by admin",
         },
         DELIVERY_TASK_ASSIGNED: {
             description: "Delivery task assigned to staff",
@@ -159,8 +171,11 @@ export const NOTIFICATION_PRIORITY_MAP: Record<
     [NotificationType.CAMPAIGN_REASSIGNMENT_PENDING]: NotificationPriority.HIGH,
     [NotificationType.CAMPAIGN_REASSIGNMENT_EXPIRED]: NotificationPriority.HIGH,
     [NotificationType.CAMPAIGN_OWNERSHIP_RECEIVED]: NotificationPriority.HIGH,
-    [NotificationType.CAMPAIGN_OWNERSHIP_TRANSFERRED]:NotificationPriority.HIGH,
+    [NotificationType.CAMPAIGN_OWNERSHIP_TRANSFERRED]: NotificationPriority.HIGH,
     [NotificationType.SURPLUS_TRANSFERRED]: NotificationPriority.HIGH,
+    [NotificationType.INGREDIENT_DISBURSEMENT_COMPLETED]: NotificationPriority.HIGH,
+    [NotificationType.COOKING_DISBURSEMENT_COMPLETED]: NotificationPriority.HIGH,
+    [NotificationType.DELIVERY_DISBURSEMENT_COMPLETED]: NotificationPriority.HIGH,
 
     // Medium priority
     [NotificationType.CAMPAIGN_DONATION_RECEIVED]: NotificationPriority.MEDIUM,

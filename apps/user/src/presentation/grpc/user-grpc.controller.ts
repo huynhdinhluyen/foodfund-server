@@ -5,7 +5,6 @@ import {
     WalletRepository,
     OrganizationRepository,
     UserBadgeRepository,
-    SystemConfigRepository,
 } from "../../application/repositories"
 import { UserBadgeService } from "../../application/services/badge"
 import { Role } from "@libs/databases"
@@ -61,6 +60,8 @@ import {
     CreditFundraiserWalletWithSurplusResponse,
     GetSystemConfigRequest,
     GetSystemConfigResponse,
+    GetOrganizationMembersRequest,
+    GetOrganizationMembersResponse,
 } from "../../application/dtos/user-grpc.dto"
 import { SystemConfigService } from "../../application/services/system-config/system-config.service"
 
@@ -1160,6 +1161,90 @@ export class UserGrpcController {
             return {
                 success: false,
                 error: error.message,
+            }
+        }
+    }
+
+    @GrpcMethod("UserService", "GetOrganizationMembers")
+    async getOrganizationMembers(
+        data: GetOrganizationMembersRequest,
+    ): Promise<GetOrganizationMembersResponse> {
+        const { organizationId } = data
+
+        if (!organizationId) {
+            return {
+                success: false,
+                members: [],
+                error: "Organization ID is required",
+            }
+        }
+
+        try {
+            const organization =
+                await this.organizationRepository.findOrganizationWithMembers(
+                    organizationId,
+                )
+
+            if (!organization) {
+                return {
+                    success: false,
+                    members: [],
+                    error: `Organization ${organizationId} not found`,
+                }
+            }
+
+            const members: Array<{
+                id: string
+                cognitoId: string
+                fullName: string
+                email: string
+                role: string
+                memberRole: string
+                status: string
+            }> = []
+
+            if (organization.user) {
+                members.push({
+                    id: organization.user.id,
+                    cognitoId: organization.user.cognito_id || "",
+                    fullName: organization.user.full_name || "",
+                    email: organization.user.email,
+                    role: organization.user.role,
+                    memberRole: "REPRESENTATIVE",
+                    status: "ACTIVE",
+                })
+            }
+
+            // Add organization members (kitchen staff, delivery staff)
+            if (organization.Organization_Member) {
+                organization.Organization_Member.forEach((orgMember) => {
+                    if (orgMember.member) {
+                        members.push({
+                            id: orgMember.member.id,
+                            cognitoId: orgMember.member.cognito_id || "",
+                            fullName: orgMember.member.full_name || "",
+                            email: orgMember.member.email,
+                            role: orgMember.member.role,
+                            memberRole: orgMember.member_role || "MEMBER",
+                            status: orgMember.status,
+                        })
+                    }
+                })
+            }
+
+            return {
+                success: true,
+                members: members as any,
+            }
+        } catch (error) {
+            this.logger.error(
+                `[GetOrganizationMembers] ❌ Failed for organization ${organizationId}:`,
+                error.stack || error,
+            )
+            return {
+                success: false,
+                members: [],
+                error: error.message || "Failed to get organization members",
             }
         }
     }

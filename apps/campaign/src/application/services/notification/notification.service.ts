@@ -396,13 +396,15 @@ export class NotificationService {
             [NotificationType.POST_LIKE]: "POST",
             [NotificationType.POST_COMMENT]: "COMMENT",
             [NotificationType.POST_REPLY]: "COMMENT",
-            [NotificationType.INGREDIENT_REQUEST_APPROVED]:
-                "INGREDIENT_REQUEST",
+            [NotificationType.INGREDIENT_REQUEST_APPROVED]: "INGREDIENT_REQUEST",
             [NotificationType.DELIVERY_TASK_ASSIGNED]: "DELIVERY_TASK",
             [NotificationType.CAMPAIGN_REASSIGNMENT_PENDING]: "CAMPAIGN",
             [NotificationType.CAMPAIGN_OWNERSHIP_TRANSFERRED]: "CAMPAIGN",
             [NotificationType.CAMPAIGN_OWNERSHIP_RECEIVED]: "CAMPAIGN",
             [NotificationType.CAMPAIGN_REASSIGNMENT_EXPIRED]: "CAMPAIGN",
+            [NotificationType.INGREDIENT_DISBURSEMENT_COMPLETED]: "CAMPAIGN",
+            [NotificationType.COOKING_DISBURSEMENT_COMPLETED]: "CAMPAIGN",
+            [NotificationType.DELIVERY_DISBURSEMENT_COMPLETED]: "CAMPAIGN",
             [NotificationType.SYSTEM_ANNOUNCEMENT]: "SYSTEM",
             [NotificationType.SURPLUS_TRANSFERRED]: "WALLET",
         }

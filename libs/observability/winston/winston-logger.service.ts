@@ -3,7 +3,7 @@ import * as winston from "winston"
 import { createWinstonLogger } from "./winston-logger"
 
 export class WinstonLoggerService implements LoggerService {
-    private logger: winston.Logger
+    private readonly logger: winston.Logger
     private context?: string
 
     constructor(serviceName: string) {
