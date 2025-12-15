@@ -132,6 +132,15 @@ export interface CampaignReassignmentExpiredData extends BaseNotificationData {
     reassignmentId: string
 }
 
+export interface DisbursementCompletedData extends BaseNotificationData {
+    campaignId: string
+    campaignTitle: string
+    phaseName: string
+    disbursementType: "INGREDIENT" | "COOKING" | "DELIVERY"
+    amount: string
+    disbursedAt: string
+}
+
 export type NotificationDataMap = {
     [NotificationType.CAMPAIGN_APPROVED]: CampaignApprovedData
     [NotificationType.CAMPAIGN_REJECTED]: CampaignRejectedData
@@ -150,4 +159,7 @@ export type NotificationDataMap = {
     [NotificationType.CAMPAIGN_OWNERSHIP_TRANSFERRED]: CampaignOwnershipTransferredData
     [NotificationType.CAMPAIGN_OWNERSHIP_RECEIVED]: CampaignOwnershipReceivedData
     [NotificationType.CAMPAIGN_REASSIGNMENT_EXPIRED]: CampaignReassignmentExpiredData
+    [NotificationType.INGREDIENT_DISBURSEMENT_COMPLETED]: DisbursementCompletedData
+    [NotificationType.COOKING_DISBURSEMENT_COMPLETED]: DisbursementCompletedData
+    [NotificationType.DELIVERY_DISBURSEMENT_COMPLETED]: DisbursementCompletedData
 }

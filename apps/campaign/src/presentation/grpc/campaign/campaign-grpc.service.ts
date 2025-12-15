@@ -111,6 +111,19 @@ interface GetCampaignPhaseInfoResponse {
     error: string | null
 }
 
+interface GetCampaignPhaseStatusRequest {
+    phaseId: string
+}
+
+interface GetCampaignPhaseStatusResponse {
+    success: boolean
+    phase?: {
+        id: string
+        status: string
+    }
+    error?: string
+}
+
 interface UpdatePhaseStatusRequest {
     phaseId: string
     status: string
@@ -455,6 +468,46 @@ export class CampaignGrpcService {
         }
     }
 
+    @GrpcMethod("CampaignService", "GetCampaignPhaseStatus")
+    async getCampaignPhaseStatus(
+        data: GetCampaignPhaseStatusRequest,
+    ): Promise<GetCampaignPhaseStatusResponse> {
+        const { phaseId } = data
+
+        if (!phaseId) {
+            return {
+                success: false,
+                error: "Phase ID is required",
+            }
+        }
+
+        try {
+            const status =
+                await this.campaignPhaseRepository.getPhaseStatus(phaseId)
+
+            if (!status) {
+                return {
+                    success: false,
+                    error: `Campaign phase ${phaseId} not found`,
+                }
+            }
+
+            return {
+                success: true,
+                phase: {
+                    id: phaseId,
+                    status,
+                },
+                error: undefined,
+            }
+        } catch (error) {
+            return {
+                success: false,
+                error: error?.message || "Failed to get phase status",
+            }
+        }
+    }
+
     @GrpcMethod("CampaignService", "UpdatePhaseStatus")
     async updatePhaseStatus(
         data: UpdatePhaseStatusRequest,
@@ -581,7 +634,10 @@ export class CampaignGrpcService {
             let parsedData: Record<string, any>
             if (dataJson) {
                 parsedData = JSON.parse(dataJson)
-            } else if (notificationData && typeof notificationData === "object") {
+            } else if (
+                notificationData &&
+                typeof notificationData === "object"
+            ) {
                 parsedData = notificationData
             } else {
                 parsedData = {}
@@ -611,6 +667,36 @@ export class CampaignGrpcService {
                 return {
                     success: true,
                     notificationId: notification?.id,
+                }
+            }
+
+            if (
+                notificationType ===
+                    NotificationType.INGREDIENT_DISBURSEMENT_COMPLETED ||
+                notificationType ===
+                    NotificationType.COOKING_DISBURSEMENT_COMPLETED ||
+                notificationType ===
+                    NotificationType.DELIVERY_DISBURSEMENT_COMPLETED
+            ) {
+                const notification =
+                    await this.notificationService.createNotification({
+                        userId,
+                        type: notificationType as any,
+                        data: parsedData as any,
+                        priority: NotificationPriority.HIGH,
+                        entityId: parsedData.campaignId || undefined,
+                    })
+
+                if (!notification) {
+                    return {
+                        success: false,
+                        error: "Failed to create notification - service returned null",
+                    }
+                }
+
+                return {
+                    success: true,
+                    notificationId: notification.id,
                 }
             }
 
@@ -650,6 +736,9 @@ export class CampaignGrpcService {
             NotificationType.DELIVERY_TASK_ASSIGNED,
             NotificationType.SURPLUS_TRANSFERRED,
             NotificationType.SYSTEM_ANNOUNCEMENT,
+            NotificationType.INGREDIENT_DISBURSEMENT_COMPLETED,
+            NotificationType.COOKING_DISBURSEMENT_COMPLETED,
+            NotificationType.DELIVERY_DISBURSEMENT_COMPLETED,
         ]
 
         if (highPriorityTypes.includes(type)) {

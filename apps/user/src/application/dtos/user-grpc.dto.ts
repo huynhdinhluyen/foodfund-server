@@ -305,6 +305,24 @@ export interface GetOrganizationByIdResponse {
     error?: string
 }
 
+export interface GetOrganizationMembersRequest {
+    organizationId: string
+}
+
+export interface GetOrganizationMembersResponse {
+    success: boolean
+    members: Array<{
+        id: string
+        cognitoId: string
+        fullName: string
+        email: string
+        role: string
+        memberRole: string
+        status: string
+    }>
+    error?: string
+}
+
 export interface CreditFundraiserWalletWithSurplusRequest {
     fundraiserId: string
     campaignId: string

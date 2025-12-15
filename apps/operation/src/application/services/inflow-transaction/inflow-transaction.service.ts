@@ -4,7 +4,7 @@ import {
     Injectable,
     NotFoundException,
 } from "@nestjs/common"
-import { Role } from "@app/operation/src/shared"
+import { CampaignPhaseStatus, Role } from "@app/operation/src/shared"
 import { GrpcClientService } from "@libs/grpc"
 import { SentryService } from "@libs/observability"
 import { CurrentUserType } from "@libs/auth"
@@ -32,6 +32,7 @@ import {
 } from "../../dtos/inflow-transaction/inflow-transaction-filter.input"
 import { IngredientRequestCacheService } from "../ingredient-request"
 import { OperationRequestCacheService } from "../operation-request"
+import { InflowTransactionNotificationService } from "./inflow-transaction-notification.service"
 
 type RequestExpenseType = "INGREDIENT" | "COOKING" | "DELIVERY"
 
@@ -47,6 +48,7 @@ export class InflowTransactionService {
     constructor(
         private readonly inflowTransactionRepository: InflowTransactionRepository,
         private readonly validationService: InflowTransactionValidationService,
+        private readonly notificationService: InflowTransactionNotificationService,
         private readonly grpcClient: GrpcClientService,
         private readonly sentryService: SentryService,
         private readonly ingredientRequestCacheService: IngredientRequestCacheService,
@@ -142,6 +144,11 @@ export class InflowTransactionService {
                     status: InflowTransactionStatus.PENDING,
                 })
 
+                await this.transitionPhaseStatusAfterDisbursement(
+                    validation.campaignPhaseId,
+                    validation.transactionType,
+                )
+
                 await this.updateLinkedRequestToDisbursed(
                     input.ingredientRequestId || null,
                     input.operationRequestId || null,
@@ -158,6 +165,11 @@ export class InflowTransactionService {
                     input.operationRequestId || null,
                     validation.campaignPhaseId,
                     validation.fundraiserId,
+                )
+
+                await this.sendDisbursementNotificationAsync(
+                    created,
+                    validation,
                 )
 
                 return this.mapToGraphQLModel(created)
@@ -547,6 +559,50 @@ export class InflowTransactionService {
         return response.phase
     }
 
+    private async transitionPhaseStatusAfterDisbursement(
+        campaignPhaseId: string,
+        transactionType: RequestExpenseType,
+    ): Promise<void> {
+        const statusMap: Record<RequestExpenseType, CampaignPhaseStatus> = {
+            INGREDIENT: CampaignPhaseStatus.INGREDIENT_PURCHASE,
+            COOKING: CampaignPhaseStatus.COOKING,
+            DELIVERY: CampaignPhaseStatus.DELIVERY,
+        }
+
+        const newStatus = statusMap[transactionType]
+
+        try {
+            const updateResponse = await this.grpcClient.callCampaignService<
+                { phaseId: string; status: string },
+                { success: boolean; error?: string; campaignId?: string }
+            >(
+                "UpdatePhaseStatus",
+                {
+                    phaseId: campaignPhaseId,
+                    status: newStatus,
+                },
+                { timeout: 5000, retries: 2 },
+            )
+
+            if (!updateResponse.success) {
+                throw new Error(
+                    updateResponse.error || "Failed to update phase status",
+                )
+            }
+            const campaignId = await this.getCampaignIdFromPhaseId(campaignPhaseId)
+            if (campaignId) {
+                await this.invalidateCampaignCache(campaignId)
+            }
+        } catch (error) {
+            this.sentryService.captureError(error as Error, {
+                operation: "transitionPhaseStatusAfterDisbursement",
+                campaignPhaseId,
+                transactionType,
+                newStatus,
+            })
+        }
+    }
+
     private async creditFundraiserWalletWithSurplus(data: {
         fundraiserId: string
         campaignId: string
@@ -641,6 +697,109 @@ export class InflowTransactionService {
         })
     }
 
+    private async sendDisbursementNotificationAsync(
+        transaction: any,
+        validation: any,
+    ): Promise<void> {
+        const phaseInfo = await this.getCampaignPhaseInfo(
+            transaction.campaign_phase_id,
+        )
+
+        if (!phaseInfo) {
+            return
+        }
+
+        const fundraiserResponse = await this.grpcClient.callUserService<
+            { cognitoId: string },
+            {
+                success: boolean
+                user?: {
+                    id: string
+                    organizationId?: string
+                    fullName: string
+                    email: string
+                }
+                error?: string
+            }
+        >("GetUser", { cognitoId: validation.fundraiserId })
+
+        if (!fundraiserResponse.success || !fundraiserResponse.user) {
+            return
+        }
+
+        const disbursementTypeMap: Record<
+            RequestExpenseType,
+            RequestExpenseType
+        > = {
+            INGREDIENT: "INGREDIENT",
+            COOKING: "COOKING",
+            DELIVERY: "DELIVERY",
+        }
+
+        let organizationId: string | undefined
+
+        const orgResponse = await this.grpcClient.callUserService<
+            { userId: string },
+            {
+                success: boolean
+                organization?: {
+                    id: string
+                    name: string
+                }
+                error?: string
+            }
+        >("GetUserOrganization", { userId: fundraiserResponse.user.id })
+
+        if (orgResponse.success && orgResponse.organization) {
+            organizationId = orgResponse.organization.id
+        }
+
+        const disbursementType = disbursementTypeMap[validation.transactionType]
+
+        await this.notificationService.sendDisbursementNotifications({
+            campaignId: phaseInfo.campaignId,
+            campaignTitle: phaseInfo.campaignTitle,
+            phaseName: phaseInfo.phaseName,
+            disbursementType,
+            amount: transaction.amount.toString(),
+            fundraiserId: validation.fundraiserId,
+            organizationId
+        })
+    }
+
+    protected async getCampaignIdFromPhaseId(
+        phaseId: string,
+    ): Promise<string | null> {
+        const response = await this.grpcClient.callCampaignService<
+            { phaseId: string },
+            {
+                success: boolean
+                campaignId?: string
+                error?: string
+            }
+        >("GetCampaignIdByPhaseId", { phaseId })
+
+        if (!response.success || !response.campaignId) {
+            return null
+        }
+
+        return response.campaignId
+    }
+
+    protected async invalidateCampaignCache(campaignId: string): Promise<void> {
+        try {
+            await this.grpcClient.callCampaignService<
+                { campaignId: string },
+                { success: boolean; error?: string }
+            >("InvalidateCampaignCache", { campaignId })
+        } catch (error) {
+            this.sentryService.captureError(error as Error, {
+                operation: "invalidateCampaignCache",
+                campaignId,
+            })
+        }
+    }
+
     /**
      * Map Prisma model to GraphQL model (without conversion)
      * Used when receiverId is already internal id
@@ -662,68 +821,5 @@ export class InflowTransactionService {
             created_at: transaction.created_at,
             updated_at: transaction.updated_at,
         }
-    }
-
-    /**
-     * Map Prisma model to GraphQL model with cognito_id → internal id conversion
-     */
-    private async mapToGraphQLModelWithConversion(
-        transaction: any,
-    ): Promise<InflowTransaction> {
-        console.log("🔍 [mapToGraphQLModelWithConversion] Input:", {
-            id: transaction.id,
-            campaign_phase_id: transaction.campaign_phase_id,
-            receiver_id: transaction.receiver_id,
-        })
-
-        let internalUserId = transaction.receiver_id
-
-        // Convert cognito_id to internal user id
-        if (transaction.receiver_id) {
-            try {
-                const userResponse = await this.getUserByCognitoId(
-                    transaction.receiver_id,
-                )
-                internalUserId = userResponse.id
-                console.log(
-                    "✅ [mapToGraphQLModelWithConversion] Converted cognito_id to internal id:",
-                    {
-                        cognitoId: transaction.receiver_id,
-                        internalId: internalUserId,
-                    },
-                )
-            } catch (error) {
-                console.error(
-                    "❌ [mapToGraphQLModelWithConversion] Failed to convert:",
-                    error,
-                )
-                // Keep cognito_id if conversion fails
-            }
-        }
-
-        const mapped = {
-            id: transaction.id,
-            campaignPhaseId: transaction.campaign_phase_id,
-            receiverId: internalUserId,
-            ingredientRequestId: transaction.ingredient_request_id,
-            operationRequestId: transaction.operation_request_id,
-            transactionType:
-                transaction.transaction_type as InflowTransactionType,
-            amount: transaction.amount.toString(),
-            status: transaction.status as InflowTransactionStatus,
-            proof: transaction.proof,
-            isReported: transaction.is_reported,
-            reportedAt: transaction.reported_at,
-            created_at: transaction.created_at,
-            updated_at: transaction.updated_at,
-        }
-
-        console.log("✅ [mapToGraphQLModelWithConversion] Final output:", {
-            id: mapped.id,
-            campaignPhaseId: mapped.campaignPhaseId,
-            receiverId: mapped.receiverId,
-        })
-
-        return mapped
     }
 }

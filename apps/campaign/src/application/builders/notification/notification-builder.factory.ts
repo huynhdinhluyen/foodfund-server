@@ -29,6 +29,11 @@ import {
     NotificationBuilderResult,
     NotificationDataMap,
 } from "@app/campaign/src/domain/interfaces/notification"
+import {
+    CookingDisbursementCompletedBuilder,
+    DeliveryDisbursementCompletedBuilder,
+    IngredientDisbursementCompletedBuilder,
+} from "./disbursement-notification.builder"
 
 @Injectable()
 export class NotificationBuilderFactory {
@@ -55,6 +60,10 @@ export class NotificationBuilderFactory {
         private readonly campaignOwnershipTransferredBuilder: CampaignOwnershipTransferredBuilder,
         private readonly campaignOwnershipReceivedBuilder: CampaignOwnershipReceivedBuilder,
         private readonly campaignReassignmentExpiredBuilder: CampaignReassignmentExpiredBuilder,
+
+        private readonly ingredientDisbursementBuilder: IngredientDisbursementCompletedBuilder,
+        private readonly cookingDisbursementBuilder: CookingDisbursementCompletedBuilder,
+        private readonly deliveryDisbursementBuilder: DeliveryDisbursementCompletedBuilder,
     ) {
         this.builders = new Map<NotificationType, NotificationBuilder<any>>()
 
@@ -122,6 +131,18 @@ export class NotificationBuilderFactory {
         this.builders.set(
             NotificationType.CAMPAIGN_REASSIGNMENT_EXPIRED,
             this.campaignReassignmentExpiredBuilder,
+        )
+        this.builders.set(
+            NotificationType.INGREDIENT_DISBURSEMENT_COMPLETED,
+            this.ingredientDisbursementBuilder,
+        )
+        this.builders.set(
+            NotificationType.COOKING_DISBURSEMENT_COMPLETED,
+            this.cookingDisbursementBuilder,
+        )
+        this.builders.set(
+            NotificationType.DELIVERY_DISBURSEMENT_COMPLETED,
+            this.deliveryDisbursementBuilder,
         )
     }
 
