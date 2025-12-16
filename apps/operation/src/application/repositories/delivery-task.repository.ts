@@ -101,6 +101,39 @@ export class DeliveryTaskRepository {
         })
     }
 
+    async findByStaffAndMealBatch(
+        deliveryStaffId: string,
+        mealBatchId: string,
+    ) {
+        return await this.prisma.delivery_Task.findFirst({
+            where: {
+                delivery_staff_id: deliveryStaffId,
+                meal_batch_id: mealBatchId,
+            },
+            include: {
+                meal_batch: {
+                    select: {
+                        id: true,
+                        campaign_phase_id: true,
+                        kitchen_staff_id: true,
+                        planned_meal_id: true,
+                        food_name: true,
+                        quantity: true,
+                        media: true,
+                        status: true,
+                        cooked_date: true,
+                        created_at: true,
+                        updated_at: true,
+                    },
+                },
+                status_logs: {
+                    orderBy: { created_at: "desc" },
+                },
+            },
+            orderBy: { created_at: "desc" },
+        })
+    }
+
     async updateStatus(id: string, data: UpdateDeliveryTaskStatusData) {
         return await this.prisma.delivery_Task.update({
             where: { id },
@@ -135,6 +168,20 @@ export class DeliveryTaskRepository {
                         DeliveryTaskStatus.OUT_FOR_DELIVERY,
                     ],
                 },
+            },
+        })
+
+        return count > 0
+    }
+
+    async hasTaskForMealBatch(
+        deliveryStaffId: string,
+        mealBatchId: string,
+    ): Promise<boolean> {
+        const count = await this.prisma.delivery_Task.count({
+            where: {
+                delivery_staff_id: deliveryStaffId,
+                meal_batch_id: mealBatchId,
             },
         })
 
