@@ -91,6 +91,39 @@ export class DeliveryTaskService extends BaseOperationService {
                 )
             }
 
+            const duplicateChecks = await Promise.all(
+                input.deliveryStaffIds.map(async (staffId) => {
+                    const existingTask =
+                        await this.deliveryTaskRepository.findByStaffAndMealBatch(
+                            staffId,
+                            input.mealBatchId,
+                        )
+
+                    return {
+                        staffId,
+                        existingTask,
+                        hasDuplicate: !!existingTask,
+                    }
+                }),
+            )
+
+            const duplicateStaff = duplicateChecks.filter((c) => c.hasDuplicate)
+
+            if (duplicateStaff.length > 0) {
+                const duplicateDetails = duplicateStaff
+                    .map((d) => {
+                        const task = d.existingTask!
+                        return `Staff ${d.staffId} (Task ID: ${task.id}, Status: ${task.status}, Created: ${new Date(task.created_at).toLocaleString()})`
+                    })
+                    .join("; ")
+
+                throw new BadRequestException(
+                    `Cannot assign meal batch "${mealBatch.foodName}" (ID: ${input.mealBatchId}). ` +
+                        `The following staff already have tasks for this meal batch: ${duplicateDetails}. ` +
+                        "Each staff can only be assigned to a meal batch once.",
+                )
+            }
+
             const validationResults = await Promise.all(
                 input.deliveryStaffIds.map(async (staffId) => {
                     const staffInfo = await this.verifyDeliveryStaff(staffId)
