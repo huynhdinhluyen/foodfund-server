@@ -476,6 +476,13 @@ export class CampaignService {
                 }
 
                 await this.autoTransferWalletToCampaign(campaign, updateData)
+                this.eventEmitter.emit("campaign.approved", {
+                    campaignId: campaign.id,
+                    campaignTitle: campaign.title,
+                    fundraiserId: campaign.createdBy,
+                    approvedBy: userContext.userId,
+                    approvedAt: new Date().toISOString(),
+                } satisfies CampaignApprovedEvent)
             } else if (newStatus === CampaignStatus.APPROVED) {
                 updateData.changedStatusAt = new Date()
 
