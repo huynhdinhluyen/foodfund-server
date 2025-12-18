@@ -1,6 +1,10 @@
 import { Injectable } from "@nestjs/common"
 import { NotificationType } from "@app/campaign/src/domain/enums/notification"
-import { NotificationBuilder, NotificationBuilderContext, NotificationBuilderResult } from "@app/campaign/src/domain/interfaces/notification"
+import {
+    NotificationBuilder,
+    NotificationBuilderContext,
+    NotificationBuilderResult,
+} from "@app/campaign/src/domain/interfaces/notification"
 
 @Injectable()
 export class CampaignApprovedBuilder extends NotificationBuilder<NotificationType.CAMPAIGN_APPROVED> {
@@ -311,14 +315,10 @@ export class CampaignExtendedBuilder extends NotificationBuilder<NotificationTyp
 
         const campaignTitle = this.truncate(data.campaignTitle, 50)
         const extensionText =
-            data.extensionDays === 1
-                ? "1 ngày"
-                : `${data.extensionDays} ngày`
+            data.extensionDays === 1 ? "1 ngày" : `${data.extensionDays} ngày`
 
-        const oldEndDate = new Date(data.oldEndDate).toLocaleDateString("vi-VN")
         const newEndDate = new Date(data.newEndDate).toLocaleDateString("vi-VN")
-
-        const message = `Chiến dịch "${campaignTitle}" đã được gia hạn thêm ${extensionText}. Thời gian kết thúc mới: ${newEndDate} (trước đó: ${oldEndDate}).`
+        const message = `Chiến dịch "${campaignTitle}" đã được gia hạn thêm ${extensionText}. Thời gian kết thúc mới: ${newEndDate}.`
 
         return {
             title: "⏰ Chiến dịch đã được gia hạn",
@@ -362,10 +362,8 @@ export class CampaignPhaseStatusUpdatedBuilder extends NotificationBuilder<Notif
             FAILED: "Thất bại",
         }
 
-        const oldStatusText = statusMap[data.oldStatus] || data.oldStatus
         const newStatusText = statusMap[data.newStatus] || data.newStatus
-
-        const message = `Giai đoạn "${phaseName}" của chiến dịch "${campaignTitle}" đã chuyển từ trạng thái "${oldStatusText}" sang "${newStatusText}".`
+        const message = `Giai đoạn "${phaseName}" của chiến dịch "${campaignTitle}" đã chuyển sang trạng thái "${newStatusText}".`
 
         return {
             title: "📋 Cập nhật tiến độ chiến dịch",

@@ -13,6 +13,7 @@ import {
 } from "../../domain/interfaces/notification"
 import { Job } from "bull"
 import { Logger } from "@nestjs/common"
+import { NotificationBuilderFactory } from "../builders/notification"
 
 @Processor(QUEUE_NAMES.CAMPAIGN_JOBS)
 export class NotificationProcessor {
@@ -21,12 +22,13 @@ export class NotificationProcessor {
     constructor(
         private readonly notificationService: NotificationService,
         private readonly datadogService: BullDatadogService,
+        private readonly notificationBuilder: NotificationBuilderFactory,
     ) {}
 
     /**
      * Process single notification job
      */
-    @Process("process-notification")
+    @Process("send-notification")
     async processNotification(job: Job<NotificationJob>): Promise<void> {
         const startTime = Date.now()
 
@@ -45,7 +47,9 @@ export class NotificationProcessor {
                 },
             }
 
-            await this.notificationService.createNotification(notificationInput as any)
+            await this.notificationService.createNotification(
+                notificationInput as any,
+            )
 
             const duration = Date.now() - startTime
             this.datadogService.trackJobComplete(
@@ -53,50 +57,76 @@ export class NotificationProcessor {
                 job.id?.toString() || "",
                 duration,
             )
-
-            this.logger.log(
-                `Notification job ${job.id} completed in ${duration}ms`,
-            )
         } catch (error) {
-            this.logger.error(
-                `Failed to process notification job ${job.id}`,
-                error,
-            )
-            throw error
+            if (
+                error.name === "DuplicateEventError" &&
+                error.action === "UPDATE_EXISTING"
+            ) {
+                this.logger.log(
+                    `Notification job ${job.id} - Updating existing like notification`,
+                )
+            } else {
+                this.logger.error(
+                    `Failed to process notification job ${job.id}`,
+                    error,
+                )
+                throw error
+            }
         }
     }
 
     /**
      * Process grouped notification job (for batching)
      */
-    @Process("process-grouped-notification")
+    @Process("send-grouped-notification")
     async processGroupedNotification(
         job: Job<GroupedNotificationJob>,
     ): Promise<void> {
         const startTime = Date.now()
 
-        this.logger.log(
-            `Processing grouped notification job: ${job.id} for ${job.data.userIds.length} users`,
-        )
-
         try {
-            const notificationInputs = job.data.userIds.map((userId) => ({
-                userId,
-                type: job.data.type,
-                data: job.data.data as any,
-                priority: job.data.priority,
-                actorId: job.data.actorId,
-                entityId: job.data.entityId,
-                eventId: job.data.eventIds[0],
+            const { userIds, eventIds, ...jobData } = job.data
+
+            const content = this.notificationBuilder.build({
+                type: jobData.type,
+                data: jobData.data as any,
+                userId: userIds[0],
+                actorId: jobData.actorId,
+                entityId: jobData.entityId,
                 metadata: {
-                    queueJobId: job.id?.toString(),
+                    queueJobId: `grouped-${jobData.entityId}-${Date.now()}`,
                     processedAt: new Date().toISOString(),
                     isGrouped: true,
                 },
-            }))
+            })
 
-            await this.notificationService.createBulkNotifications(
-                notificationInputs as any,
+            await Promise.all(
+                userIds.map((userId) => {
+                    const notificationData = {
+                        ...jobData.data,
+                        title: content.title,
+                        message: content.message,
+                        ...content.metadata,
+                        queueJobId: `grouped-${jobData.entityId}-${Date.now()}`,
+                        processedAt: new Date().toISOString(),
+                        isGrouped: true,
+                    }
+
+                    return this.notificationService.createNotification({
+                        userId,
+                        type: jobData.type,
+                        data: notificationData,
+                        priority: jobData.priority,
+                        actorId: jobData.actorId,
+                        entityId: jobData.entityId,
+                        eventId: eventIds?.[0],
+                        metadata: {
+                            queueJobId: `grouped-${jobData.entityId}-${Date.now()}`,
+                            processedAt: new Date().toISOString(),
+                            isGrouped: true,
+                        },
+                    } as any)
+                }),
             )
 
             const duration = Date.now() - startTime
@@ -105,15 +135,12 @@ export class NotificationProcessor {
                 job.id?.toString() || "",
                 duration,
             )
-
-            this.logger.log(
-                `Grouped notification job ${job.id} completed in ${duration}ms`,
-            )
         } catch (error) {
             this.logger.error(
-                `Failed to process grouped notification job ${job.id}`,
+                `Failed to process grouped notification job ${job.id}:`,
                 error,
             )
+            this.logger.error(`Job data: ${JSON.stringify(job.data)}`)
             throw error
         }
     }
@@ -141,10 +168,7 @@ export class NotificationProcessor {
      * Track failed jobs
      */
     @OnQueueFailed()
-    onFailed(
-        job: Job<NotificationJob | GroupedNotificationJob>,
-        error: Error,
-    ) {
+    onFailed(job: Job<NotificationJob | GroupedNotificationJob>, error: Error) {
         this.datadogService.trackJobFailed(
             QUEUE_NAMES.CAMPAIGN_JOBS,
             job.id?.toString() || "",

@@ -1558,15 +1558,12 @@ export class CampaignService {
                     campaign.organizationId,
                 )
 
-            const memberCognitoIds = orgMembers.map((m) => m.cognitoId)
-
-            followerIds = allDonorIds.filter(
-                (donorId) => !memberCognitoIds.includes(donorId),
+            const memberCognitoIds = new Set<string>(
+                orgMembers.map((m) => m.cognitoId),
             )
 
-            this.logger.log(
-                `[ExtendCampaign] Excluded ${memberCognitoIds.length} organization members. ` +
-                    `Notifying ${followerIds.length} donors.`,
+            followerIds = allDonorIds.filter(
+                (donorId) => !memberCognitoIds.has(donorId),
             )
         }
 
@@ -1584,10 +1581,6 @@ export class CampaignService {
             oldEndDate: oldEndDate.toISOString(),
             followerIds,
         } satisfies CampaignExtendedEvent)
-
-        this.logger.log(
-            `[ExtendCampaign] ✅ Notification event emitted to ${followerIds.length} donors`,
-        )
     }
 
     private async sendCampaignCompletedNotifications(
