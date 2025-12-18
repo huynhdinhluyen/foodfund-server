@@ -8,6 +8,7 @@ export enum NotificationType {
     CAMPAIGN_DONATION_RECEIVED = "CAMPAIGN_DONATION_RECEIVED",
     CAMPAIGN_NEW_POST = "CAMPAIGN_NEW_POST",
     CAMPAIGN_EXTENDED = "CAMPAIGN_EXTENDED",
+    CAMPAIGN_PHASE_STATUS_UPDATED = "CAMPAIGN_PHASE_STATUS_UPDATED",
     CAMPAIGN_REASSIGNMENT_PENDING = "CAMPAIGN_REASSIGNMENT_PENDING",
     CAMPAIGN_OWNERSHIP_TRANSFERRED = "CAMPAIGN_OWNERSHIP_TRANSFERRED",
     CAMPAIGN_OWNERSHIP_RECEIVED = "CAMPAIGN_OWNERSHIP_RECEIVED",
@@ -70,7 +71,12 @@ registerEnumType(NotificationType, {
         CAMPAIGN_NEW_POST: {
             description: "New post published in campaign",
         },
-        CAMPAIGN_EXTENDED: {},
+        CAMPAIGN_EXTENDED: {
+            description: "Campaign fundraising period extended",
+        },
+        CAMPAIGN_PHASE_STATUS_UPDATED: {
+            description: "Campaign phase status updated by fundraiser",
+        },
         POST_LIKE: {
             description: "Post received likes (grouped)",
         },
@@ -189,6 +195,7 @@ export const NOTIFICATION_PRIORITY_MAP: Record<
     [NotificationType.POST_COMMENT]: NotificationPriority.MEDIUM,
     [NotificationType.POST_REPLY]: NotificationPriority.MEDIUM,
     [NotificationType.CAMPAIGN_EXTENDED]: NotificationPriority.MEDIUM,
+    [NotificationType.CAMPAIGN_PHASE_STATUS_UPDATED]: NotificationPriority.MEDIUM,
 
     // Low priority
     [NotificationType.POST_LIKE]: NotificationPriority.LOW,

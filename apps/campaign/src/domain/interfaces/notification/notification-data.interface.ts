@@ -149,6 +149,15 @@ export interface CampaignExtendedData extends BaseNotificationData {
     oldEndDate: string
 }
 
+export interface CampaignPhaseStatusUpdatedData extends BaseNotificationData {
+    campaignId: string
+    campaignTitle: string
+    phaseId: string
+    phaseName: string
+    oldStatus: string
+    newStatus: string
+}
+
 export type NotificationDataMap = {
     [NotificationType.CAMPAIGN_APPROVED]: CampaignApprovedData
     [NotificationType.CAMPAIGN_REJECTED]: CampaignRejectedData
@@ -157,6 +166,7 @@ export type NotificationDataMap = {
     [NotificationType.CAMPAIGN_DONATION_RECEIVED]: CampaignDonationReceivedData
     [NotificationType.CAMPAIGN_NEW_POST]: CampaignNewPostData
     [NotificationType.CAMPAIGN_EXTENDED]: CampaignExtendedData
+    [NotificationType.CAMPAIGN_PHASE_STATUS_UPDATED]: CampaignPhaseStatusUpdatedData
     [NotificationType.POST_LIKE]: PostLikeData
     [NotificationType.POST_COMMENT]: PostCommentData
     [NotificationType.POST_REPLY]: PostReplyData

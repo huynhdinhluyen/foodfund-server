@@ -12,6 +12,7 @@ import {
     CampaignDonationReceivedEvent,
     CampaignExtendedEvent,
     CampaignNewPostEvent,
+    CampaignPhaseStatusUpdatedEvent,
     CampaignRejectedEvent,
 } from "../../domain/events"
 import {
@@ -230,6 +231,28 @@ export class CampaignNotificationHandler {
                 extensionDays: event.extensionDays,
                 newEndDate: event.newEndDate,
                 oldEndDate: event.oldEndDate,
+            },
+            timestamp: new Date().toISOString(),
+        })
+    }
+
+    @OnEvent("campaign.phase.status.updated")
+    async handlePhaseStatusUpdated(event: CampaignPhaseStatusUpdatedEvent) {
+        await this.notificationQueue.addGroupedNotificationJob({
+            eventIds: [`phase-status-updated-${event.phaseId}-${Date.now()}`],
+            priority: NotificationPriority.MEDIUM,
+            type: NotificationType.CAMPAIGN_PHASE_STATUS_UPDATED,
+            userIds: event.followerIds,
+            actorId: event.fundraiserId,
+            entityType: "CAMPAIGN",
+            entityId: event.campaignId,
+            data: {
+                campaignId: event.campaignId,
+                campaignTitle: event.campaignTitle,
+                phaseId: event.phaseId,
+                phaseName: event.phaseName,
+                oldStatus: event.oldStatus,
+                newStatus: event.newStatus,
             },
             timestamp: new Date().toISOString(),
         })
