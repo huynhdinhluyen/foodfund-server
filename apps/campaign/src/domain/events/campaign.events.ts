@@ -59,3 +59,15 @@ export interface CampaignExtendedEvent {
     oldEndDate: string
     followerIds: string[]
 }
+
+export interface CampaignPhaseStatusUpdatedEvent {
+    campaignId: string
+    campaignTitle: string
+    phaseId: string
+    phaseName: string
+    oldStatus: string
+    newStatus: string
+    fundraiserId: string
+    organizationId?: string
+    followerIds: string[]
+}

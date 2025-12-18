@@ -332,3 +332,51 @@ export class CampaignExtendedBuilder extends NotificationBuilder<NotificationTyp
         }
     }
 }
+
+/**
+ * Campaign Phase Status Updated Notification Builder
+ */
+@Injectable()
+export class CampaignPhaseStatusUpdatedBuilder extends NotificationBuilder<NotificationType.CAMPAIGN_PHASE_STATUS_UPDATED> {
+    readonly type = NotificationType.CAMPAIGN_PHASE_STATUS_UPDATED
+
+    build(
+        context: NotificationBuilderContext<NotificationType.CAMPAIGN_PHASE_STATUS_UPDATED>,
+    ): NotificationBuilderResult {
+        this.validate(context.data)
+        const data = context.data
+
+        const campaignTitle = this.truncate(data.campaignTitle, 50)
+        const phaseName = this.truncate(data.phaseName, 50)
+
+        const statusMap: Record<string, string> = {
+            PLANNING: "Lên kế hoạch",
+            AWAITING_INGREDIENT_DISBURSEMENT: "Chờ giải ngân nguyên liệu",
+            INGREDIENT_PURCHASE: "Mua nguyên liệu",
+            AWAITING_COOKING_DISBURSEMENT: "Chờ giải ngân nấu ăn",
+            COOKING: "Nấu ăn",
+            AWAITING_DELIVERY_DISBURSEMENT: "Chờ giải ngân vận chuyển",
+            DELIVERY: "Vận chuyển",
+            COMPLETED: "Hoàn thành",
+            CANCELLED: "Đã hủy",
+            FAILED: "Thất bại",
+        }
+
+        const oldStatusText = statusMap[data.oldStatus] || data.oldStatus
+        const newStatusText = statusMap[data.newStatus] || data.newStatus
+
+        const message = `Giai đoạn "${phaseName}" của chiến dịch "${campaignTitle}" đã chuyển từ trạng thái "${oldStatusText}" sang "${newStatusText}".`
+
+        return {
+            title: "📋 Cập nhật tiến độ chiến dịch",
+            message,
+            metadata: {
+                campaignId: data.campaignId,
+                phaseId: data.phaseId,
+                phaseName: data.phaseName,
+                oldStatus: data.oldStatus,
+                newStatus: data.newStatus,
+            },
+        }
+    }
+}

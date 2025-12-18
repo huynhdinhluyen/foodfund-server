@@ -17,12 +17,16 @@ import {
 import {
     PhaseBudgetValidator,
     Role,
+    UserClientService,
     UserContext,
 } from "@app/campaign/src/shared"
 import { CampaignPhase } from "@app/campaign/src/domain/entities/campaign-phase.model"
 import { CampaignStatus } from "@app/campaign/src/domain/enums/campaign/campaign.enum"
 import { SyncPhasesResponse } from "../../dtos/campaign-phase/response"
 import { CampaignPhaseStatus } from "@app/campaign/src/domain/enums/campaign-phase/campaign-phase.enum"
+import { EventEmitter2 } from "@nestjs/event-emitter"
+import { DonorRepository } from "../../repositories/donor.repository"
+import { CampaignPhaseStatusUpdatedEvent } from "@app/campaign/src/domain/events"
 
 interface PhaseDate {
     phaseName: string
@@ -39,6 +43,9 @@ export class CampaignPhaseService {
         @Inject(forwardRef(() => CampaignService))
         private readonly campaignService: CampaignService,
         private readonly campaignCacheService: CampaignCacheService,
+        private readonly eventEmitter: EventEmitter2,
+        private readonly donorRepository: DonorRepository,
+        private readonly userClientService: UserClientService,
     ) {}
 
     async syncCampaignPhases(
@@ -220,6 +227,7 @@ export class CampaignPhaseService {
                     `Cannot update phase status when campaign is in ${campaign.status} status. Only PROCESSING campaigns allow phase updates.`,
                 )
             }
+            const oldStatus = phase.status
 
             this.validatePhaseStatusTransition(phase.status, input.status)
 
@@ -228,13 +236,23 @@ export class CampaignPhaseService {
             await this.campaignCacheService.deleteCampaign(campaign.id)
             await this.campaignCacheService.invalidateAll(campaign.id)
 
-            const allPhasesFinished = await this.campaignService.areAllPhasesFinished(campaign.id)
+            const allPhasesFinished =
+                await this.campaignService.areAllPhasesFinished(campaign.id)
 
             if (allPhasesFinished.allFinished) {
                 await this.campaignService.autoCompleteCampaign(campaign.id)
             }
 
-            const updatedPhase = await this.phaseRepository.findByIdWithCampaign(input.phaseId)
+            const updatedPhase =
+                await this.phaseRepository.findByIdWithCampaign(input.phaseId)
+
+            await this.sendPhaseStatusUpdateNotifications(
+                campaign,
+                updatedPhase!,
+                oldStatus,
+                input.status,
+                userContext.userId,
+            )
 
             return updatedPhase!
         } catch (error) {
@@ -245,6 +263,57 @@ export class CampaignPhaseService {
             })
             throw error
         }
+    }
+
+    private async sendPhaseStatusUpdateNotifications(
+        campaign: any,
+        phase: CampaignPhase,
+        oldStatus: CampaignPhaseStatus,
+        newStatus: CampaignPhaseStatus,
+        fundraiserId: string,
+    ): Promise<void> {
+        const allDonorIds =
+            await this.donorRepository.getCampaignDonorsExcludingOrganization(
+                campaign.id,
+                campaign.organizationId,
+            )
+
+        if (allDonorIds.length === 0) {
+            return
+        }
+
+        let followerIds = allDonorIds
+
+        if (campaign.organizationId) {
+            const orgMembers =
+                await this.userClientService.getOrganizationMembers(
+                    campaign.organizationId,
+                )
+
+            const memberCognitoIds = new Set<string>(
+                orgMembers.map((m) => m.cognitoId),
+            )
+
+            followerIds = allDonorIds.filter(
+                (donorId) => !memberCognitoIds.has(donorId),
+            )
+        }
+
+        if (followerIds.length === 0) {
+            return
+        }
+
+        this.eventEmitter.emit("campaign.phase.status.updated", {
+            campaignId: campaign.id,
+            campaignTitle: campaign.title,
+            phaseId: phase.id,
+            phaseName: phase.phaseName,
+            oldStatus,
+            newStatus,
+            fundraiserId,
+            organizationId: campaign.organizationId,
+            followerIds,
+        } satisfies CampaignPhaseStatusUpdatedEvent)
     }
 
     private validatePhaseStatusTransition(

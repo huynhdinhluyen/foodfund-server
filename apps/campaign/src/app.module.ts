@@ -108,6 +108,7 @@ import {
     CookingDisbursementCompletedBuilder,
     DeliveryDisbursementCompletedBuilder,
     CampaignExtendedBuilder,
+    CampaignPhaseStatusUpdatedBuilder,
 } from "./application/builders/notification"
 import { NotificationQueryResolver } from "./presentation/graphql/notification/queries"
 import { NotificationMutationResolver } from "./presentation/graphql/notification/mutations"
@@ -285,6 +286,7 @@ import { DonationConsumer } from "./application/handlers/kafka/donation.consumer
         CampaignDonationReceivedBuilder,
         CampaignNewPostBuilder,
         CampaignExtendedBuilder,
+        CampaignPhaseStatusUpdatedBuilder,
         PostLikeBuilder,
         PostCommentBuilder,
         PostReplyBuilder,
