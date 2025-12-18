@@ -1,5 +1,8 @@
 import { NotificationPriority } from "@app/campaign/src/domain/enums/notification"
-import { GroupedNotificationJob, NotificationJob } from "@app/campaign/src/domain/interfaces/notification"
+import {
+    GroupedNotificationJob,
+    NotificationJob,
+} from "@app/campaign/src/domain/interfaces/notification"
 import { QUEUE_NAMES } from "@libs/queue"
 import { InjectQueue } from "@nestjs/bull"
 import { Injectable } from "@nestjs/common"
@@ -33,11 +36,7 @@ export class NotificationQueue {
             jobOptions.delay = job.delaySeconds * 1000
         }
 
-        await this.notificationQueue.add(
-            "process-notification",
-            job,
-            jobOptions,
-        )
+        await this.notificationQueue.add("send-notification", job, jobOptions)
     }
 
     async addGroupedNotificationJob(
@@ -59,7 +58,7 @@ export class NotificationQueue {
         }
 
         await this.notificationQueue.add(
-            "process-grouped-notification",
+            "send-grouped-notification",
             job,
             jobOptions,
         )
