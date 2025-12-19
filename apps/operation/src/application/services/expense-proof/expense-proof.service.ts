@@ -30,6 +30,7 @@ import {
 import { ExpenseProofCacheService } from "./expense-proof-cache.service"
 import { BaseOperationService } from "@app/operation/src/shared/services"
 import { BudgetValidationHelper } from "@app/operation/src/shared/helpers"
+import { ExpenseProofSortOrder } from "@app/operation/src/domain/enums/expense-proof"
 
 @Injectable()
 export class ExpenseProofService extends BaseOperationService {
@@ -303,7 +304,10 @@ export class ExpenseProofService extends BaseOperationService {
             const cachedProofs = await this.cacheService.getProofList(cacheKey)
 
             if (cachedProofs) {
-                return cachedProofs
+                return this.sortProofs(
+                    cachedProofs,
+                    filter.sortBy || ExpenseProofSortOrder.NEWEST_FIRST,
+                )
             }
 
             let proofs: any[]
@@ -325,6 +329,7 @@ export class ExpenseProofService extends BaseOperationService {
                         filter.status,
                         limit,
                         offset,
+                        filter.sortBy,
                     )
             } else {
                 proofs = await this.expenseProofRepository.findWithFilters(
@@ -338,9 +343,14 @@ export class ExpenseProofService extends BaseOperationService {
                 this.mapToGraphQLModel(proof),
             )
 
-            await this.cacheService.setProofList(cacheKey, mappedProofs)
+            const sortedProofs = this.sortProofs(
+                mappedProofs,
+                filter.sortBy || ExpenseProofSortOrder.NEWEST_FIRST,
+            )
 
-            return mappedProofs
+            await this.cacheService.setProofList(cacheKey, sortedProofs)
+
+            return sortedProofs
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "ExpenseProofService.getExpenseProofs",
@@ -353,6 +363,7 @@ export class ExpenseProofService extends BaseOperationService {
     async getMyExpenseProofs(
         requestId: string | undefined,
         userContext: UserContext,
+        sortBy?: ExpenseProofSortOrder,
     ): Promise<ExpenseProof[]> {
         this.authorizationService.requireRole(
             userContext,
@@ -366,12 +377,18 @@ export class ExpenseProofService extends BaseOperationService {
             )
 
             if (cachedProofs) {
+                let filteredProofs = cachedProofs
+
                 if (requestId) {
-                    return cachedProofs.filter(
+                    filteredProofs = cachedProofs.filter(
                         (proof) => proof.requestId === requestId,
                     )
                 }
-                return cachedProofs
+
+                return this.sortProofs(
+                    filteredProofs,
+                    sortBy || ExpenseProofSortOrder.NEWEST_FIRST,
+                )
             }
 
             const requests =
@@ -390,12 +407,15 @@ export class ExpenseProofService extends BaseOperationService {
                     )
                 }
 
-                proofs =
-                    await this.expenseProofRepository.findByRequestId(requestId)
+                proofs = await this.expenseProofRepository.findByRequestId(
+                    requestId,
+                    sortBy,
+                )
             } else {
                 proofs =
                     await this.expenseProofRepository.findByOrganizationRequests(
                         requestIds,
+                        sortBy,
                     )
             }
 
@@ -403,12 +423,17 @@ export class ExpenseProofService extends BaseOperationService {
                 this.mapToGraphQLModel(proof),
             )
 
-            await this.cacheService.setOrganizationProofs(
-                userContext.userId,
+            const sortedProofs = this.sortProofs(
                 mappedProofs,
+                sortBy || ExpenseProofSortOrder.NEWEST_FIRST,
             )
 
-            return mappedProofs
+            await this.cacheService.setOrganizationProofs(
+                userContext.userId,
+                sortedProofs,
+            )
+
+            return sortedProofs
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "ExpenseProofService.getMyExpenseProofs",
@@ -447,6 +472,62 @@ export class ExpenseProofService extends BaseOperationService {
                 operation: "ExpenseProofService.getExpenseProofStats",
             })
             throw error
+        }
+    }
+
+    private sortProofs(
+        proofs: ExpenseProof[],
+        sortBy: ExpenseProofSortOrder,
+    ): ExpenseProof[] {
+        const sorted = [...proofs]
+
+        switch (sortBy) {
+        case ExpenseProofSortOrder.OLDEST_FIRST:
+            return sorted.sort(
+                (a, b) =>
+                    new Date(a.created_at).getTime() -
+                        new Date(b.created_at).getTime(),
+            )
+
+        case ExpenseProofSortOrder.STATUS_PENDING_FIRST: {
+            const pendingProofs = sorted.filter(
+                (p) => p.status === ExpenseProofStatus.PENDING,
+            )
+            const approvedProofs = sorted.filter(
+                (p) => p.status === ExpenseProofStatus.APPROVED,
+            )
+            const rejectedProofs = sorted.filter(
+                (p) => p.status === ExpenseProofStatus.REJECTED,
+            )
+
+            pendingProofs.sort(
+                (a, b) =>
+                    new Date(a.created_at).getTime() -
+                        new Date(b.created_at).getTime(),
+            )
+
+            approvedProofs.sort(
+                (a, b) =>
+                    new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
+            )
+
+            rejectedProofs.sort(
+                (a, b) =>
+                    new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
+            )
+
+            return [...pendingProofs, ...approvedProofs, ...rejectedProofs]
+        }
+
+        case ExpenseProofSortOrder.NEWEST_FIRST:
+        default:
+            return sorted.sort(
+                (a, b) =>
+                    new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
+            )
         }
     }
 

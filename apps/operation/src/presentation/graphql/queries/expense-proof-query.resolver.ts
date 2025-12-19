@@ -2,6 +2,7 @@ import { ExpenseProofFilterInput } from "@app/operation/src/application/dtos/exp
 import { ExpenseProofStatsResponse } from "@app/operation/src/application/dtos/expense-proof/response/expense-proof-stats.response"
 import { ExpenseProofService } from "@app/operation/src/application/services"
 import { ExpenseProof } from "@app/operation/src/domain"
+import { ExpenseProofSortOrder } from "@app/operation/src/domain/enums/expense-proof"
 import {
     CognitoGraphQLGuard,
     createUserContextFromToken,
@@ -51,14 +52,26 @@ export class ExpenseProofQueryResolver {
     })
     @UseGuards(CognitoGraphQLGuard)
     async getMyExpenseProofs(
-        @Args("requestId", { type: () => String, nullable: true })
+        @Args("requestId", {
+            type: () => String,
+            nullable: true,
+            description: "Filter by specific ingredient request ID",
+        })
             requestId: string | undefined,
+        @Args("sortBy", {
+            type: () => ExpenseProofSortOrder,
+            nullable: true,
+            defaultValue: ExpenseProofSortOrder.NEWEST_FIRST,
+            description: "Sort order for expense proofs",
+        })
+            sortBy: ExpenseProofSortOrder,
         @CurrentUser("decodedToken") decodedToken: any,
     ): Promise<ExpenseProof[]> {
         const userContext = createUserContextFromToken(decodedToken)
         return await this.expenseProofService.getMyExpenseProofs(
             requestId,
             userContext,
+            sortBy,
         )
     }
 
