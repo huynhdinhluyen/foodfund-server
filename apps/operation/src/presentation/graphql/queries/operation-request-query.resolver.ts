@@ -31,28 +31,17 @@ export class OperationRequestQueryResolver {
             new ValidationPipe(),
         )
             filter: OperationRequestFilterInput,
-        @Args("sortBy", {
-            type: () => OperationRequestSortOrder,
-            nullable: true,
-            defaultValue: OperationRequestSortOrder.NEWEST_FIRST,
-            description:
-                "Sort order by creation date (NEWEST_FIRST or OLDEST_FIRST)",
-        })
-            sortBy?: OperationRequestSortOrder,
     ): Promise<OperationRequest[]> {
-        const mergedFilter: OperationRequestFilterInput = {
-            ...filter,
-            sortBy: sortBy || OperationRequestSortOrder.NEWEST_FIRST,
-        }
-        return this.operationRequestService.getRequests(mergedFilter)
+        return this.operationRequestService.getRequests(filter)
     }
 
     @Query(() => OperationRequest, {
         name: "operationRequest",
         description:
             "Get single operation request by ID. Public access for transparency.",
+        nullable: true,
     })
-    async getOperationRequestById(
+    async getOperationRequest(
         @Args("id", { type: () => String })
             id: string,
     ): Promise<OperationRequest> {
@@ -62,22 +51,30 @@ export class OperationRequestQueryResolver {
     @Query(() => [OperationRequest], {
         name: "myOperationRequests",
         description:
-            "Get operation requests created by current user (authentication required)",
+            "Get my operation requests (KITCHEN_STAFF, DELIVERY_STAFF, or FUNDRAISER only)",
     })
     @UseGuards(CognitoGraphQLGuard)
     async getMyOperationRequests(
-        @CurrentUser("decodedToken") decodedToken: any,
-        @Args("limit", { type: () => Int, nullable: true, defaultValue: 10 })
+        @Args("limit", {
+            type: () => Int,
+            nullable: true,
+            defaultValue: 10,
+        })
             limit: number,
-        @Args("offset", { type: () => Int, nullable: true, defaultValue: 0 })
+        @Args("offset", {
+            type: () => Int,
+            nullable: true,
+            defaultValue: 0,
+        })
             offset: number,
         @Args("sortBy", {
             type: () => OperationRequestSortOrder,
             nullable: true,
             defaultValue: OperationRequestSortOrder.NEWEST_FIRST,
-            description: "Sort order by creation date",
+            description: "Sort order for operation requests",
         })
-            sortBy?: OperationRequestSortOrder,
+            sortBy: OperationRequestSortOrder,
+        @CurrentUser("decodedToken") decodedToken: any,
     ): Promise<OperationRequest[]> {
         const userContext = createUserContextFromToken(decodedToken)
         return this.operationRequestService.getMyRequests(
@@ -90,7 +87,8 @@ export class OperationRequestQueryResolver {
 
     @Query(() => OperationRequestStatsResponse, {
         name: "operationRequestStats",
-        description: "Get operation request statistics (Admin only)",
+        description:
+            "Get operation request statistics (total, pending, approved, rejected). Admin only.",
     })
     @UseGuards(CognitoGraphQLGuard)
     async getOperationRequestStats(
