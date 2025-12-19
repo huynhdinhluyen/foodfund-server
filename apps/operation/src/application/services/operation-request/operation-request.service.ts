@@ -239,7 +239,10 @@ export class OperationRequestService extends BaseOperationService {
             cachedRequests = await this.cacheService.getRequestList(cacheKey)
 
             if (cachedRequests) {
-                return cachedRequests
+                return this.sortRequests(
+                    cachedRequests,
+                    filter.sortBy || OperationRequestSortOrder.NEWEST_FIRST,
+                )
             }
 
             let requests: any[]
@@ -263,9 +266,15 @@ export class OperationRequestService extends BaseOperationService {
             const mappedRequests = requests.map((r) =>
                 this.mapToGraphQLModel(r),
             )
-            await this.cacheService.setRequestList(cacheKey, mappedRequests)
 
-            return mappedRequests
+            const sortedRequests = this.sortRequests(
+                mappedRequests,
+                filter.sortBy || OperationRequestSortOrder.NEWEST_FIRST,
+            )
+
+            await this.cacheService.setRequestList(cacheKey, sortedRequests)
+
+            return sortedRequests
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "OperationRequestService.getRequests",
@@ -321,7 +330,10 @@ export class OperationRequestService extends BaseOperationService {
             )
 
             if (cachedRequests) {
-                return cachedRequests
+                return this.sortRequests(
+                    cachedRequests,
+                    sortBy || OperationRequestSortOrder.NEWEST_FIRST,
+                )
             }
 
             const requests = await this.repository.findByUserId(
@@ -335,14 +347,19 @@ export class OperationRequestService extends BaseOperationService {
                 this.mapToGraphQLModel(r),
             )
 
+            const sortedRequests = this.sortRequests(
+                mappedRequests,
+                sortBy || OperationRequestSortOrder.NEWEST_FIRST,
+            )
+
             await this.cacheService.setUserRequests(
                 userContext.userId,
                 limit,
                 offset,
-                mappedRequests,
+                sortedRequests,
             )
 
-            return mappedRequests
+            return sortedRequests
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "OperationRequestService.getMyRequests",
@@ -456,6 +473,76 @@ export class OperationRequestService extends BaseOperationService {
             throw new BadRequestException(
                 `Cannot transition from ${currentStatus} to ${newStatus}. ` +
                     `Allowed transitions: ${allowed.length > 0 ? allowed.join(", ") : "none"}`,
+            )
+        }
+    }
+
+    private sortRequests(
+        requests: OperationRequest[],
+        sortBy: OperationRequestSortOrder,
+    ): OperationRequest[] {
+        const sorted = [...requests]
+
+        switch (sortBy) {
+        case OperationRequestSortOrder.OLDEST_FIRST:
+            return sorted.sort(
+                (a, b) =>
+                    new Date(a.created_at).getTime() -
+                        new Date(b.created_at).getTime(),
+            )
+
+        case OperationRequestSortOrder.STATUS_PENDING_FIRST: {
+            const pendingRequests = sorted.filter(
+                (r) => r.status === OperationRequestStatus.PENDING,
+            )
+            const approvedRequests = sorted.filter(
+                (r) => r.status === OperationRequestStatus.APPROVED,
+            )
+            const disbursedRequests = sorted.filter(
+                (r) => r.status === OperationRequestStatus.DISBURSED,
+            )
+            const rejectedRequests = sorted.filter(
+                (r) => r.status === OperationRequestStatus.REJECTED,
+            )
+
+            pendingRequests.sort(
+                (a, b) =>
+                    new Date(a.created_at).getTime() -
+                        new Date(b.created_at).getTime(),
+            )
+
+            approvedRequests.sort(
+                (a, b) =>
+                    new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
+            )
+
+            disbursedRequests.sort(
+                (a, b) =>
+                    new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
+            )
+
+            rejectedRequests.sort(
+                (a, b) =>
+                    new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
+            )
+
+            return [
+                ...pendingRequests,
+                ...approvedRequests,
+                ...disbursedRequests,
+                ...rejectedRequests,
+            ]
+        }
+
+        case OperationRequestSortOrder.NEWEST_FIRST:
+        default:
+            return sorted.sort(
+                (a, b) =>
+                    new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
             )
         }
     }
