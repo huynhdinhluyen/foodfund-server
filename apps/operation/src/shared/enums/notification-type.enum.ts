@@ -19,6 +19,7 @@ export enum NotificationType {
     POST_LIKE = "POST_LIKE",
 
     INGREDIENT_REQUEST_APPROVED = "INGREDIENT_REQUEST_APPROVED",
+    INGREDIENT_REQUEST_REJECTED = "INGREDIENT_REQUEST_REJECTED",
     INGREDIENT_DISBURSEMENT_COMPLETED = "INGREDIENT_DISBURSEMENT_COMPLETED",
     COOKING_DISBURSEMENT_COMPLETED = "COOKING_DISBURSEMENT_COMPLETED",
     DELIVERY_DISBURSEMENT_COMPLETED = "DELIVERY_DISBURSEMENT_COMPLETED",
@@ -70,7 +71,12 @@ registerEnumType(NotificationType, {
             description: "Reply to comment",
         },
         INGREDIENT_REQUEST_APPROVED: {
-            description: "Ingredient request has been approved",
+            description:
+                "Ingredient request has been approved by admin",
+        },
+        INGREDIENT_REQUEST_REJECTED: {
+            description:
+                "Ingredient request has been rejected by admin",
         },
         INGREDIENT_DISBURSEMENT_COMPLETED: {
             description: "Ingredient disbursement has been completed by admin",

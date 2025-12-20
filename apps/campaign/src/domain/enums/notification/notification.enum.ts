@@ -19,6 +19,7 @@ export enum NotificationType {
     POST_LIKE = "POST_LIKE",
 
     INGREDIENT_REQUEST_APPROVED = "INGREDIENT_REQUEST_APPROVED",
+    INGREDIENT_REQUEST_REJECTED = "INGREDIENT_REQUEST_REJECTED",
     INGREDIENT_DISBURSEMENT_COMPLETED = "INGREDIENT_DISBURSEMENT_COMPLETED",
     COOKING_DISBURSEMENT_COMPLETED = "COOKING_DISBURSEMENT_COMPLETED",
     DELIVERY_DISBURSEMENT_COMPLETED = "DELIVERY_DISBURSEMENT_COMPLETED",
@@ -94,7 +95,12 @@ registerEnumType(NotificationType, {
             description: "Reply to comment",
         },
         INGREDIENT_REQUEST_APPROVED: {
-            description: "Ingredient request has been approved",
+            description:
+                "Ingredient request has been approved by admin",
+        },
+        INGREDIENT_REQUEST_REJECTED: {
+            description:
+                "Ingredient request has been rejected by admin",
         },
         INGREDIENT_DISBURSEMENT_COMPLETED: {
             description: "Ingredient disbursement has been completed by admin",
@@ -185,6 +191,7 @@ export const NOTIFICATION_PRIORITY_MAP: Record<
     [NotificationType.CAMPAIGN_COMPLETED]: NotificationPriority.HIGH,
     [NotificationType.CAMPAIGN_CANCELLED]: NotificationPriority.HIGH,
     [NotificationType.INGREDIENT_REQUEST_APPROVED]: NotificationPriority.HIGH,
+    [NotificationType.INGREDIENT_REQUEST_REJECTED]: NotificationPriority.HIGH,
     [NotificationType.DELIVERY_TASK_ASSIGNED]: NotificationPriority.HIGH,
     [NotificationType.SYSTEM_ANNOUNCEMENT]: NotificationPriority.HIGH,
     [NotificationType.CAMPAIGN_REASSIGNMENT_PENDING]: NotificationPriority.HIGH,

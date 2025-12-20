@@ -24,6 +24,7 @@ import {
     ExpenseProofApprovedBuilder,
     ExpenseProofRejectedBuilder,
     IngredientRequestApprovedBuilder,
+    IngredientRequestRejectedBuilder,
     SurplusTransferredBuilder,
     SystemAnnouncementBuilder,
 } from "./operation-notification.builder"
@@ -56,6 +57,8 @@ export class NotificationBuilderFactory {
         private readonly postReplyBuilder: PostReplyBuilder,
 
         private readonly ingredientRequestApprovedBuilder: IngredientRequestApprovedBuilder,
+        private readonly ingredientRequestRejectedBuilder: IngredientRequestRejectedBuilder,
+
         private readonly deliveryTaskAssignedBuilder: DeliveryTaskAssignedBuilder,
         private readonly systemAnnouncementBuilder: SystemAnnouncementBuilder,
         private readonly surplusTransferredBuilder: SurplusTransferredBuilder,
@@ -112,6 +115,10 @@ export class NotificationBuilderFactory {
             this.ingredientRequestApprovedBuilder,
         )
         this.builders.set(
+            NotificationType.INGREDIENT_REQUEST_REJECTED,
+            this.ingredientRequestRejectedBuilder,
+        )
+        this.builders.set(
             NotificationType.DELIVERY_TASK_ASSIGNED,
             this.deliveryTaskAssignedBuilder,
         )
@@ -123,7 +130,6 @@ export class NotificationBuilderFactory {
             NotificationType.SURPLUS_TRANSFERRED,
             this.surplusTransferredBuilder,
         )
-
         this.builders.set(
             NotificationType.CAMPAIGN_REASSIGNMENT_PENDING,
             this.campaignReassignmentPendingBuilder,

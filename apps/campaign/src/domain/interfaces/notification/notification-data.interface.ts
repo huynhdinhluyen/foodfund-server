@@ -72,9 +72,26 @@ export interface PostReplyData extends BaseNotificationData {
 }
 
 export interface IngredientRequestApprovedData extends BaseNotificationData {
-    requestId: string
+    ingredientRequestId: string
+    campaignId: string
+    campaignPhaseId: string
     campaignTitle: string
-    approvedBy: string
+    phaseName: string
+    totalCost: string
+    itemCount: number
+    approvedAt: string
+}
+
+export interface IngredientRequestRejectedData extends BaseNotificationData {
+    ingredientRequestId: string
+    campaignId: string
+    campaignPhaseId: string
+    campaignTitle: string
+    phaseName: string
+    totalCost: string
+    itemCount: number
+    adminNote: string
+    rejectedAt: string
 }
 
 export interface DeliveryTaskAssignedData extends BaseNotificationData {
@@ -190,6 +207,7 @@ export type NotificationDataMap = {
     [NotificationType.POST_COMMENT]: PostCommentData
     [NotificationType.POST_REPLY]: PostReplyData
     [NotificationType.INGREDIENT_REQUEST_APPROVED]: IngredientRequestApprovedData
+    [NotificationType.INGREDIENT_REQUEST_REJECTED]: IngredientRequestRejectedData
     [NotificationType.DELIVERY_TASK_ASSIGNED]: DeliveryTaskAssignedData
     [NotificationType.SYSTEM_ANNOUNCEMENT]: SystemAnnouncementData
     [NotificationType.SURPLUS_TRANSFERRED]: SurplusTransferredData

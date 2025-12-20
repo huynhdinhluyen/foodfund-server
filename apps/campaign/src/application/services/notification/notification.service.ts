@@ -394,6 +394,7 @@ export class NotificationService {
             [NotificationType.POST_COMMENT]: EntityType.COMMENT,
             [NotificationType.POST_REPLY]: EntityType.COMMENT,
             [NotificationType.INGREDIENT_REQUEST_APPROVED]: EntityType.INGREDIENT_REQUEST,
+            [NotificationType.INGREDIENT_REQUEST_REJECTED]:EntityType.INGREDIENT_REQUEST,
             [NotificationType.EXPENSE_PROOF_APPROVED]: EntityType.EXPENSE_PROOF,
             [NotificationType.EXPENSE_PROOF_REJECTED]: EntityType.EXPENSE_PROOF,
             [NotificationType.DELIVERY_TASK_ASSIGNED]: EntityType.DELIVERY_TASK,
