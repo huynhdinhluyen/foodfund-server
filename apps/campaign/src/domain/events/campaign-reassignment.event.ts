@@ -29,3 +29,12 @@ export interface CampaignReassignmentExpiredEvent {
     originalOrganizationId?: string
     originalFundraiserId: string
 }
+
+export interface CampaignReassignmentReceivedEvent {
+    reassignmentId: string
+    campaignId: string
+    campaignTitle: string
+    organizationName: string
+    targetAmount: string
+    receivedAmount: string
+}

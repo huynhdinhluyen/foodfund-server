@@ -161,34 +161,38 @@ export interface SurplusTransferredData extends BaseNotificationData {
     walletTransactionId?: string
 }
 
-export interface CampaignReassignmentPendingData extends BaseNotificationData {
+export interface CampaignReassignmentPendingData
+    extends BaseNotificationData {
     campaignId: string
     campaignTitle: string
+    organizationName: string
+    expiresAt: string
+    reason?: string
     reassignmentId: string
-    assignedBy: string
-    expiresAt?: string
 }
 
-export interface CampaignOwnershipTransferredData extends BaseNotificationData {
+export interface CampaignOwnershipTransferredData
+    extends BaseNotificationData {
     campaignId: string
     campaignTitle: string
+    newOrganizationName: string
+    newFundraiserId: string
     reassignmentId: string
-    newOwnerId: string
-    newOwnerName?: string
 }
 
-export interface CampaignOwnershipReceivedData extends BaseNotificationData {
+export interface CampaignOwnershipReceivedData
+    extends BaseNotificationData {
     campaignId: string
     campaignTitle: string
+    organizationName: string
     reassignmentId: string
-    previousOwnerId: string
-    previousOwnerName?: string
 }
 
-export interface CampaignReassignmentExpiredData extends BaseNotificationData {
+export interface CampaignReassignmentExpiredData
+    extends BaseNotificationData {
     campaignId: string
     campaignTitle: string
-    reassignmentId: string
+    totalRefunds: number
 }
 
 export interface DisbursementCompletedData extends BaseNotificationData {

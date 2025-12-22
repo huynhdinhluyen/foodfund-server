@@ -238,6 +238,53 @@ export class UserGrpcController {
         }
     }
 
+    @GrpcMethod("UserService", "GetUserCognitoId")
+    async getUserCognitoId(
+        data: { userId: string },
+    ): Promise<{ success: boolean; cognitoId?: string; error?: string }> {
+        const { userId } = data
+
+        if (!userId) {
+            return {
+                success: false,
+                error: "User ID is required",
+            }
+        }
+
+        try {
+            const user = await this.userRepository.findUserById(userId)
+
+            if (!user) {
+                this.logger.warn(`[GetUserCognitoId] User not found: ${userId}`)
+                return {
+                    success: false,
+                    error: `User ${userId} not found`,
+                }
+            }
+
+            if (!user.cognito_id) {
+                return {
+                    success: false,
+                    error: `User ${userId} has no Cognito ID assigned`,
+                }
+            }
+
+            return {
+                success: true,
+                cognitoId: user.cognito_id,
+            }
+        } catch (error) {
+            this.logger.error(
+                `[GetUserCognitoId] ❌ Failed to get Cognito ID for user ${userId}:`,
+                error.stack || error,
+            )
+            return {
+                success: false,
+                error: error.message || "Failed to get user Cognito ID",
+            }
+        }
+    }
+
     @GrpcMethod("UserService", "UpdateUser")
     async updateUser(data: UpdateUserRequest): Promise<UpdateUserResponse> {
         try {

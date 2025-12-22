@@ -3,6 +3,7 @@ import { GrpcClientService } from "@libs/grpc"
 
 interface UserProfile {
     id: string
+    cognitoId?: string
     fullName?: string
     username?: string
     email?: string
@@ -56,6 +57,7 @@ export class UserClientService {
                     success: boolean
                     user?: {
                         id: string
+                        cognitoId: string
                         fullName: string
                         username: string
                         email: string
@@ -73,6 +75,7 @@ export class UserClientService {
 
             return {
                 id: response.user.id,
+                cognitoId: response.user.cognitoId,
                 fullName: response.user.fullName,
                 username: response.user.username,
                 email: response.user.email,
@@ -86,6 +89,37 @@ export class UserClientService {
     async getUserName(userId: string): Promise<string | null> {
         const user = await this.getUserById(userId)
         return user?.fullName || user?.username || null
+    }
+
+    async getUserCognitoIdByUserId(userId: string): Promise<string | null> {
+        try {
+            const response = await this.grpcClient.callUserService<
+                { userId: string },
+                {
+                    success: boolean
+                    cognitoId?: string
+                    error?: string
+                }
+            >(
+                "GetUserCognitoId",
+                { userId },
+                { timeout: 3000, retries: 2 },
+            )
+
+            if (!response.success || !response.cognitoId) {
+                this.logger.warn(
+                    `[gRPC] Failed to get Cognito ID for user ${userId}: ${response.error || "Not found"}`,
+                )
+                return null
+            }
+            return response.cognitoId
+        } catch (error) {
+            this.logger.error(
+                `[gRPC] Error fetching Cognito ID for user ${userId}:`,
+                error,
+            )
+            return null
+        }
     }
 
     async getUserByCognitoId(cognitoId: string): Promise<UserProfile | null> {
@@ -118,6 +152,7 @@ export class UserClientService {
 
             return {
                 id: response.user.id,
+                cognitoId: response.user.cognitoId,
                 fullName: response.user.fullName,
                 username: response.user.username,
                 email: response.user.email,

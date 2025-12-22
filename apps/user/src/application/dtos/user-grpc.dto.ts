@@ -61,6 +61,16 @@ export interface GetUserByEmailResponse {
     error: string | null
 }
 
+export interface GetUserCognitoIdRequest {
+    userId: string
+}
+
+export interface GetUserCognitoIdResponse {
+    success: boolean
+    cognitoId?: string
+    error?: string
+}
+
 export interface HealthResponse {
     status: string
     service: string

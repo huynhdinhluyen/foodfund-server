@@ -147,6 +147,22 @@ export class CampaignReassignmentService {
             )
         }
 
+        const existingReassignments =
+            await this.reassignmentRepository.findExistingReassignments(
+                campaignId,
+                organizationIds,
+            )
+
+        if (existingReassignments.length > 0) {
+            const duplicateOrgs = existingReassignments
+                .map((r) => r.organizationId)
+                .join(", ")
+            throw new BadRequestException(
+                `Reassignment already exists for organization(s): ${duplicateOrgs}. ` +
+                    "Please wait for the organizations to respond or reject the existing reassignments.",
+            )
+        }
+
         const eligibleResponse = await this.getEligibleOrganizations(
             campaignId,
             userContext,
@@ -181,13 +197,18 @@ export class CampaignReassignmentService {
             )
 
             if (orgInfo.success && orgInfo.organization) {
+                const fundraiserCognitoId =
+                    await this.userClientService.getUserCognitoIdByUserId(
+                        orgInfo.organization.representativeId,
+                    )
+
                 this.eventEmitter.emit("campaign.reassignment.assigned", {
                     reassignmentId: assignment.id,
                     campaignId: campaign.id,
                     campaignTitle: campaign.title,
                     organizationId: assignment.organizationId,
                     organizationName: orgInfo.organization.name,
-                    fundraiserId: orgInfo.organization.representativeId,
+                    fundraiserId: fundraiserCognitoId || "",
                     assignedBy: userContext.userId,
                     expiresAt,
                     reason,

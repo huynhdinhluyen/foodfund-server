@@ -188,7 +188,7 @@ export class CampaignNewPostBuilder extends NotificationBuilder<NotificationType
 }
 
 /**
- * Campaign Reassignment Pending Notification Builder
+ * Sent to fundraiser when admin assigns a canceled campaign to their organization
  */
 @Injectable()
 export class CampaignReassignmentPendingBuilder extends NotificationBuilder<NotificationType.CAMPAIGN_REASSIGNMENT_PENDING> {
@@ -201,7 +201,15 @@ export class CampaignReassignmentPendingBuilder extends NotificationBuilder<Noti
         const data = context.data
 
         const campaignTitle = this.truncate(data.campaignTitle, 50)
-        const message = `Bạn được chỉ định tiếp nhận chiến dịch "${campaignTitle}". Vui lòng xác nhận để hoàn tất việc chuyển giao.`
+        const organizationName = this.truncate(data.organizationName, 40)
+        const expiresAt = new Date(data.expiresAt)
+        const expiresIn = Math.ceil(
+            (expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+        )
+
+        const message =
+            `Chiến dịch "${campaignTitle}" đã được chỉ định cho tổ chức ${organizationName}. ` +
+            `Vui lòng xác nhận tiếp nhận trong ${expiresIn} ngày để hoàn tất việc chuyển giao.`
 
         return {
             title: "📋 Yêu cầu tiếp nhận chiến dịch",
@@ -209,15 +217,16 @@ export class CampaignReassignmentPendingBuilder extends NotificationBuilder<Noti
             metadata: {
                 campaignId: data.campaignId,
                 reassignmentId: data.reassignmentId,
-                assignedBy: data.assignedBy,
+                organizationName: data.organizationName,
                 expiresAt: data.expiresAt,
+                reason: data.reason,
             },
         }
     }
 }
 
 /**
- * Campaign Ownership Transferred Notification Builder
+ * Sent to previous fundraiser when their campaign is reassigned
  */
 @Injectable()
 export class CampaignOwnershipTransferredBuilder extends NotificationBuilder<NotificationType.CAMPAIGN_OWNERSHIP_TRANSFERRED> {
@@ -230,8 +239,13 @@ export class CampaignOwnershipTransferredBuilder extends NotificationBuilder<Not
         const data = context.data
 
         const campaignTitle = this.truncate(data.campaignTitle, 50)
-        const newOwnerName = data.newOwnerName || "người dùng mới"
-        const message = `Chiến dịch "${campaignTitle}" đã được chuyển giao thành công cho ${newOwnerName}.`
+        const organizationName = this.truncate(
+            data.newOrganizationName,
+            40,
+        )
+        const message =
+            `Chiến dịch "${campaignTitle}" đã được chuyển giao thành công ` +
+            `cho tổ chức ${organizationName}. Cảm ơn bạn đã tham gia!`
 
         return {
             title: "🔄 Chiến dịch đã chuyển giao",
@@ -239,14 +253,15 @@ export class CampaignOwnershipTransferredBuilder extends NotificationBuilder<Not
             metadata: {
                 campaignId: data.campaignId,
                 reassignmentId: data.reassignmentId,
-                newOwnerId: data.newOwnerId,
+                newOrganizationName: data.newOrganizationName,
+                newFundraiserId: data.newFundraiserId,
             },
         }
     }
 }
 
 /**
- * Campaign Ownership Received Notification Builder
+ * Sent to new fundraiser when they accept the campaign reassignment
  */
 @Injectable()
 export class CampaignOwnershipReceivedBuilder extends NotificationBuilder<NotificationType.CAMPAIGN_OWNERSHIP_RECEIVED> {
@@ -259,7 +274,9 @@ export class CampaignOwnershipReceivedBuilder extends NotificationBuilder<Notifi
         const data = context.data
 
         const campaignTitle = this.truncate(data.campaignTitle, 50)
-        const message = `Bạn đã tiếp nhận thành công chiến dịch "${campaignTitle}". Giờ đây bạn là chủ sở hữu mới của chiến dịch này.`
+        const message =
+            `🎉 Bạn đã tiếp nhận thành công chiến dịch "${campaignTitle}". ` +
+            "Giờ đây bạn là chủ sở hữu mới và có toàn quyền quản lý chiến dịch này."
 
         return {
             title: "🎉 Tiếp nhận chiến dịch thành công",
@@ -267,14 +284,14 @@ export class CampaignOwnershipReceivedBuilder extends NotificationBuilder<Notifi
             metadata: {
                 campaignId: data.campaignId,
                 reassignmentId: data.reassignmentId,
-                previousOwnerId: data.previousOwnerId,
+                organizationName: data.organizationName,
             },
         }
     }
 }
 
 /**
- * Campaign Reassignment Expired Notification Builder
+ * Sent to original fundraiser when reassignment expires without acceptance
  */
 @Injectable()
 export class CampaignReassignmentExpiredBuilder extends NotificationBuilder<NotificationType.CAMPAIGN_REASSIGNMENT_EXPIRED> {
@@ -287,14 +304,14 @@ export class CampaignReassignmentExpiredBuilder extends NotificationBuilder<Noti
         const data = context.data
 
         const campaignTitle = this.truncate(data.campaignTitle, 50)
-        const message = `Yêu cầu chuyển giao chiến dịch "${campaignTitle}" đã hết hạn và bị hủy tự động.`
 
+        const message =
+            `Yêu cầu chuyển giao chiến dịch "${campaignTitle}" đã hết hạn. `
         return {
             title: "⏰ Yêu cầu chuyển giao hết hạn",
             message,
             metadata: {
                 campaignId: data.campaignId,
-                reassignmentId: data.reassignmentId,
             },
         }
     }

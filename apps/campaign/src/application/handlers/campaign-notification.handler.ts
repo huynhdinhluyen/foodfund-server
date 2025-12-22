@@ -146,7 +146,9 @@ export class CampaignNotificationHandler {
     }
 
     @OnEvent("campaign.reassignment.assigned")
-    async handleReassignmentAssigned(event: CampaignReassignmentAssignedEvent) {
+    async handleReassignmentAssigned(
+        event: CampaignReassignmentAssignedEvent,
+    ) {
         await this.notificationQueue.addNotificationJob({
             eventId: `reassignment-assigned-${event.reassignmentId}`,
             priority: NotificationPriority.HIGH,
@@ -161,24 +163,30 @@ export class CampaignNotificationHandler {
                 organizationName: event.organizationName,
                 expiresAt: event.expiresAt.toISOString(),
                 reason: event.reason,
+                reassignmentId: event.reassignmentId,
             },
             timestamp: new Date().toISOString(),
         })
     }
 
     @OnEvent("campaign.reassignment.approved")
-    async handleReassignmentApproved(event: CampaignReassignmentApprovedEvent) {
+    async handleReassignmentApproved(
+        event: CampaignReassignmentApprovedEvent,
+    ) {
         await this.notificationQueue.addNotificationJob({
             eventId: `reassignment-transferred-${event.reassignmentId}`,
             priority: NotificationPriority.HIGH,
             type: NotificationType.CAMPAIGN_OWNERSHIP_TRANSFERRED,
             userId: event.previousFundraiserId,
+            actorId: event.newFundraiserId,
             entityType: EntityType.CAMPAIGN,
             entityId: event.campaignId,
             data: {
                 campaignId: event.campaignId,
                 campaignTitle: event.campaignTitle,
                 newOrganizationName: event.newOrganizationName,
+                newFundraiserId: event.newFundraiserId,
+                reassignmentId: event.reassignmentId,
             },
             timestamp: new Date().toISOString(),
         })
@@ -193,13 +201,17 @@ export class CampaignNotificationHandler {
             data: {
                 campaignId: event.campaignId,
                 campaignTitle: event.campaignTitle,
+                organizationName: event.newOrganizationName,
+                reassignmentId: event.reassignmentId,
             },
             timestamp: new Date().toISOString(),
         })
     }
 
     @OnEvent("campaign.reassignment.expired")
-    async handleReassignmentExpired(event: CampaignReassignmentExpiredEvent) {
+    async handleReassignmentExpired(
+        event: CampaignReassignmentExpiredEvent,
+    ) {
         await this.notificationQueue.addNotificationJob({
             eventId: `reassignment-expired-${event.campaignId}`,
             priority: NotificationPriority.HIGH,
