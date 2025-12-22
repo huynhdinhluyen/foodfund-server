@@ -238,6 +238,53 @@ export class UserGrpcController {
         }
     }
 
+    @GrpcMethod("UserService", "GetUserCognitoId")
+    async getUserCognitoId(data: {
+        userId: string
+    }): Promise<{ success: boolean; cognitoId?: string; error?: string }> {
+        const { userId } = data
+
+        if (!userId) {
+            return {
+                success: false,
+                error: "User ID is required",
+            }
+        }
+
+        try {
+            const user = await this.userRepository.findUserById(userId)
+
+            if (!user) {
+                this.logger.warn(`[GetUserCognitoId] User not found: ${userId}`)
+                return {
+                    success: false,
+                    error: `User ${userId} not found`,
+                }
+            }
+
+            if (!user.cognito_id) {
+                return {
+                    success: false,
+                    error: `User ${userId} has no Cognito ID assigned`,
+                }
+            }
+
+            return {
+                success: true,
+                cognitoId: user.cognito_id,
+            }
+        } catch (error) {
+            this.logger.error(
+                `[GetUserCognitoId] ❌ Failed to get Cognito ID for user ${userId}:`,
+                error.stack || error,
+            )
+            return {
+                success: false,
+                error: error.message || "Failed to get user Cognito ID",
+            }
+        }
+    }
+
     @GrpcMethod("UserService", "UpdateUser")
     async updateUser(data: UpdateUserRequest): Promise<UpdateUserResponse> {
         try {
@@ -757,6 +804,39 @@ export class UserGrpcController {
         return {
             success: true,
             displayName,
+        }
+    }
+
+    @GrpcMethod("UserService", "GetAdminCognitoIds")
+    async getAdminCognitoIds(): Promise<{
+        success: boolean
+        adminIds?: string[]
+        error?: string
+    }> {
+        try {
+            const admins = await this.userRepository.findAllAdmins()
+
+            const adminCognitoIds = admins
+                .filter((admin) => admin.cognito_id && admin.is_active)
+                .map((admin) => admin.cognito_id as string)
+
+            this.logger.log(
+                `[GetAdminCognitoIds] Found ${adminCognitoIds.length} active admins`,
+            )
+
+            return {
+                success: true,
+                adminIds: adminCognitoIds,
+            }
+        } catch (error) {
+            this.logger.error(
+                "[GetAdminCognitoIds] Failed to fetch admin users:",
+                error.stack || error,
+            )
+            return {
+                success: false,
+                error: error.message || "Failed to fetch admin users",
+            }
         }
     }
 

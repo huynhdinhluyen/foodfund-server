@@ -38,6 +38,8 @@ service UserService {
   rpc GetUserDisplayName(GetUserDisplayNameRequest) returns (GetUserDisplayNameResponse);
   rpc GetVerifiedOrganizations(GetVerifiedOrganizationsRequest) returns (GetVerifiedOrganizationsResponse);
   rpc GetOrganizationById(GetOrganizationByIdRequest) returns (GetOrganizationByIdResponse);
+  rpc GetUserCognitoId(GetUserCognitoIdRequest) returns (GetUserCognitoIdResponse);
+  rpc GetAdminCognitoIds(GetAdminCognitoIdsRequest) returns (GetAdminCognitoIdsResponse);
 
   // Process bank transfer out (for withdrawal/payout)
   rpc ProcessBankTransferOut(ProcessBankTransferOutRequest) returns (ProcessBankTransferOutResponse);
@@ -271,6 +273,14 @@ message OrganizationInfo {
   string name = 2;
 }
 
+message GetAdminCognitoIdsRequest {}
+
+message GetAdminCognitoIdsResponse {
+  bool success = 1;
+  repeated string admin_ids = 2;
+  string error = 3;
+}
+
 message ProcessBankTransferOutRequest {
   int32 sepay_id = 1;
   string amount = 2;
@@ -361,6 +371,16 @@ message GetUserDisplayNameRequest {
 message GetUserDisplayNameResponse {
   bool success = 1;
   string display_name = 2;
+  string error = 3;
+}
+
+message GetUserCognitoIdRequest {
+  string user_id = 1;
+}
+
+message GetUserCognitoIdResponse {
+  bool success = 1;
+  string cognito_id = 2;
   string error = 3;
 }
 

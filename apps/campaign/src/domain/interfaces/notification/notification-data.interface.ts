@@ -161,34 +161,38 @@ export interface SurplusTransferredData extends BaseNotificationData {
     walletTransactionId?: string
 }
 
-export interface CampaignReassignmentPendingData extends BaseNotificationData {
+export interface CampaignReassignmentPendingData
+    extends BaseNotificationData {
     campaignId: string
     campaignTitle: string
+    organizationName: string
+    expiresAt: string
+    reason?: string
     reassignmentId: string
-    assignedBy: string
-    expiresAt?: string
 }
 
-export interface CampaignOwnershipTransferredData extends BaseNotificationData {
+export interface CampaignOwnershipTransferredData
+    extends BaseNotificationData {
     campaignId: string
     campaignTitle: string
+    newOrganizationName: string
+    newFundraiserId: string
     reassignmentId: string
-    newOwnerId: string
-    newOwnerName?: string
 }
 
-export interface CampaignOwnershipReceivedData extends BaseNotificationData {
+export interface CampaignOwnershipReceivedData
+    extends BaseNotificationData {
     campaignId: string
     campaignTitle: string
+    organizationName: string
     reassignmentId: string
-    previousOwnerId: string
-    previousOwnerName?: string
 }
 
-export interface CampaignReassignmentExpiredData extends BaseNotificationData {
+export interface CampaignReassignmentExpiredData
+    extends BaseNotificationData {
     campaignId: string
     campaignTitle: string
-    reassignmentId: string
+    totalRefunds: number
 }
 
 export interface DisbursementCompletedData extends BaseNotificationData {
@@ -236,6 +240,28 @@ export interface ExpenseProofRejectedData extends BaseNotificationData {
     rejectedAt: string
 }
 
+export interface CampaignReassignmentAcceptedAdminData
+    extends BaseNotificationData {
+    reassignmentId: string
+    campaignId: string
+    campaignTitle: string
+    organizationName: string
+    fundraiserName: string
+    acceptedAt: string
+    note?: string
+}
+
+export interface CampaignReassignmentRejectedAdminData
+    extends BaseNotificationData {
+    reassignmentId: string
+    campaignId: string
+    campaignTitle: string
+    organizationName: string
+    fundraiserName: string
+    rejectedAt: string
+    note?: string
+}
+
 export type NotificationDataMap = {
     [NotificationType.CAMPAIGN_APPROVED]: CampaignApprovedData
     [NotificationType.CAMPAIGN_REJECTED]: CampaignRejectedData
@@ -257,6 +283,8 @@ export type NotificationDataMap = {
     [NotificationType.CAMPAIGN_OWNERSHIP_TRANSFERRED]: CampaignOwnershipTransferredData
     [NotificationType.CAMPAIGN_OWNERSHIP_RECEIVED]: CampaignOwnershipReceivedData
     [NotificationType.CAMPAIGN_REASSIGNMENT_EXPIRED]: CampaignReassignmentExpiredData
+    [NotificationType.CAMPAIGN_REASSIGNMENT_ACCEPTED_ADMIN]: CampaignReassignmentAcceptedAdminData
+    [NotificationType.CAMPAIGN_REASSIGNMENT_REJECTED_ADMIN]: CampaignReassignmentRejectedAdminData
     [NotificationType.INGREDIENT_DISBURSEMENT_COMPLETED]: DisbursementCompletedData
     [NotificationType.COOKING_DISBURSEMENT_COMPLETED]: DisbursementCompletedData
     [NotificationType.DELIVERY_DISBURSEMENT_COMPLETED]: DisbursementCompletedData

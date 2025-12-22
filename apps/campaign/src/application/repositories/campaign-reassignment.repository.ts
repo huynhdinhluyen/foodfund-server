@@ -66,6 +66,45 @@ export class CampaignReassignmentRepository {
         return reassignment ? this.mapToModel(reassignment) : null
     }
 
+    async findExistingReassignments(
+        campaignId: string,
+        organizationIds: string[],
+    ): Promise<
+        Array<{
+            id: string
+            campaignId: string
+            organizationId: string
+            status: string
+        }>
+    > {
+        const existing = await this.prisma.campaign_Reassignment.findMany({
+            where: {
+                campaign_id: campaignId,
+                organization_id: {
+                    in: organizationIds,
+                },
+                OR: [
+                    { status: "PENDING" },
+                    { status: "APPROVED" },
+                    { status: "REJECTED" },
+                ],
+            },
+            select: {
+                id: true,
+                campaign_id: true,
+                organization_id: true,
+                status: true,
+            },
+        })
+
+        return existing.map((r) => ({
+            id: r.id,
+            campaignId: r.campaign_id,
+            organizationId: r.organization_id,
+            status: r.status,
+        }))
+    }
+
     async findPendingByOrganizationId(
         organizationId: string,
     ): Promise<CampaignReassignment[]> {
