@@ -63,7 +63,7 @@ import { IngredientRequestCacheService } from "./application/services/ingredient
 import { Organization } from "./shared/model"
 import { InflowTransactionNotificationService } from "./application/services/inflow-transaction"
 import { EventEmitterModule } from "@nestjs/event-emitter"
-import { ExpenseProofNotificationHandler, IngredientRequestNotificationHandler, OperationRequestNotificationHandler } from "./application/handlers"
+import { DeliveryTaskNotificationHandler, ExpenseProofNotificationHandler, IngredientRequestNotificationHandler, OperationRequestNotificationHandler } from "./application/handlers"
 
 @Module({
     imports: [
@@ -159,7 +159,8 @@ import { ExpenseProofNotificationHandler, IngredientRequestNotificationHandler, 
 
         IngredientRequestNotificationHandler,
         ExpenseProofNotificationHandler,
-        OperationRequestNotificationHandler
+        OperationRequestNotificationHandler,
+        DeliveryTaskNotificationHandler
     ],
 })
 export class AppModule {}
