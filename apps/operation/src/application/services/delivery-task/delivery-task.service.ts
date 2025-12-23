@@ -34,6 +34,8 @@ import { GrpcClientService } from "@libs/grpc"
 import { DeliveryTaskCacheService } from "./delivery-task-cache.service"
 import { MealBatchCacheService } from "../meal-batch"
 import { BaseOperationService } from "@app/operation/src/shared/services"
+import { EventEmitter2 } from "@nestjs/event-emitter"
+import { DeliveryTaskAssignedEvent } from "@app/operation/src/domain/events"
 
 @Injectable()
 export class DeliveryTaskService extends BaseOperationService {
@@ -44,6 +46,7 @@ export class DeliveryTaskService extends BaseOperationService {
         private readonly authService: AuthorizationService,
         private readonly cacheService: DeliveryTaskCacheService,
         private readonly mealBatchCacheService: MealBatchCacheService,
+        private readonly eventEmitter: EventEmitter2,
         sentryService: SentryService,
         grpcClient: GrpcClientService,
     ) {
@@ -163,6 +166,20 @@ export class DeliveryTaskService extends BaseOperationService {
                 )
             }
 
+            const campaignPhaseInfo = await this.getCampaignPhaseInfo(
+                mealBatch.campaignPhaseId,
+            )
+
+            if (!campaignPhaseInfo) {
+                throw new BadRequestException(
+                    `Campaign phase ${mealBatch.campaignPhaseId} not found`,
+                )
+            }
+
+            const fundraiserName = await this.getUserDisplayName(
+                userContext.userId,
+            )
+
             const createdTasks: DeliveryTask[] = []
 
             for (const staffId of input.deliveryStaffIds) {
@@ -186,6 +203,21 @@ export class DeliveryTaskService extends BaseOperationService {
                 await this.cacheService.setTask(mappedTask.id, mappedTask)
 
                 createdTasks.push(mappedTask)
+                this.eventEmitter.emit("delivery-task.assigned", {
+                    taskId: created.id,
+                    deliveryStaffId: staffId,
+                    mealBatchId: input.mealBatchId,
+                    campaignId: campaignPhaseInfo.campaignId,
+                    campaignPhaseId: mealBatch.campaignPhaseId,
+                    campaignTitle: campaignPhaseInfo.campaignTitle,
+                    phaseName: campaignPhaseInfo.phaseName,
+                    foodName: mealBatch.foodName,
+                    quantity: mealBatch.quantity,
+                    location: campaignPhaseInfo.location || "Location not specified",
+                    assignedBy: userContext.userId,
+                    fundraiserName: fundraiserName || "Unknown Fundraiser",
+                    organizationName: fundraiserOrganization.name,
+                } satisfies DeliveryTaskAssignedEvent)
             }
 
             await Promise.all([
@@ -496,17 +528,81 @@ export class DeliveryTaskService extends BaseOperationService {
         return []
     }
 
+    private async getUserDisplayName(userId: string): Promise<string | null> {
+        const response = await this.grpcClient.callUserService<
+            { userId: string },
+            {
+                success: boolean
+                displayName?: string
+                error?: string
+            }
+        >("GetUserDisplayName", { userId }, { timeout: 3000, retries: 2 })
+
+        if (!response.success || !response.displayName) {
+            return null
+        }
+
+        return response.displayName
+    }
+
+    private async getCampaignPhaseInfo(phaseId: string): Promise<{
+        campaignId: string
+        campaignTitle: string
+        phaseName: string
+        location: string
+    } | null> {
+        try {
+            const response = await this.grpcClient.callCampaignService<
+                { phaseId: string },
+                {
+                    success: boolean
+                    phase?: {
+                        id: string
+                        campaignId: string
+                        campaignTitle: string
+                        phaseName: string
+                        ingredientFundsAmount: string
+                        cookingFundsAmount: string
+                        deliveryFundsAmount: string
+                    }
+                    error?: string
+                }
+            >(
+                "GetCampaignPhaseInfo",
+                { phaseId },
+                { timeout: 5000, retries: 2 },
+            )
+
+            if (!response.success || !response.phase) {
+                return null
+            }
+
+            const campaignPhases = await this.getCampaignPhases(
+                response.phase.campaignId,
+            )
+            const matchingPhase = campaignPhases.find((p) => p.id === phaseId)
+
+            return {
+                campaignId: response.phase.campaignId,
+                campaignTitle: response.phase.campaignTitle,
+                phaseName: response.phase.phaseName,
+                location: matchingPhase?.location || "Location not specified",
+            }
+        } catch (error) {
+            this.sentryService.captureError(error as Error, {
+                operation: "DeliveryTaskService.getCampaignPhaseInfo",
+                phaseId,
+            })
+            return null
+        }
+    }
+
     private async getMealBatchIdsByCampaignId(
         campaignId: string,
     ): Promise<string[]> {
         const campaignPhases = await this.getCampaignPhases(campaignId)
 
         if (campaignPhases.length === 0) {
-            this.sentryService.addBreadcrumb(
-                "No campaign phases found for campaign",
-                "warning",
-                { campaignId },
-            )
             return []
         }
 

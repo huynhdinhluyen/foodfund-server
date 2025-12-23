@@ -170,7 +170,7 @@ export class DeliveryTaskAssignedBuilder extends NotificationBuilder<Notificatio
         const data = context.data
 
         const campaignTitle = this.truncate(data.campaignTitle, 50)
-        const message = `Bạn đã được giao một công việc vận chuyển cho chiến dịch "${campaignTitle}" vào lúc ${data.deliveryDate} tại ${data.location}.`
+        const message = `Bạn đã được giao một công việc vận chuyển cho chiến dịch "${campaignTitle}" tại ${data.location}.`
 
         return {
             title: "Công việc vận chuyển mới",
