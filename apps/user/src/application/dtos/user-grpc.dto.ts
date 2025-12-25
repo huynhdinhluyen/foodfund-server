@@ -61,6 +61,16 @@ export interface GetUserByEmailResponse {
     error: string | null
 }
 
+export interface GetUserCognitoIdRequest {
+    userId: string
+}
+
+export interface GetUserCognitoIdResponse {
+    success: boolean
+    cognitoId?: string
+    error?: string
+}
+
 export interface HealthResponse {
     status: string
     service: string
@@ -302,6 +312,25 @@ export interface GetOrganizationByIdResponse {
         name: string
         representativeId: string
     }
+    error?: string
+}
+
+export interface GetOrganizationMembersRequest {
+    organizationId: string
+    status: string
+}
+
+export interface GetOrganizationMembersResponse {
+    success: boolean
+    members: Array<{
+        id: string
+        cognitoId: string
+        fullName: string
+        email: string
+        role: string
+        memberRole: string
+        status: string
+    }>
     error?: string
 }
 

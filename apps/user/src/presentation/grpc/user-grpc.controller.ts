@@ -5,7 +5,6 @@ import {
     WalletRepository,
     OrganizationRepository,
     UserBadgeRepository,
-    SystemConfigRepository,
 } from "../../application/repositories"
 import { UserBadgeService } from "../../application/services/badge"
 import { Role } from "@libs/databases"
@@ -61,6 +60,8 @@ import {
     CreditFundraiserWalletWithSurplusResponse,
     GetSystemConfigRequest,
     GetSystemConfigResponse,
+    GetOrganizationMembersRequest,
+    GetOrganizationMembersResponse,
 } from "../../application/dtos/user-grpc.dto"
 import { SystemConfigService } from "../../application/services/system-config/system-config.service"
 
@@ -85,7 +86,7 @@ export class UserGrpcController {
         private readonly userBadgeRepository: UserBadgeRepository,
         private readonly grpcClientService: GrpcClientService,
         private readonly systemConfigService: SystemConfigService,
-    ) { }
+    ) {}
 
     /**
      * Helper: Map user entity to gRPC response format
@@ -234,6 +235,53 @@ export class UserGrpcController {
             return this.createSuccessResponse(user)
         } catch (error) {
             return this.createErrorResponse(error.message)
+        }
+    }
+
+    @GrpcMethod("UserService", "GetUserCognitoId")
+    async getUserCognitoId(data: {
+        userId: string
+    }): Promise<{ success: boolean; cognitoId?: string; error?: string }> {
+        const { userId } = data
+
+        if (!userId) {
+            return {
+                success: false,
+                error: "User ID is required",
+            }
+        }
+
+        try {
+            const user = await this.userRepository.findUserById(userId)
+
+            if (!user) {
+                this.logger.warn(`[GetUserCognitoId] User not found: ${userId}`)
+                return {
+                    success: false,
+                    error: `User ${userId} not found`,
+                }
+            }
+
+            if (!user.cognito_id) {
+                return {
+                    success: false,
+                    error: `User ${userId} has no Cognito ID assigned`,
+                }
+            }
+
+            return {
+                success: true,
+                cognitoId: user.cognito_id,
+            }
+        } catch (error) {
+            this.logger.error(
+                `[GetUserCognitoId] ❌ Failed to get Cognito ID for user ${userId}:`,
+                error.stack || error,
+            )
+            return {
+                success: false,
+                error: error.message || "Failed to get user Cognito ID",
+            }
         }
     }
 
@@ -759,6 +807,39 @@ export class UserGrpcController {
         }
     }
 
+    @GrpcMethod("UserService", "GetAdminCognitoIds")
+    async getAdminCognitoIds(): Promise<{
+        success: boolean
+        adminIds?: string[]
+        error?: string
+    }> {
+        try {
+            const admins = await this.userRepository.findAllAdmins()
+
+            const adminCognitoIds = admins
+                .filter((admin) => admin.cognito_id && admin.is_active)
+                .map((admin) => admin.cognito_id as string)
+
+            this.logger.log(
+                `[GetAdminCognitoIds] Found ${adminCognitoIds.length} active admins`,
+            )
+
+            return {
+                success: true,
+                adminIds: adminCognitoIds,
+            }
+        } catch (error) {
+            this.logger.error(
+                "[GetAdminCognitoIds] Failed to fetch admin users:",
+                error.stack || error,
+            )
+            return {
+                success: false,
+                error: error.message || "Failed to fetch admin users",
+            }
+        }
+    }
+
     @GrpcMethod("UserService", "AwardBadgeToDonor")
     async awardBadgeToDonor(
         data: AwardBadgeRequest,
@@ -1164,6 +1245,100 @@ export class UserGrpcController {
         }
     }
 
+    @GrpcMethod("UserService", "GetOrganizationMembers")
+    async getOrganizationMembers(
+        data: GetOrganizationMembersRequest,
+    ): Promise<GetOrganizationMembersResponse> {
+        const { organizationId, status } = data
+
+        if (!organizationId) {
+            return {
+                success: false,
+                members: [],
+                error: "Organization ID is required",
+            }
+        }
+
+        try {
+            const members: Array<{
+                id: string
+                cognitoId: string
+                fullName: string
+                email: string
+                role: string
+                memberRole: string
+                status: string
+            }> = []
+
+            if (!status || status === "VERIFIED") {
+                const organization =
+                    await this.organizationRepository.findOrganizationRepresentative(
+                        organizationId,
+                    )
+
+                if (!organization) {
+                    return {
+                        success: false,
+                        members: [],
+                        error: `Organization ${organizationId} not found`,
+                    }
+                }
+
+                if (organization.user && organization.status === "VERIFIED") {
+                    members.push({
+                        id: organization.user.id,
+                        cognitoId: organization.user.cognito_id || "",
+                        fullName: organization.user.full_name || "",
+                        email: organization.user.email,
+                        role: organization.user.role,
+                        memberRole: "REPRESENTATIVE",
+                        status: "VERIFIED",
+                    })
+                }
+
+                const verifiedMembers =
+                    await this.organizationRepository.findVerifiedMembersOnly(
+                        organizationId,
+                    )
+
+                const representativeId = organization.user?.id
+                verifiedMembers.forEach((orgMember) => {
+                    if (
+                        representativeId &&
+                        orgMember.member.id === representativeId
+                    ) {
+                        return
+                    }
+
+                    members.push({
+                        id: orgMember.member.id,
+                        cognitoId: orgMember.member.cognito_id || "",
+                        fullName: orgMember.member.full_name || "",
+                        email: orgMember.member.email,
+                        role: orgMember.member.role,
+                        memberRole: orgMember.member_role,
+                        status: orgMember.status,
+                    })
+                })
+            }
+
+            return {
+                success: true,
+                members: members as any,
+            }
+        } catch (error) {
+            this.logger.error(
+                `[GetOrganizationMembers] ❌ Failed for organization ${organizationId}:`,
+                error.stack || error,
+            )
+            return {
+                success: false,
+                members: [],
+                error: error.message || "Failed to get organization members",
+            }
+        }
+    }
+
     @GrpcMethod("UserService", "CreditFundraiserWalletWithSurplus")
     async creditFundraiserWalletWithSurplus(
         data: CreditFundraiserWalletWithSurplusRequest,
@@ -1195,7 +1370,10 @@ export class UserGrpcController {
         }
 
         try {
-            const user = await this.userRepository.findUserByCognitoIdSimple(fundraiserId)
+            const user =
+                await this.userRepository.findUserByCognitoIdSimple(
+                    fundraiserId,
+                )
             if (!user) {
                 return {
                     success: false,
@@ -1203,10 +1381,11 @@ export class UserGrpcController {
                 }
             }
 
-            const existingWallet = await this.walletRepository.findWalletByUserIdAndType(
-                user.id,
-                Wallet_Type.FUNDRAISER,
-            )
+            const existingWallet =
+                await this.walletRepository.findWalletByUserIdAndType(
+                    user.id,
+                    Wallet_Type.FUNDRAISER,
+                )
 
             if (!existingWallet) {
                 return {
@@ -1215,11 +1394,12 @@ export class UserGrpcController {
                 }
             }
 
-            const requestTypeLabel = {
-                INGREDIENT: "nguyên liệu",
-                COOKING: "nấu ăn",
-                DELIVERY: "giao hàng",
-            }[requestType] || requestType
+            const requestTypeLabel =
+                {
+                    INGREDIENT: "nguyên liệu",
+                    COOKING: "nấu ăn",
+                    DELIVERY: "giao hàng",
+                }[requestType] || requestType
 
             const description =
                 `Tiền dư từ yêu cầu ${requestTypeLabel}: ${campaignTitle} - ${phaseName}. ` +
@@ -1249,7 +1429,8 @@ export class UserGrpcController {
                 newBalance: newBalance.toString(),
             }
         } catch (error) {
-            const errorMessage = error?.message || error?.toString() || "Unknown error"
+            const errorMessage =
+                error?.message || error?.toString() || "Unknown error"
             this.logger.error(
                 "[CreditFundraiserWalletWithSurplus] ❌ Failed:",
                 error?.stack || errorMessage,
@@ -1290,7 +1471,10 @@ export class UserGrpcController {
                 dataType: config.dataType,
             }
         } catch (error) {
-            this.logger.error(`[GetSystemConfig] Failed to get config ${key}:`, error)
+            this.logger.error(
+                `[GetSystemConfig] Failed to get config ${key}:`,
+                error,
+            )
             return {
                 success: false,
                 error: error.message,

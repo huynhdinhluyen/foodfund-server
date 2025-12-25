@@ -1,6 +1,10 @@
 import { Injectable } from "@nestjs/common"
 import { NotificationType } from "@app/campaign/src/domain/enums/notification"
-import { NotificationBuilder, NotificationBuilderContext, NotificationBuilderResult } from "@app/campaign/src/domain/interfaces/notification"
+import {
+    NotificationBuilder,
+    NotificationBuilderContext,
+    NotificationBuilderResult,
+} from "@app/campaign/src/domain/interfaces/notification"
 
 @Injectable()
 export class CampaignApprovedBuilder extends NotificationBuilder<NotificationType.CAMPAIGN_APPROVED> {
@@ -13,10 +17,10 @@ export class CampaignApprovedBuilder extends NotificationBuilder<NotificationTyp
         const data = context.data
 
         const campaignTitle = this.truncate(data.campaignTitle, 50)
-        const message = `Your campaign "${campaignTitle}" has been approved and is now live.`
+        const message = `Chiến dịch "${campaignTitle}" của bạn đã được chấp nhận.`
 
         return {
-            title: "🎉 Campaign Approved!",
+            title: "🎉 Chiến dịch đã được chấp nhận!",
             message,
             metadata: {
                 campaignId: data.campaignId,
@@ -42,12 +46,12 @@ export class CampaignRejectedBuilder extends NotificationBuilder<NotificationTyp
 
         const campaignTitle = this.truncate(data.campaignTitle, 50)
         const reasonText = data.reason
-            ? `Reason: ${this.truncate(data.reason, 100)}`
-            : "Please review and resubmit."
-        const message = `Your campaign "${campaignTitle}" was rejected. ${reasonText}`
+            ? `Lý do: ${this.truncate(data.reason, 100)}`
+            : "Hãy xem và gửi lại."
+        const message = `Chiến dịch "${campaignTitle}" của bạn đã bị từ chối. ${reasonText}`
 
         return {
-            title: "❌ Campaign Rejected",
+            title: "❌ Chiến dịch đã bị từ chối",
             message,
             metadata: {
                 campaignId: data.campaignId,
@@ -106,12 +110,12 @@ export class CampaignCancelledBuilder extends NotificationBuilder<NotificationTy
 
         const campaignTitle = this.truncate(data.campaignTitle, 50)
         const reasonText = data.reason
-            ? `Reason: ${this.truncate(data.reason, 100)}`
+            ? `Lý do: ${this.truncate(data.reason, 100)}`
             : ""
-        const message = `Campaign "${campaignTitle}" has been cancelled. ${reasonText}`
+        const message = `Chiến dịch "${campaignTitle}" đã bị hủy. ${reasonText}`
 
         return {
-            title: "🚫 Campaign Cancelled",
+            title: "🚫 Chiến dịch bị hủy",
             message,
             metadata: {
                 campaignId: data.campaignId,
@@ -138,12 +142,12 @@ export class CampaignDonationReceivedBuilder extends NotificationBuilder<Notific
         const totalAmount = this.formatCurrency(data.totalAmount)
         const donorText =
             data.donorCount === 1
-                ? "1 donor"
-                : `${this.formatNumber(data.donorCount)} donors`
-        const message = `Your campaign "${campaignTitle}" received ${totalAmount} from ${donorText}.`
+                ? "1 người ủng hộ"
+                : `${this.formatNumber(data.donorCount)} người ủng hộ`
+        const message = `Chiến dịch "${campaignTitle}" của bạn đã nhận ${totalAmount} từ ${donorText}.`
 
         return {
-            title: "💰 New Donations Received!",
+            title: "💰 Đã nhận thêm lượt ủng hộ!",
             message,
             metadata: {
                 campaignId: data.campaignId,
@@ -169,10 +173,10 @@ export class CampaignNewPostBuilder extends NotificationBuilder<NotificationType
 
         const campaignTitle = this.truncate(data.campaignTitle, 40)
         const postTitle = this.truncate(data.postTitle, 50)
-        const message = `"${campaignTitle}" posted: "${postTitle}"`
+        const message = `Chiến dịch "${campaignTitle}" đăng bài viết mới: "${postTitle}"`
 
         return {
-            title: "📝 New Post Published",
+            title: "Bài viết mới được tạo",
             message,
             metadata: {
                 campaignId: data.campaignId,
@@ -184,7 +188,7 @@ export class CampaignNewPostBuilder extends NotificationBuilder<NotificationType
 }
 
 /**
- * Campaign Reassignment Pending Notification Builder
+ * Sent to fundraiser when admin assigns a canceled campaign to their organization
  */
 @Injectable()
 export class CampaignReassignmentPendingBuilder extends NotificationBuilder<NotificationType.CAMPAIGN_REASSIGNMENT_PENDING> {
@@ -197,7 +201,15 @@ export class CampaignReassignmentPendingBuilder extends NotificationBuilder<Noti
         const data = context.data
 
         const campaignTitle = this.truncate(data.campaignTitle, 50)
-        const message = `Bạn được chỉ định tiếp nhận chiến dịch "${campaignTitle}". Vui lòng xác nhận để hoàn tất việc chuyển giao.`
+        const organizationName = this.truncate(data.organizationName, 40)
+        const expiresAt = new Date(data.expiresAt)
+        const expiresIn = Math.ceil(
+            (expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+        )
+
+        const message =
+            `Chiến dịch "${campaignTitle}" đã được chỉ định cho tổ chức ${organizationName}. ` +
+            `Vui lòng xác nhận tiếp nhận trong ${expiresIn} ngày để hoàn tất việc chuyển giao.`
 
         return {
             title: "📋 Yêu cầu tiếp nhận chiến dịch",
@@ -205,15 +217,16 @@ export class CampaignReassignmentPendingBuilder extends NotificationBuilder<Noti
             metadata: {
                 campaignId: data.campaignId,
                 reassignmentId: data.reassignmentId,
-                assignedBy: data.assignedBy,
+                organizationName: data.organizationName,
                 expiresAt: data.expiresAt,
+                reason: data.reason,
             },
         }
     }
 }
 
 /**
- * Campaign Ownership Transferred Notification Builder
+ * Sent to previous fundraiser when their campaign is reassigned
  */
 @Injectable()
 export class CampaignOwnershipTransferredBuilder extends NotificationBuilder<NotificationType.CAMPAIGN_OWNERSHIP_TRANSFERRED> {
@@ -226,8 +239,13 @@ export class CampaignOwnershipTransferredBuilder extends NotificationBuilder<Not
         const data = context.data
 
         const campaignTitle = this.truncate(data.campaignTitle, 50)
-        const newOwnerName = data.newOwnerName || "người dùng mới"
-        const message = `Chiến dịch "${campaignTitle}" đã được chuyển giao thành công cho ${newOwnerName}.`
+        const organizationName = this.truncate(
+            data.newOrganizationName,
+            40,
+        )
+        const message =
+            `Chiến dịch "${campaignTitle}" đã được chuyển giao thành công ` +
+            `cho tổ chức ${organizationName}. Cảm ơn bạn đã tham gia!`
 
         return {
             title: "🔄 Chiến dịch đã chuyển giao",
@@ -235,14 +253,15 @@ export class CampaignOwnershipTransferredBuilder extends NotificationBuilder<Not
             metadata: {
                 campaignId: data.campaignId,
                 reassignmentId: data.reassignmentId,
-                newOwnerId: data.newOwnerId,
+                newOrganizationName: data.newOrganizationName,
+                newFundraiserId: data.newFundraiserId,
             },
         }
     }
 }
 
 /**
- * Campaign Ownership Received Notification Builder
+ * Sent to new fundraiser when they accept the campaign reassignment
  */
 @Injectable()
 export class CampaignOwnershipReceivedBuilder extends NotificationBuilder<NotificationType.CAMPAIGN_OWNERSHIP_RECEIVED> {
@@ -255,7 +274,9 @@ export class CampaignOwnershipReceivedBuilder extends NotificationBuilder<Notifi
         const data = context.data
 
         const campaignTitle = this.truncate(data.campaignTitle, 50)
-        const message = `Bạn đã tiếp nhận thành công chiến dịch "${campaignTitle}". Giờ đây bạn là chủ sở hữu mới của chiến dịch này.`
+        const message =
+            `🎉 Bạn đã tiếp nhận thành công chiến dịch "${campaignTitle}". ` +
+            "Giờ đây bạn là chủ sở hữu mới và có toàn quyền quản lý chiến dịch này."
 
         return {
             title: "🎉 Tiếp nhận chiến dịch thành công",
@@ -263,14 +284,14 @@ export class CampaignOwnershipReceivedBuilder extends NotificationBuilder<Notifi
             metadata: {
                 campaignId: data.campaignId,
                 reassignmentId: data.reassignmentId,
-                previousOwnerId: data.previousOwnerId,
+                organizationName: data.organizationName,
             },
         }
     }
 }
 
 /**
- * Campaign Reassignment Expired Notification Builder
+ * Sent to original fundraiser when reassignment expires without acceptance
  */
 @Injectable()
 export class CampaignReassignmentExpiredBuilder extends NotificationBuilder<NotificationType.CAMPAIGN_REASSIGNMENT_EXPIRED> {
@@ -283,14 +304,173 @@ export class CampaignReassignmentExpiredBuilder extends NotificationBuilder<Noti
         const data = context.data
 
         const campaignTitle = this.truncate(data.campaignTitle, 50)
-        const message = `Yêu cầu chuyển giao chiến dịch "${campaignTitle}" đã hết hạn và bị hủy tự động.`
 
+        const message =
+            `Yêu cầu chuyển giao chiến dịch "${campaignTitle}" đã hết hạn. `
         return {
             title: "⏰ Yêu cầu chuyển giao hết hạn",
             message,
             metadata: {
                 campaignId: data.campaignId,
+            },
+        }
+    }
+}
+
+/**
+ * Admin notification when fundraiser accepts campaign reassignment
+ */
+@Injectable()
+export class CampaignReassignmentAcceptedAdminBuilder extends NotificationBuilder<NotificationType.CAMPAIGN_REASSIGNMENT_ACCEPTED_ADMIN> {
+    readonly type = NotificationType.CAMPAIGN_REASSIGNMENT_ACCEPTED_ADMIN
+
+    build(
+        context: NotificationBuilderContext<NotificationType.CAMPAIGN_REASSIGNMENT_ACCEPTED_ADMIN>,
+    ): NotificationBuilderResult {
+        this.validate(context.data)
+        const data = context.data
+
+        const campaignTitle = this.truncate(data.campaignTitle, 50)
+        const organizationName = this.truncate(data.organizationName, 40)
+
+        let message =
+            `Tổ chức "${organizationName}" ` +
+            `đã chấp nhận tiếp nhận chiến dịch "${campaignTitle}".`
+
+        if (data.note) {
+            const note = this.truncate(data.note, 100)
+            message += ` Ghi chú: "${note}"`
+        }
+
+        return {
+            title: "Chiến dịch đã được chấp nhận",
+            message,
+            metadata: {
                 reassignmentId: data.reassignmentId,
+                campaignId: data.campaignId,
+                organizationName: data.organizationName,
+                fundraiserName: data.fundraiserName,
+                acceptedAt: data.acceptedAt,
+                note: data.note,
+            },
+        }
+    }
+}
+
+/**
+ * Admin notification when fundraiser rejects campaign reassignment
+ */
+@Injectable()
+export class CampaignReassignmentRejectedAdminBuilder extends NotificationBuilder<NotificationType.CAMPAIGN_REASSIGNMENT_REJECTED_ADMIN> {
+    readonly type = NotificationType.CAMPAIGN_REASSIGNMENT_REJECTED_ADMIN
+
+    build(
+        context: NotificationBuilderContext<NotificationType.CAMPAIGN_REASSIGNMENT_REJECTED_ADMIN>,
+    ): NotificationBuilderResult {
+        this.validate(context.data)
+        const data = context.data
+
+        const campaignTitle = this.truncate(data.campaignTitle, 50)
+        const organizationName = this.truncate(data.organizationName, 40)
+
+        let message =
+            `Tổ chức "${organizationName}" ` +
+            `đã từ chối tiếp nhận chiến dịch "${campaignTitle}".`
+
+        if (data.note) {
+            const note = this.truncate(data.note, 100)
+            message += ` Lý do: "${note}"`
+        }
+
+        return {
+            title: "Chiến dịch bị từ chối",
+            message,
+            metadata: {
+                reassignmentId: data.reassignmentId,
+                campaignId: data.campaignId,
+                organizationName: data.organizationName,
+                fundraiserName: data.fundraiserName,
+                rejectedAt: data.rejectedAt,
+                note: data.note,
+            },
+        }
+    }
+}
+
+/**
+ * Campaign Extended Notification Builder
+ */
+@Injectable()
+export class CampaignExtendedBuilder extends NotificationBuilder<NotificationType.CAMPAIGN_EXTENDED> {
+    readonly type = NotificationType.CAMPAIGN_EXTENDED
+
+    build(
+        context: NotificationBuilderContext<NotificationType.CAMPAIGN_EXTENDED>,
+    ): NotificationBuilderResult {
+        this.validate(context.data)
+        const data = context.data
+
+        const campaignTitle = this.truncate(data.campaignTitle, 50)
+        const extensionText =
+            data.extensionDays === 1 ? "1 ngày" : `${data.extensionDays} ngày`
+
+        const newEndDate = new Date(data.newEndDate).toLocaleDateString("vi-VN")
+        const message = `Chiến dịch "${campaignTitle}" đã được gia hạn thêm ${extensionText}. Thời gian kết thúc mới: ${newEndDate}.`
+
+        return {
+            title: "⏰ Chiến dịch đã được gia hạn",
+            message,
+            metadata: {
+                campaignId: data.campaignId,
+                extensionDays: data.extensionDays,
+                oldEndDate: data.oldEndDate,
+                newEndDate: data.newEndDate,
+            },
+        }
+    }
+}
+
+/**
+ * Campaign Phase Status Updated Notification Builder
+ */
+@Injectable()
+export class CampaignPhaseStatusUpdatedBuilder extends NotificationBuilder<NotificationType.CAMPAIGN_PHASE_STATUS_UPDATED> {
+    readonly type = NotificationType.CAMPAIGN_PHASE_STATUS_UPDATED
+
+    build(
+        context: NotificationBuilderContext<NotificationType.CAMPAIGN_PHASE_STATUS_UPDATED>,
+    ): NotificationBuilderResult {
+        this.validate(context.data)
+        const data = context.data
+
+        const campaignTitle = this.truncate(data.campaignTitle, 50)
+        const phaseName = this.truncate(data.phaseName, 50)
+
+        const statusMap: Record<string, string> = {
+            PLANNING: "Lên kế hoạch",
+            AWAITING_INGREDIENT_DISBURSEMENT: "Chờ giải ngân nguyên liệu",
+            INGREDIENT_PURCHASE: "Mua nguyên liệu",
+            AWAITING_COOKING_DISBURSEMENT: "Chờ giải ngân nấu ăn",
+            COOKING: "Nấu ăn",
+            AWAITING_DELIVERY_DISBURSEMENT: "Chờ giải ngân vận chuyển",
+            DELIVERY: "Vận chuyển",
+            COMPLETED: "Hoàn thành",
+            CANCELLED: "Đã hủy",
+            FAILED: "Thất bại",
+        }
+
+        const newStatusText = statusMap[data.newStatus] || data.newStatus
+        const message = `Giai đoạn "${phaseName}" của chiến dịch "${campaignTitle}" đã chuyển sang trạng thái "${newStatusText}".`
+
+        return {
+            title: "📋 Cập nhật tiến độ chiến dịch",
+            message,
+            metadata: {
+                campaignId: data.campaignId,
+                phaseId: data.phaseId,
+                phaseName: data.phaseName,
+                oldStatus: data.oldStatus,
+                newStatus: data.newStatus,
             },
         }
     }

@@ -33,10 +33,13 @@ service UserService {
   rpc CreditFundraiserWalletWithSurplus(CreditFundraiserWalletWithSurplusRequest) returns (CreditFundraiserWalletWithSurplusResponse);
   rpc GetUserBasicInfo(GetUserBasicInfoRequest) returns (GetUserBasicInfoResponse);
   rpc GetUserOrganization(GetUserOrganizationRequest) returns (GetUserOrganizationResponse);
+  rpc GetOrganizationMembers(GetOrganizationMembersRequest) returns (GetOrganizationMembersResponse);
   rpc GetUsersByIds(GetUsersByIdsRequest) returns (GetUsersByIdsResponse);
   rpc GetUserDisplayName(GetUserDisplayNameRequest) returns (GetUserDisplayNameResponse);
   rpc GetVerifiedOrganizations(GetVerifiedOrganizationsRequest) returns (GetVerifiedOrganizationsResponse);
   rpc GetOrganizationById(GetOrganizationByIdRequest) returns (GetOrganizationByIdResponse);
+  rpc GetUserCognitoId(GetUserCognitoIdRequest) returns (GetUserCognitoIdResponse);
+  rpc GetAdminCognitoIds(GetAdminCognitoIdsRequest) returns (GetAdminCognitoIdsResponse);
 
   // Process bank transfer out (for withdrawal/payout)
   rpc ProcessBankTransferOut(ProcessBankTransferOutRequest) returns (ProcessBankTransferOutResponse);
@@ -270,6 +273,14 @@ message OrganizationInfo {
   string name = 2;
 }
 
+message GetAdminCognitoIdsRequest {}
+
+message GetAdminCognitoIdsResponse {
+  bool success = 1;
+  repeated string admin_ids = 2;
+  string error = 3;
+}
+
 message ProcessBankTransferOutRequest {
   int32 sepay_id = 1;
   string amount = 2;
@@ -363,6 +374,16 @@ message GetUserDisplayNameResponse {
   string error = 3;
 }
 
+message GetUserCognitoIdRequest {
+  string user_id = 1;
+}
+
+message GetUserCognitoIdResponse {
+  bool success = 1;
+  string cognito_id = 2;
+  string error = 3;
+}
+
 message GetVerifiedOrganizationsRequest {}
 
 message GetVerifiedOrganizationsResponse {
@@ -396,6 +417,28 @@ message OrganizationBasicInfo {
   string id = 1;
   string name = 2;
   string representative_id = 3;
+}
+
+message GetOrganizationMembersRequest {
+  string organization_id = 1;
+      optional string status = 2;
+
+}
+
+message GetOrganizationMembersResponse {
+  bool success = 1;
+  repeated OrganizationMember members = 2;
+  string error = 3;
+}
+
+message OrganizationMember {
+  string id = 1;
+  string cognito_id = 2;
+  string full_name = 3;
+  string email = 4;
+  string role = 5;
+  string member_role = 6;
+  string status = 7;
 }
 
 message CreditFundraiserWalletWithSurplusRequest {

@@ -1,4 +1,5 @@
 import {
+    EntityType,
     NotificationPriority,
     NotificationType,
 } from "@app/campaign/src/domain/enums/notification"
@@ -30,75 +31,142 @@ export class NotificationService {
     async createNotification<
         T extends NotificationType & keyof NotificationDataMap,
     >(input: CreateNotificationInput<T>): Promise<Notification> {
-        if (input.eventId) {
-            const isProcessed = await this.cacheService.isEventProcessed(
-                input.eventId,
-            )
-            if (isProcessed) {
-                if (
-                    input.type === NotificationType.POST_LIKE &&
-                    input.entityId
-                ) {
-                    return await this.updateExistingLikeNotification(input)
-                }
-                throw new Error("Event already processed")
-            }
+        await this.validateEventProcessing(input)
+        await this.validateDebouncing(input)
+        const finalNotificationData = this.buildNotificationData(input)
+        const notification = await this.saveNotification(
+            input,
+            finalNotificationData,
+        )
+        await this.handlePostCreation(input, notification)
+        return notification
+    }
+
+    private async validateEventProcessing<
+        T extends NotificationType & keyof NotificationDataMap,
+    >(input: CreateNotificationInput<T>): Promise<void> {
+        if (!input.eventId) {
+            return
         }
 
-        if (
+        const isProcessed = await this.cacheService.isEventProcessed(
+            input.eventId,
+        )
+        if (!isProcessed) {
+            return
+        }
+
+        if (input.type === NotificationType.POST_LIKE && input.entityId) {
+            throw new DuplicateEventError("UPDATE_EXISTING", input)
+        }
+
+        throw new Error("Event already processed")
+    }
+
+    private async validateDebouncing<
+        T extends NotificationType & keyof NotificationDataMap,
+    >(input: CreateNotificationInput<T>): Promise<void> {
+        const shouldDebounce =
             input.priority === NotificationPriority.LOW &&
             input.type === NotificationType.POST_LIKE &&
             input.entityId
-        ) {
-            const isDebounced = await this.cacheService.isDebounced(
-                input.entityId,
-                input.userId,
-            )
-            if (isDebounced) {
-                throw new Error("Notification debounced")
-            }
+
+        if (!shouldDebounce) {
+            return
+        }
+
+        const isDebounced = await this.cacheService.isDebounced(
+            input.entityId!,
+            input.userId,
+        )
+
+        if (isDebounced) {
+            throw new Error("Notification debounced")
+        }
+    }
+
+    private buildNotificationData<
+        T extends NotificationType & keyof NotificationDataMap,
+    >(input: CreateNotificationInput<T>): Record<string, any> {
+        const hasPrebuiltContent = this.hasPrebuiltContent(input.data)
+
+        if (hasPrebuiltContent) {
+            return input.data as Record<string, any>
         }
 
         const content = this.notificationBuilder.build({
             type: input.type,
-            data: input.data,
+            data: input.data as any,
             userId: input.userId,
             actorId: input.actorId,
             entityId: input.entityId,
-            metadata: input.metadata,
+            metadata: input.metadata || {},
         })
 
-        const notificationData = {
-            userId: input.userId,
-            actorId: input.actorId,
-            type: input.type,
-            entityType: this.getEntityTypeFromNotificationType(input.type),
-            entityId: input.entityId,
-            data: {
-                title: content.title,
-                message: content.message,
-                ...input.data,
-                ...content.metadata,
-                ...input.metadata,
-            },
+        return {
+            ...input.data,
+            title: content.title,
+            message: content.message,
+            ...content.metadata,
+            ...input.metadata,
+        }
+    }
+
+    private hasPrebuiltContent(data: any): boolean {
+        return (
+            data &&
+            typeof data === "object" &&
+            "title" in data &&
+            "message" in data &&
+            data.title !== undefined &&
+            data.message !== undefined
+        )
+    }
+
+    private async saveNotification<
+        T extends NotificationType & keyof NotificationDataMap,
+    >(
+        input: CreateNotificationInput<T>,
+        finalNotificationData: Record<string, any>,
+    ): Promise<Notification> {
+        const notification =
+            await this.notificationRepository.createNotification({
+                userId: input.userId,
+                actorId: input.actorId,
+                type: input.type,
+                entityType: this.getEntityTypeFromNotificationType(input.type),
+                entityId: input.entityId,
+                data: finalNotificationData,
+            })
+
+        if (!notification) {
+            throw new Error("Failed to create notification")
         }
 
-        const savedNotification =
-            await this.notificationRepository.createNotification(
-                notificationData,
-            )
+        return notification
+    }
 
-        if (!savedNotification) {
-            throw new Error("Failed to create notification in database")
-        }
-
-        await this.handleCacheAfterCreate(savedNotification, input)
+    private async handlePostCreation<
+        T extends NotificationType & keyof NotificationDataMap,
+    >(
+        input: CreateNotificationInput<T>,
+        notification: Notification,
+    ): Promise<void> {
+        await this.cacheService.incrementUnreadCount(input.userId)
+        await this.cacheService.invalidateNotificationList(input.userId)
 
         if (input.eventId) {
             await this.cacheService.markEventAsProcessed(input.eventId)
         }
 
-        return savedNotification
+        const shouldSetDebounce =
+            input.priority === NotificationPriority.LOW &&
+            input.type === NotificationType.POST_LIKE &&
+            input.entityId
+
+        if (shouldSetDebounce) {
+            await this.cacheService.setDebounce(input.entityId!, input.userId)
+        }
     }
 
     async createBulkNotifications<
@@ -312,101 +380,50 @@ export class NotificationService {
         await this.cacheService.setUnreadCount(userId, freshCount)
     }
 
-    private async updateExistingLikeNotification<
-        T extends NotificationType & keyof NotificationDataMap,
-    >(input: CreateNotificationInput<T>): Promise<Notification> {
-        const existingNotifications =
-            await this.notificationRepository.findNotifications({
-                userId: input.userId,
-                limit: 50,
-                isRead: false,
-            })
-
-        const existingNotification = existingNotifications.items.find(
-            (n) =>
-                n.type === NotificationType.POST_LIKE &&
-                n.entityId === input.entityId &&
-                !n.isRead,
-        )
-
-        if (!existingNotification) {
-            return await this.createNotification(input)
-        }
-
-        const content = this.notificationBuilder.build({
-            type: input.type,
-            data: input.data,
-            userId: input.userId,
-            actorId: input.actorId,
-            entityId: input.entityId,
-            metadata: input.metadata,
-        })
-
-        const updatedData = {
-            title: content.title,
-            message: content.message,
-            ...input.data,
-            ...content.metadata,
-            ...input.metadata,
-        }
-
-        const updatedNotification =
-            await this.notificationRepository.updateNotificationData(
-                existingNotification.id,
-                updatedData,
-            )
-
-        if (!updatedNotification) {
-            throw new Error("Failed to update notification")
-        }
-
-        await this.cacheService.invalidateNotificationList(input.userId)
-
-        return updatedNotification
-    }
-
-    private async handleCacheAfterCreate(
-        notification: Notification,
-        input: CreateNotificationInput<any>,
-    ): Promise<void> {
-        await this.cacheService.incrementUnreadCount(notification.userId)
-        await this.cacheService.invalidateNotificationList(notification.userId)
-
-        if (
-            input.priority === NotificationPriority.LOW &&
-            input.type === NotificationType.POST_LIKE &&
-            input.entityId
-        ) {
-            await this.cacheService.setDebounce(
-                input.entityId,
-                notification.userId,
-                10,
-            )
-        }
-    }
-
     private getEntityTypeFromNotificationType(type: NotificationType): string {
         const typeMap: Record<NotificationType, string> = {
-            [NotificationType.CAMPAIGN_APPROVED]: "CAMPAIGN",
-            [NotificationType.CAMPAIGN_REJECTED]: "CAMPAIGN",
-            [NotificationType.CAMPAIGN_COMPLETED]: "CAMPAIGN",
-            [NotificationType.CAMPAIGN_CANCELLED]: "CAMPAIGN",
-            [NotificationType.CAMPAIGN_DONATION_RECEIVED]: "CAMPAIGN",
-            [NotificationType.CAMPAIGN_NEW_POST]: "POST",
-            [NotificationType.POST_LIKE]: "POST",
-            [NotificationType.POST_COMMENT]: "COMMENT",
-            [NotificationType.POST_REPLY]: "COMMENT",
-            [NotificationType.INGREDIENT_REQUEST_APPROVED]:
-                "INGREDIENT_REQUEST",
-            [NotificationType.DELIVERY_TASK_ASSIGNED]: "DELIVERY_TASK",
-            [NotificationType.CAMPAIGN_REASSIGNMENT_PENDING]: "CAMPAIGN",
-            [NotificationType.CAMPAIGN_OWNERSHIP_TRANSFERRED]: "CAMPAIGN",
-            [NotificationType.CAMPAIGN_OWNERSHIP_RECEIVED]: "CAMPAIGN",
-            [NotificationType.CAMPAIGN_REASSIGNMENT_EXPIRED]: "CAMPAIGN",
-            [NotificationType.SYSTEM_ANNOUNCEMENT]: "SYSTEM",
-            [NotificationType.SURPLUS_TRANSFERRED]: "WALLET",
+            [NotificationType.CAMPAIGN_APPROVED]: EntityType.CAMPAIGN,
+            [NotificationType.CAMPAIGN_REJECTED]: EntityType.CAMPAIGN,
+            [NotificationType.CAMPAIGN_COMPLETED]: EntityType.CAMPAIGN,
+            [NotificationType.CAMPAIGN_CANCELLED]: EntityType.CAMPAIGN,
+            [NotificationType.CAMPAIGN_DONATION_RECEIVED]: EntityType.CAMPAIGN,
+            [NotificationType.CAMPAIGN_EXTENDED]: EntityType.CAMPAIGN,
+            [NotificationType.CAMPAIGN_PHASE_STATUS_UPDATED]: EntityType.CAMPAIGN,
+            [NotificationType.CAMPAIGN_NEW_POST]: EntityType.POST,
+            [NotificationType.POST_LIKE]: EntityType.POST,
+            [NotificationType.POST_COMMENT]: EntityType.COMMENT,
+            [NotificationType.POST_REPLY]: EntityType.COMMENT,
+            [NotificationType.INGREDIENT_REQUEST_APPROVED]: EntityType.INGREDIENT_REQUEST,
+            [NotificationType.INGREDIENT_REQUEST_REJECTED]: EntityType.INGREDIENT_REQUEST,
+            [NotificationType.COOKING_REQUEST_APPROVED]: EntityType.OPERATION_REQUEST,
+            [NotificationType.COOKING_REQUEST_REJECTED]: EntityType.OPERATION_REQUEST,
+            [NotificationType.DELIVERY_REQUEST_APPROVED]: EntityType.OPERATION_REQUEST,
+            [NotificationType.DELIVERY_REQUEST_REJECTED]: EntityType.OPERATION_REQUEST,
+            [NotificationType.EXPENSE_PROOF_APPROVED]: EntityType.EXPENSE_PROOF,
+            [NotificationType.EXPENSE_PROOF_REJECTED]: EntityType.EXPENSE_PROOF,
+            [NotificationType.DELIVERY_TASK_ASSIGNED]: EntityType.DELIVERY_TASK,
+            [NotificationType.CAMPAIGN_REASSIGNMENT_PENDING]: EntityType.CAMPAIGN,
+            [NotificationType.CAMPAIGN_OWNERSHIP_TRANSFERRED]: EntityType.CAMPAIGN,
+            [NotificationType.CAMPAIGN_OWNERSHIP_RECEIVED]: EntityType.CAMPAIGN,
+            [NotificationType.CAMPAIGN_REASSIGNMENT_EXPIRED]: EntityType.CAMPAIGN,
+            [NotificationType.CAMPAIGN_REASSIGNMENT_ACCEPTED_ADMIN]: EntityType.CAMPAIGN,
+            [NotificationType.CAMPAIGN_REASSIGNMENT_REJECTED_ADMIN]: EntityType.CAMPAIGN,
+            [NotificationType.INGREDIENT_DISBURSEMENT_COMPLETED]: EntityType.CAMPAIGN,
+            [NotificationType.COOKING_DISBURSEMENT_COMPLETED]: EntityType.CAMPAIGN,
+            [NotificationType.DELIVERY_DISBURSEMENT_COMPLETED]: EntityType.CAMPAIGN,
+            [NotificationType.SYSTEM_ANNOUNCEMENT]: EntityType.SYSTEM,
+            [NotificationType.SURPLUS_TRANSFERRED]: EntityType.WALLET,
         }
-
         return typeMap[type] || "UNKNOWN"
+    }
+}
+
+class DuplicateEventError extends Error {
+    constructor(
+        public readonly action: "UPDATE_EXISTING",
+        public readonly input: any,
+    ) {
+        super("Duplicate event - needs special handling")
+        this.name = "DuplicateEventError"
     }
 }

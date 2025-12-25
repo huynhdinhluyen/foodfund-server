@@ -5,6 +5,7 @@ import {
 } from "@app/operation/src/domain"
 import {
     AuthorizationService,
+    CampaignPhaseStatus,
     Role,
     UserContext,
 } from "@app/operation/src/shared"
@@ -28,6 +29,14 @@ import { SentryService } from "@libs/observability"
 import { GrpcClientService } from "@libs/grpc"
 import { OperationRequestCacheService } from "./operation-request-cache.service"
 import { BaseOperationService } from "@app/operation/src/shared/services"
+import { OperationRequestSortOrder } from "@app/operation/src/domain/enums/operation-request"
+import { EventEmitter2 } from "@nestjs/event-emitter"
+import {
+    CookingRequestApprovedEvent,
+    CookingRequestRejectedEvent,
+    DeliveryRequestApprovedEvent,
+    DeliveryRequestRejectedEvent,
+} from "@app/operation/src/domain/events"
 
 @Injectable()
 export class OperationRequestService extends BaseOperationService {
@@ -35,6 +44,7 @@ export class OperationRequestService extends BaseOperationService {
         private readonly repository: OperationRequestRepository,
         private readonly authService: AuthorizationService,
         private readonly cacheService: OperationRequestCacheService,
+        private readonly eventEmitter: EventEmitter2,
         sentryService: SentryService,
         grpcClient: GrpcClientService,
     ) {
@@ -58,6 +68,28 @@ export class OperationRequestService extends BaseOperationService {
 
             await this.verifyCampaignPhaseExists(input.campaignPhaseId)
 
+            const currentPhaseStatus = await this.getCampaignPhaseStatus(
+                input.campaignPhaseId,
+            )
+
+            const requiredStatusMap: Record<
+                OperationExpenseType,
+                CampaignPhaseStatus
+            > = {
+                [OperationExpenseType.COOKING]:
+                    CampaignPhaseStatus.INGREDIENT_PURCHASE,
+                [OperationExpenseType.DELIVERY]: CampaignPhaseStatus.COOKING,
+            }
+
+            const requiredStatus = requiredStatusMap[input.expenseType]
+
+            if (currentPhaseStatus !== requiredStatus) {
+                throw new BadRequestException(
+                    `Cannot create ${input.expenseType} request when phase is in ${currentPhaseStatus} status. ` +
+                        `Phase must be in ${requiredStatus} to create ${input.expenseType} request.`,
+                )
+            }
+
             const hasActive = await this.repository.hasActiveRequest(
                 userContext.userId,
                 input.campaignPhaseId,
@@ -66,8 +98,7 @@ export class OperationRequestService extends BaseOperationService {
 
             if (hasActive) {
                 throw new BadRequestException(
-                    `You already have a PENDING or APPROVED ${input.expenseType} request for this campaign phase. ` +
-                        "You can only create a new request after the current one is REJECTED.",
+                    `Tổ chức của bạn đã tạo yêu cầu giải ngân ${input.expenseType} cho giai đoạn chiến dịch này rồi.`,
                 )
             }
 
@@ -111,26 +142,21 @@ export class OperationRequestService extends BaseOperationService {
             }
 
             const created = await this.repository.create(createData)
-
             const newStatus = this.getPhaseStatusForRequestType(
                 input.expenseType,
             )
-
             await this.updateCampaignPhaseStatus(
                 input.campaignPhaseId,
                 newStatus,
             )
 
             const mappedRequest = this.mapToGraphQLModel(created)
-
             const campaignId = await this.getCampaignIdFromPhaseId(
                 input.campaignPhaseId,
             )
 
             await Promise.all([
                 this.cacheService.setRequest(mappedRequest.id, mappedRequest),
-                this.cacheService.deletePhaseRequests(input.campaignPhaseId),
-                this.cacheService.deleteUserRequests(userContext.userId),
                 this.cacheService.deleteAllRequestLists(),
                 this.cacheService.deleteRequestStats(),
                 campaignId
@@ -192,14 +218,86 @@ export class OperationRequestService extends BaseOperationService {
                 updateData,
             )
 
+            const campaignPhaseDetails = await this.getCampaignPhaseDetails(
+                request.campaign_phase_id,
+            )
+
+            if (input.status === OperationRequestStatus.APPROVED) {
+                if (request.expense_type === OperationExpenseType.COOKING) {
+                    this.eventEmitter.emit(
+                        "operation-request.cooking.approved",
+                        {
+                            operationRequestId: input.requestId,
+                            campaignId: campaignPhaseDetails.campaignId,
+                            campaignPhaseId: request.campaign_phase_id,
+                            campaignTitle: campaignPhaseDetails.campaignTitle,
+                            phaseName: campaignPhaseDetails.phaseName,
+                            fundraiserId: campaignPhaseDetails.fundraiserId,
+                            organizationId: request.organization_id || null,
+                            totalCost: request.total_cost.toString(),
+                            approvedAt: new Date().toISOString(),
+                        } satisfies CookingRequestApprovedEvent,
+                    )
+                } else if (
+                    request.expense_type === OperationExpenseType.DELIVERY
+                ) {
+                    this.eventEmitter.emit(
+                        "operation-request.delivery.approved",
+                        {
+                            operationRequestId: input.requestId,
+                            campaignId: campaignPhaseDetails.campaignId,
+                            campaignPhaseId: request.campaign_phase_id,
+                            campaignTitle: campaignPhaseDetails.campaignTitle,
+                            phaseName: campaignPhaseDetails.phaseName,
+                            fundraiserId: campaignPhaseDetails.fundraiserId,
+                            organizationId: request.organization_id || null,
+                            totalCost: request.total_cost.toString(),
+                            approvedAt: new Date().toISOString(),
+                        } satisfies DeliveryRequestApprovedEvent,
+                    )
+                }
+            } else if (input.status === OperationRequestStatus.REJECTED) {
+                if (request.expense_type === OperationExpenseType.COOKING) {
+                    this.eventEmitter.emit(
+                        "operation-request.cooking.rejected",
+                        {
+                            operationRequestId: input.requestId,
+                            campaignId: campaignPhaseDetails.campaignId,
+                            campaignPhaseId: request.campaign_phase_id,
+                            campaignTitle: campaignPhaseDetails.campaignTitle,
+                            phaseName: campaignPhaseDetails.phaseName,
+                            fundraiserId: campaignPhaseDetails.fundraiserId,
+                            organizationId: request.organization_id || null,
+                            totalCost: request.total_cost.toString(),
+                            adminNote: input.adminNote || "No reason provided",
+                            rejectedAt: new Date().toISOString(),
+                        } satisfies CookingRequestRejectedEvent,
+                    )
+                } else if (
+                    request.expense_type === OperationExpenseType.DELIVERY
+                ) {
+                    this.eventEmitter.emit(
+                        "operation-request.delivery.rejected",
+                        {
+                            operationRequestId: input.requestId,
+                            campaignId: campaignPhaseDetails.campaignId,
+                            campaignPhaseId: request.campaign_phase_id,
+                            campaignTitle: campaignPhaseDetails.campaignTitle,
+                            phaseName: campaignPhaseDetails.phaseName,
+                            fundraiserId: campaignPhaseDetails.fundraiserId,
+                            organizationId: request.organization_id || null,
+                            totalCost: request.total_cost.toString(),
+                            adminNote: input.adminNote || "No reason provided",
+                            rejectedAt: new Date().toISOString(),
+                        } satisfies DeliveryRequestRejectedEvent,
+                    )
+                }
+            }
+
             const mappedRequest = this.mapToGraphQLModel(updated)
 
             await Promise.all([
                 this.cacheService.setRequest(mappedRequest.id, mappedRequest),
-                this.cacheService.deletePhaseRequests(
-                    request.campaign_phase_id,
-                ),
-                this.cacheService.deleteUserRequests(request.user_id),
                 this.cacheService.deleteAllRequestLists(),
                 this.cacheService.deleteRequestStats(),
             ])
@@ -219,24 +317,16 @@ export class OperationRequestService extends BaseOperationService {
         filter: OperationRequestFilterInput,
     ): Promise<OperationRequest[]> {
         try {
-            let cachedRequests: OperationRequest[] | null = null
+            const cacheKey = { filter }
 
-            if (filter.campaignPhaseId) {
-                cachedRequests = await this.cacheService.getPhaseRequests(
-                    filter.campaignPhaseId,
-                )
-            } else if (filter.campaignId) {
-                cachedRequests = await this.cacheService.getCampaignRequests(
-                    filter.campaignId,
-                )
-            } else {
-                cachedRequests = await this.cacheService.getRequestList({
-                    filter,
-                })
-            }
+            let cachedRequests: OperationRequest[] | null = null
+            cachedRequests = await this.cacheService.getRequestList(cacheKey)
 
             if (cachedRequests) {
-                return cachedRequests
+                return this.sortRequests(
+                    cachedRequests,
+                    filter.sortBy || OperationRequestSortOrder.NEWEST_FIRST,
+                )
             }
 
             let requests: any[]
@@ -251,40 +341,24 @@ export class OperationRequestService extends BaseOperationService {
 
                 requests = await this.repository.findByPhaseIds(
                     phaseIds,
-                    filter.limit,
-                    filter.offset,
+                    filter,
                 )
-
-                const mappedRequests = requests.map((r) =>
-                    this.mapToGraphQLModel(r),
-                )
-
-                await this.cacheService.setCampaignRequests(
-                    filter.campaignId,
-                    mappedRequests,
-                )
-
-                return mappedRequests
+            } else {
+                requests = await this.repository.findMany(filter)
             }
 
-            requests = await this.repository.findMany(filter)
             const mappedRequests = requests.map((r) =>
                 this.mapToGraphQLModel(r),
             )
 
-            if (filter.campaignPhaseId) {
-                await this.cacheService.setPhaseRequests(
-                    filter.campaignPhaseId,
-                    mappedRequests,
-                )
-            } else {
-                await this.cacheService.setRequestList(
-                    { filter },
-                    mappedRequests,
-                )
-            }
+            const sortedRequests = this.sortRequests(
+                mappedRequests,
+                filter.sortBy || OperationRequestSortOrder.NEWEST_FIRST,
+            )
 
-            return mappedRequests
+            await this.cacheService.setRequestList(cacheKey, sortedRequests)
+
+            return sortedRequests
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "OperationRequestService.getRequests",
@@ -325,6 +399,7 @@ export class OperationRequestService extends BaseOperationService {
         userContext: UserContext,
         limit = 10,
         offset = 0,
+        sortBy?: OperationRequestSortOrder,
     ): Promise<OperationRequest[]> {
         try {
             this.authService.requireAuthentication(
@@ -339,27 +414,36 @@ export class OperationRequestService extends BaseOperationService {
             )
 
             if (cachedRequests) {
-                return cachedRequests
+                return this.sortRequests(
+                    cachedRequests,
+                    sortBy || OperationRequestSortOrder.NEWEST_FIRST,
+                )
             }
 
             const requests = await this.repository.findByUserId(
                 userContext.userId,
                 limit,
                 offset,
+                sortBy,
             )
 
             const mappedRequests = requests.map((r) =>
                 this.mapToGraphQLModel(r),
             )
 
+            const sortedRequests = this.sortRequests(
+                mappedRequests,
+                sortBy || OperationRequestSortOrder.NEWEST_FIRST,
+            )
+
             await this.cacheService.setUserRequests(
                 userContext.userId,
                 limit,
                 offset,
-                mappedRequests,
+                sortedRequests,
             )
 
-            return mappedRequests
+            return sortedRequests
         } catch (error) {
             this.sentryService.captureError(error as Error, {
                 operation: "OperationRequestService.getMyRequests",
@@ -395,6 +479,44 @@ export class OperationRequestService extends BaseOperationService {
                 adminId: userContext.userId,
             })
             throw error
+        }
+    }
+
+    private async getCampaignPhaseDetails(phaseId: string): Promise<{
+        campaignId: string
+        campaignTitle: string
+        phaseName: string
+        fundraiserId: string
+    }> {
+        const response = await this.grpcClient.callCampaignService<
+            { phaseId: string },
+            {
+                success: boolean
+                phase?: {
+                    id: string
+                    campaignId: string
+                    campaignTitle: string
+                    phaseName: string
+                    fundraiserId: string
+                }
+                error?: string
+            }
+        >("GetCampaignPhaseInfo", { phaseId }, { timeout: 5000, retries: 2 })
+
+        if (!response.success || !response.phase) {
+            return {
+                campaignId: "unknown",
+                campaignTitle: "Chiến dịch",
+                phaseName: "Giai đoạn",
+                fundraiserId: "unknown",
+            }
+        }
+
+        return {
+            campaignId: response.phase.campaignId,
+            campaignTitle: response.phase.campaignTitle,
+            phaseName: response.phase.phaseName,
+            fundraiserId: response.phase.fundraiserId,
         }
     }
 
@@ -473,6 +595,122 @@ export class OperationRequestService extends BaseOperationService {
             throw new BadRequestException(
                 `Cannot transition from ${currentStatus} to ${newStatus}. ` +
                     `Allowed transitions: ${allowed.length > 0 ? allowed.join(", ") : "none"}`,
+            )
+        }
+    }
+
+    private sortRequests(
+        requests: OperationRequest[],
+        sortBy: OperationRequestSortOrder,
+    ): OperationRequest[] {
+        const sorted = [...requests]
+
+        switch (sortBy) {
+        case OperationRequestSortOrder.OLDEST_FIRST:
+            return sorted.sort(
+                (a, b) =>
+                    new Date(a.created_at).getTime() -
+                        new Date(b.created_at).getTime(),
+            )
+
+        case OperationRequestSortOrder.STATUS_PENDING_FIRST: {
+            const pendingRequests = sorted.filter(
+                (r) => r.status === OperationRequestStatus.PENDING,
+            )
+            const approvedRequests = sorted.filter(
+                (r) => r.status === OperationRequestStatus.APPROVED,
+            )
+            const disbursedRequests = sorted.filter(
+                (r) => r.status === OperationRequestStatus.DISBURSED,
+            )
+            const rejectedRequests = sorted.filter(
+                (r) => r.status === OperationRequestStatus.REJECTED,
+            )
+
+            pendingRequests.sort(
+                (a, b) =>
+                    new Date(a.created_at).getTime() -
+                        new Date(b.created_at).getTime(),
+            )
+
+            approvedRequests.sort(
+                (a, b) =>
+                    new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
+            )
+
+            disbursedRequests.sort(
+                (a, b) =>
+                    new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
+            )
+
+            rejectedRequests.sort(
+                (a, b) =>
+                    new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
+            )
+
+            return [
+                ...pendingRequests,
+                ...approvedRequests,
+                ...disbursedRequests,
+                ...rejectedRequests,
+            ]
+        }
+
+        case OperationRequestSortOrder.STATUS_APPROVED_FIRST: {
+            const approvedRequests = sorted.filter(
+                (r) => r.status === OperationRequestStatus.APPROVED,
+            )
+            const pendingRequests = sorted.filter(
+                (r) => r.status === OperationRequestStatus.PENDING,
+            )
+            const disbursedRequests = sorted.filter(
+                (r) => r.status === OperationRequestStatus.DISBURSED,
+            )
+            const rejectedRequests = sorted.filter(
+                (r) => r.status === OperationRequestStatus.REJECTED,
+            )
+
+            approvedRequests.sort(
+                (a, b) =>
+                    new Date(a.created_at).getTime() -
+                        new Date(b.created_at).getTime(),
+            )
+
+            pendingRequests.sort(
+                (a, b) =>
+                    new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
+            )
+
+            disbursedRequests.sort(
+                (a, b) =>
+                    new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
+            )
+
+            rejectedRequests.sort(
+                (a, b) =>
+                    new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
+            )
+
+            return [
+                ...approvedRequests,
+                ...pendingRequests,
+                ...disbursedRequests,
+                ...rejectedRequests,
+            ]
+        }
+
+        case OperationRequestSortOrder.NEWEST_FIRST:
+        default:
+            return sorted.sort(
+                (a, b) =>
+                    new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
             )
         }
     }

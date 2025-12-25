@@ -193,6 +193,58 @@ export class OrganizationService {
         return transformedOrganization
     }
 
+    async getStaffOrganization(cognitoId: string) {
+        const user = await this.userRepository.findUserByCognitoId(cognitoId)
+        if (!user) {
+            UserErrorHelper.throwUserNotFound(cognitoId)
+        }
+
+        const staffRoles = [Role.KITCHEN_STAFF, Role.DELIVERY_STAFF]
+        if (!staffRoles.includes(user.role as Role)) {
+            UserErrorHelper.throwUnauthorizedRole(user.role, staffRoles)
+        }
+
+        const memberRecord =
+            await this.organizationRepository.findVerifiedMembershipByUserId(
+                user.id,
+            )
+
+        if (!memberRecord) {
+            throw new NotFoundException(
+                "No active organization found for this staff member",
+            )
+        }
+
+        const organization =
+            await this.organizationRepository.findOrganizationWithMembers(
+                memberRecord.organization.id,
+            )
+
+        if (!organization) {
+            throw new NotFoundException(
+                "Organization not found",
+            )
+        }
+
+        const transformedOrganization = {
+            ...organization,
+            representative: organization.user,
+            members: organization.Organization_Member.map((member) => ({
+                id: member.id,
+                member: member.member,
+                member_role: member.member_role,
+                status: member.status,
+                joined_at: member.joined_at,
+            })),
+            total_members: organization.Organization_Member.length,
+            active_members: organization.Organization_Member.filter(
+                (member) => member.status === VerificationStatus.VERIFIED,
+            ).length,
+        }
+
+        return transformedOrganization
+    }
+
     /**
      * Approve organization request with transaction
      * Uses Prisma Transaction for database operations + Saga pattern for Cognito sync
@@ -806,6 +858,7 @@ export class OrganizationService {
             name: string
         }
         previousRole: string
+        requiresReLogin: boolean
     }> {
         const user = await this.userRepository.findUserByCognitoId(cognitoId)
         if (!user) {
@@ -875,6 +928,22 @@ export class OrganizationService {
                 this.logger.log(
                     `[SAGA] Cognito role updated successfully for user: ${user.cognito_id}`,
                 )
+
+                this.logger.debug(
+                    "[SAGA] Step 4: Force logout user to invalidate old tokens",
+                )
+                try {
+                    await this.awsCognitoService.adminGlobalSignOut(
+                        user.cognito_id,
+                    )
+                    this.logger.log(
+                        `[SAGA] User ${user.cognito_id} has been signed out globally`,
+                    )
+                } catch (signOutError) {
+                    this.logger.warn(
+                        `[SAGA] Failed to sign out user globally: ${signOutError instanceof Error ? signOutError.message : signOutError}`,
+                    )
+                }
             }
 
             this.logger.log(
@@ -883,9 +952,10 @@ export class OrganizationService {
 
             return {
                 success: true,
-                message: `You have successfully left "${organizationInfo.name}". Your role has been changed back to DONOR.`,
+                message: `You have successfully left "${organizationInfo.name}". Your role has been changed back to DONOR. Please login again to refresh your session.`,
                 previousOrganization: organizationInfo,
                 previousRole,
+                requiresReLogin: true,
             }
         } catch (error) {
             this.logger.error(

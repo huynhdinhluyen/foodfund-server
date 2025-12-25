@@ -11,6 +11,10 @@ import {
     CampaignOwnershipTransferredBuilder,
     CampaignOwnershipReceivedBuilder,
     CampaignReassignmentExpiredBuilder,
+    CampaignExtendedBuilder,
+    CampaignPhaseStatusUpdatedBuilder,
+    CampaignReassignmentAcceptedAdminBuilder,
+    CampaignReassignmentRejectedAdminBuilder,
 } from "./campaign-notification.builder"
 import {
     PostCommentBuilder,
@@ -18,8 +22,15 @@ import {
     PostReplyBuilder,
 } from "./post-notification.builder"
 import {
+    CookingRequestApprovedBuilder,
+    CookingRequestRejectedBuilder,
+    DeliveryRequestApprovedBuilder,
+    DeliveryRequestRejectedBuilder,
     DeliveryTaskAssignedBuilder,
+    ExpenseProofApprovedBuilder,
+    ExpenseProofRejectedBuilder,
     IngredientRequestApprovedBuilder,
+    IngredientRequestRejectedBuilder,
     SurplusTransferredBuilder,
     SystemAnnouncementBuilder,
 } from "./operation-notification.builder"
@@ -29,6 +40,11 @@ import {
     NotificationBuilderResult,
     NotificationDataMap,
 } from "@app/campaign/src/domain/interfaces/notification"
+import {
+    CookingDisbursementCompletedBuilder,
+    DeliveryDisbursementCompletedBuilder,
+    IngredientDisbursementCompletedBuilder,
+} from "./disbursement-notification.builder"
 
 @Injectable()
 export class NotificationBuilderFactory {
@@ -47,6 +63,8 @@ export class NotificationBuilderFactory {
         private readonly postReplyBuilder: PostReplyBuilder,
 
         private readonly ingredientRequestApprovedBuilder: IngredientRequestApprovedBuilder,
+        private readonly ingredientRequestRejectedBuilder: IngredientRequestRejectedBuilder,
+
         private readonly deliveryTaskAssignedBuilder: DeliveryTaskAssignedBuilder,
         private readonly systemAnnouncementBuilder: SystemAnnouncementBuilder,
         private readonly surplusTransferredBuilder: SurplusTransferredBuilder,
@@ -55,6 +73,19 @@ export class NotificationBuilderFactory {
         private readonly campaignOwnershipTransferredBuilder: CampaignOwnershipTransferredBuilder,
         private readonly campaignOwnershipReceivedBuilder: CampaignOwnershipReceivedBuilder,
         private readonly campaignReassignmentExpiredBuilder: CampaignReassignmentExpiredBuilder,
+        private readonly campaignReassignmentAcceptedAdminBuilder: CampaignReassignmentAcceptedAdminBuilder,
+        private readonly campaignReassignmentRejectedAdminBuilder: CampaignReassignmentRejectedAdminBuilder,
+        private readonly ingredientDisbursementBuilder: IngredientDisbursementCompletedBuilder,
+        private readonly cookingDisbursementBuilder: CookingDisbursementCompletedBuilder,
+        private readonly deliveryDisbursementBuilder: DeliveryDisbursementCompletedBuilder,
+        private readonly campaignExtendedBuilder: CampaignExtendedBuilder,
+        private readonly campaignPhaseStatusUpdatedBuilder: CampaignPhaseStatusUpdatedBuilder,
+        private readonly expenseProofApprovedBuilder: ExpenseProofApprovedBuilder,
+        private readonly expenseProofRejectedBuilder: ExpenseProofRejectedBuilder,
+        private readonly cookingRequestApprovedBuilder: CookingRequestApprovedBuilder,
+        private readonly cookingRequestRejectedBuilder: CookingRequestRejectedBuilder,
+        private readonly deliveryRequestApprovedBuilder: DeliveryRequestApprovedBuilder,
+        private readonly deliveryRequestRejectedBuilder: DeliveryRequestRejectedBuilder,
     ) {
         this.builders = new Map<NotificationType, NotificationBuilder<any>>()
 
@@ -82,7 +113,6 @@ export class NotificationBuilderFactory {
             NotificationType.CAMPAIGN_NEW_POST,
             this.campaignNewPostBuilder,
         )
-
         this.builders.set(NotificationType.POST_LIKE, this.postLikeBuilder)
         this.builders.set(
             NotificationType.POST_COMMENT,
@@ -93,6 +123,10 @@ export class NotificationBuilderFactory {
         this.builders.set(
             NotificationType.INGREDIENT_REQUEST_APPROVED,
             this.ingredientRequestApprovedBuilder,
+        )
+        this.builders.set(
+            NotificationType.INGREDIENT_REQUEST_REJECTED,
+            this.ingredientRequestRejectedBuilder,
         )
         this.builders.set(
             NotificationType.DELIVERY_TASK_ASSIGNED,
@@ -106,7 +140,6 @@ export class NotificationBuilderFactory {
             NotificationType.SURPLUS_TRANSFERRED,
             this.surplusTransferredBuilder,
         )
-
         this.builders.set(
             NotificationType.CAMPAIGN_REASSIGNMENT_PENDING,
             this.campaignReassignmentPendingBuilder,
@@ -122,6 +155,58 @@ export class NotificationBuilderFactory {
         this.builders.set(
             NotificationType.CAMPAIGN_REASSIGNMENT_EXPIRED,
             this.campaignReassignmentExpiredBuilder,
+        )
+        this.builders.set(
+            NotificationType.CAMPAIGN_REASSIGNMENT_ACCEPTED_ADMIN,
+            this.campaignReassignmentAcceptedAdminBuilder,
+        )
+        this.builders.set(
+            NotificationType.CAMPAIGN_REASSIGNMENT_REJECTED_ADMIN,
+            this.campaignReassignmentRejectedAdminBuilder,
+        )
+        this.builders.set(
+            NotificationType.INGREDIENT_DISBURSEMENT_COMPLETED,
+            this.ingredientDisbursementBuilder,
+        )
+        this.builders.set(
+            NotificationType.COOKING_DISBURSEMENT_COMPLETED,
+            this.cookingDisbursementBuilder,
+        )
+        this.builders.set(
+            NotificationType.DELIVERY_DISBURSEMENT_COMPLETED,
+            this.deliveryDisbursementBuilder,
+        )
+        this.builders.set(
+            NotificationType.CAMPAIGN_EXTENDED,
+            this.campaignExtendedBuilder,
+        )
+        this.builders.set(
+            NotificationType.CAMPAIGN_PHASE_STATUS_UPDATED,
+            this.campaignPhaseStatusUpdatedBuilder,
+        )
+        this.builders.set(
+            NotificationType.EXPENSE_PROOF_APPROVED,
+            this.expenseProofApprovedBuilder,
+        )
+        this.builders.set(
+            NotificationType.EXPENSE_PROOF_REJECTED,
+            this.expenseProofRejectedBuilder,
+        )
+        this.builders.set(
+            NotificationType.COOKING_REQUEST_APPROVED,
+            this.cookingRequestApprovedBuilder,
+        )
+        this.builders.set(
+            NotificationType.COOKING_REQUEST_REJECTED,
+            this.cookingRequestRejectedBuilder,
+        )
+        this.builders.set(
+            NotificationType.DELIVERY_REQUEST_APPROVED,
+            this.deliveryRequestApprovedBuilder,
+        )
+        this.builders.set(
+            NotificationType.DELIVERY_REQUEST_REJECTED,
+            this.deliveryRequestRejectedBuilder,
         )
     }
 

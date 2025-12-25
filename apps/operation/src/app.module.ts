@@ -23,9 +23,7 @@ import {
 import {
     AuthorizationService,
     CampaignPhase,
-    CampaignPhaseResolver,
     User,
-    UserResolver,
     UserClientService,
 } from "./shared"
 import { PrismaOperationService } from "./infrastructure"
@@ -63,6 +61,9 @@ import { MealBatchService } from "./application/services/meal-batch/meal-batch.s
 import { DeliveryTaskCacheService } from "./application/services/delivery-task"
 import { IngredientRequestCacheService } from "./application/services/ingredient-request"
 import { Organization } from "./shared/model"
+import { InflowTransactionNotificationService } from "./application/services/inflow-transaction"
+import { EventEmitterModule } from "@nestjs/event-emitter"
+import { DeliveryTaskNotificationHandler, ExpenseProofNotificationHandler, IngredientRequestNotificationHandler, OperationRequestNotificationHandler } from "./application/handlers"
 
 @Module({
     imports: [
@@ -91,6 +92,15 @@ import { Organization } from "./shared/model"
         AwsCognitoModule.forRoot({
             isGlobal: false,
             mockMode: false,
+        }),
+        EventEmitterModule.forRoot({
+            wildcard: false,
+            delimiter: ".",
+            newListener: false,
+            removeListener: false,
+            maxListeners: 25,
+            verboseMemoryLeak: false,
+            ignoreErrors: false,
         }),
         GrpcModule,
     ],
@@ -129,9 +139,8 @@ import { Organization } from "./shared/model"
         DeliveryTaskService,
         InflowTransactionService,
         InflowTransactionValidationService,
+        InflowTransactionNotificationService,
 
-        UserResolver,
-        CampaignPhaseResolver,
         IngredientRequestMutationResolver,
         IngredientRequestQueryResolver,
         ExpenseProofMutationResolver,
@@ -147,6 +156,11 @@ import { Organization } from "./shared/model"
         InflowTransactionFundraiserResolver,
         InflowTransactionPublicResolver,
         InflowTransactionFieldResolver,
+
+        IngredientRequestNotificationHandler,
+        ExpenseProofNotificationHandler,
+        OperationRequestNotificationHandler,
+        DeliveryTaskNotificationHandler
     ],
 })
 export class AppModule {}

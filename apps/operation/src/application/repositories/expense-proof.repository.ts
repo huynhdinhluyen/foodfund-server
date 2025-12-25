@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common"
-import { PrismaClient } from "../../generated/operation-client"
+import { Prisma, PrismaClient } from "../../generated/operation-client"
 import { ExpenseProofFilterInput } from "../dtos/expense-proof"
 import { ExpenseProofStatus } from "../../domain/enums"
+import { ExpenseProofSortOrder } from "../../domain/enums/expense-proof"
 
 @Injectable()
 export class ExpenseProofRepository {
@@ -22,25 +23,44 @@ export class ExpenseProofRepository {
         return await this.prisma.expense_Proof.findUnique({
             where: { id },
             include: {
-                request: true,
+                request: {
+                    include: {
+                        items: true,
+                    },
+                },
             },
         })
     }
 
-    async findByRequestId(requestId: string) {
+    async findByRequestId(requestId: string, sortBy?: ExpenseProofSortOrder) {
+        const orderBy = this.buildOrderByClause(
+            sortBy || ExpenseProofSortOrder.NEWEST_FIRST,
+        )
+
         return await this.prisma.expense_Proof.findMany({
             where: { request_id: requestId },
             include: {
-                request: true,
+                request: {
+                    include: {
+                        items: true,
+                    },
+                },
             },
-            orderBy: { created_at: "desc" },
+            orderBy,
         })
     }
 
-    async findByOrganizationRequests(requestIds: string[]) {
+    async findByOrganizationRequests(
+        requestIds: string[],
+        sortBy?: ExpenseProofSortOrder,
+    ) {
         if (requestIds.length === 0) {
             return []
         }
+
+        const orderBy = this.buildOrderByClause(
+            sortBy || ExpenseProofSortOrder.NEWEST_FIRST,
+        )
 
         return await this.prisma.expense_Proof.findMany({
             where: {
@@ -49,9 +69,13 @@ export class ExpenseProofRepository {
                 },
             },
             include: {
-                request: true,
+                request: {
+                    include: {
+                        items: true,
+                    },
+                },
             },
-            orderBy: { created_at: "desc" },
+            orderBy,
         })
     }
 
@@ -59,7 +83,11 @@ export class ExpenseProofRepository {
         return await this.prisma.expense_Proof.findFirst({
             where: { request_id: requestId },
             include: {
-                request: true,
+                request: {
+                    include: {
+                        items: true,
+                    },
+                },
             },
             orderBy: { created_at: "desc" },
         })
@@ -88,6 +116,10 @@ export class ExpenseProofRepository {
             }
         }
 
+        const orderBy = this.buildOrderByClause(
+            filter.sortBy || ExpenseProofSortOrder.NEWEST_FIRST,
+        )
+
         return await this.prisma.expense_Proof.findMany({
             where,
             include: {
@@ -97,7 +129,7 @@ export class ExpenseProofRepository {
                     },
                 },
             },
-            orderBy: { created_at: "desc" },
+            orderBy,
             take: limit,
             skip: offset,
         })
@@ -108,6 +140,7 @@ export class ExpenseProofRepository {
         status?: ExpenseProofStatus,
         limit: number = 10,
         offset: number = 0,
+        sortBy?: ExpenseProofSortOrder,
     ) {
         if (phaseIds.length === 0) {
             return []
@@ -125,6 +158,10 @@ export class ExpenseProofRepository {
             where.status = status
         }
 
+        const orderBy = this.buildOrderByClause(
+            sortBy || ExpenseProofSortOrder.NEWEST_FIRST,
+        )
+
         return await this.prisma.expense_Proof.findMany({
             where,
             include: {
@@ -134,7 +171,7 @@ export class ExpenseProofRepository {
                     },
                 },
             },
-            orderBy: { created_at: "desc" },
+            orderBy,
             take: limit,
             skip: offset,
         })
@@ -174,6 +211,24 @@ export class ExpenseProofRepository {
             pendingCount: pending,
             approvedCount: approved,
             rejectedCount: rejected,
+        }
+    }
+
+    private buildOrderByClause(
+        sortBy: ExpenseProofSortOrder,
+    ):
+        | Prisma.Expense_ProofOrderByWithRelationInput
+        | Prisma.Expense_ProofOrderByWithRelationInput[] {
+        switch (sortBy) {
+        case ExpenseProofSortOrder.OLDEST_FIRST:
+            return { created_at: "asc" }
+
+        case ExpenseProofSortOrder.STATUS_PENDING_FIRST:
+            return { created_at: "desc" }
+
+        case ExpenseProofSortOrder.NEWEST_FIRST:
+        default:
+            return { created_at: "desc" }
         }
     }
 }

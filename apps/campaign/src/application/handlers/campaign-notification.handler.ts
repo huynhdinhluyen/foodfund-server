@@ -1,5 +1,6 @@
 import { OnEvent } from "@nestjs/event-emitter"
 import {
+    EntityType,
     NotificationPriority,
     NotificationType,
 } from "../../domain/enums/notification"
@@ -10,18 +11,26 @@ import {
     CampaignCancelledEvent,
     CampaignCompletedEvent,
     CampaignDonationReceivedEvent,
+    CampaignExtendedEvent,
     CampaignNewPostEvent,
+    CampaignPhaseStatusUpdatedEvent,
     CampaignRejectedEvent,
 } from "../../domain/events"
 import {
+    CampaignReassignmentAcceptedAdminEvent,
     CampaignReassignmentApprovedEvent,
     CampaignReassignmentAssignedEvent,
     CampaignReassignmentExpiredEvent,
+    CampaignReassignmentRejectedAdminEvent,
 } from "../../domain/events/campaign-reassignment.event"
+import { UserClientService } from "../../shared"
 
 @Injectable()
 export class CampaignNotificationHandler {
-    constructor(private readonly notificationQueue: NotificationQueue) {}
+    constructor(
+        private readonly notificationQueue: NotificationQueue,
+        private readonly userClientService: UserClientService,
+    ) {}
 
     @OnEvent("campaign.approved")
     async handleCampaignApproved(event: CampaignApprovedEvent) {
@@ -31,7 +40,7 @@ export class CampaignNotificationHandler {
             type: NotificationType.CAMPAIGN_APPROVED,
             userId: event.fundraiserId,
             actorId: event.approvedBy,
-            entityType: "CAMPAIGN",
+            entityType: EntityType.CAMPAIGN,
             entityId: event.campaignId,
             data: {
                 campaignId: event.campaignId,
@@ -51,7 +60,7 @@ export class CampaignNotificationHandler {
             type: NotificationType.CAMPAIGN_REJECTED,
             userId: event.fundraiserId,
             actorId: event.rejectedBy,
-            entityType: "CAMPAIGN",
+            entityType: EntityType.CAMPAIGN,
             entityId: event.campaignId,
             data: {
                 campaignId: event.campaignId,
@@ -70,7 +79,7 @@ export class CampaignNotificationHandler {
             priority: NotificationPriority.HIGH,
             type: NotificationType.CAMPAIGN_COMPLETED,
             userId: event.fundraiserId,
-            entityType: "CAMPAIGN",
+            entityType: EntityType.CAMPAIGN,
             entityId: event.campaignId,
             data: {
                 campaignId: event.campaignId,
@@ -89,7 +98,7 @@ export class CampaignNotificationHandler {
             priority: NotificationPriority.HIGH,
             type: NotificationType.CAMPAIGN_CANCELLED,
             userId: event.fundraiserId,
-            entityType: "CAMPAIGN",
+            entityType: EntityType.CAMPAIGN,
             entityId: event.campaignId,
             data: {
                 campaignId: event.campaignId,
@@ -108,7 +117,7 @@ export class CampaignNotificationHandler {
             type: NotificationType.CAMPAIGN_DONATION_RECEIVED,
             userId: event.fundraiserId,
             actorId: event.donorId,
-            entityType: "CAMPAIGN",
+            entityType: EntityType.CAMPAIGN,
             entityId: event.campaignId,
             data: {
                 campaignId: event.campaignId,
@@ -129,7 +138,7 @@ export class CampaignNotificationHandler {
             type: NotificationType.CAMPAIGN_NEW_POST,
             userIds: event.followerIds,
             actorId: event.authorId,
-            entityType: "POST",
+            entityType: EntityType.POST,
             entityId: event.postId,
             data: {
                 campaignId: event.campaignId,
@@ -150,7 +159,7 @@ export class CampaignNotificationHandler {
             type: NotificationType.CAMPAIGN_REASSIGNMENT_PENDING,
             userId: event.fundraiserId,
             actorId: event.assignedBy,
-            entityType: "CAMPAIGN",
+            entityType: EntityType.CAMPAIGN,
             entityId: event.campaignId,
             data: {
                 campaignId: event.campaignId,
@@ -158,6 +167,7 @@ export class CampaignNotificationHandler {
                 organizationName: event.organizationName,
                 expiresAt: event.expiresAt.toISOString(),
                 reason: event.reason,
+                reassignmentId: event.reassignmentId,
             },
             timestamp: new Date().toISOString(),
         })
@@ -170,12 +180,15 @@ export class CampaignNotificationHandler {
             priority: NotificationPriority.HIGH,
             type: NotificationType.CAMPAIGN_OWNERSHIP_TRANSFERRED,
             userId: event.previousFundraiserId,
-            entityType: "CAMPAIGN",
+            actorId: event.newFundraiserId,
+            entityType: EntityType.CAMPAIGN,
             entityId: event.campaignId,
             data: {
                 campaignId: event.campaignId,
                 campaignTitle: event.campaignTitle,
                 newOrganizationName: event.newOrganizationName,
+                newFundraiserId: event.newFundraiserId,
+                reassignmentId: event.reassignmentId,
             },
             timestamp: new Date().toISOString(),
         })
@@ -185,11 +198,13 @@ export class CampaignNotificationHandler {
             priority: NotificationPriority.HIGH,
             type: NotificationType.CAMPAIGN_OWNERSHIP_RECEIVED,
             userId: event.newFundraiserId,
-            entityType: "CAMPAIGN",
+            entityType: EntityType.CAMPAIGN,
             entityId: event.campaignId,
             data: {
                 campaignId: event.campaignId,
                 campaignTitle: event.campaignTitle,
+                organizationName: event.newOrganizationName,
+                reassignmentId: event.reassignmentId,
             },
             timestamp: new Date().toISOString(),
         })
@@ -202,7 +217,7 @@ export class CampaignNotificationHandler {
             priority: NotificationPriority.HIGH,
             type: NotificationType.CAMPAIGN_REASSIGNMENT_EXPIRED,
             userId: event.originalFundraiserId,
-            entityType: "CAMPAIGN",
+            entityType: EntityType.CAMPAIGN,
             entityId: event.campaignId,
             data: {
                 campaignId: event.campaignId,
@@ -211,5 +226,114 @@ export class CampaignNotificationHandler {
             },
             timestamp: new Date().toISOString(),
         })
+    }
+
+    @OnEvent("campaign.reassignment.accepted.admin")
+    async handleReassignmentAcceptedAdmin(
+        event: CampaignReassignmentAcceptedAdminEvent,
+    ) {
+        const adminCognitoIds = await this.getAdminCognitoIds()
+
+        if (adminCognitoIds.length === 0) {
+            return
+        }
+
+        await this.notificationQueue.addGroupedNotificationJob({
+            eventIds: [`reassignment-accepted-admin-${event.reassignmentId}`],
+            priority: NotificationPriority.HIGH,
+            type: NotificationType.CAMPAIGN_REASSIGNMENT_ACCEPTED_ADMIN,
+            userIds: adminCognitoIds,
+            actorId: event.fundraiserId,
+            entityType: EntityType.CAMPAIGN,
+            entityId: event.campaignId,
+            data: {
+                reassignmentId: event.reassignmentId,
+                campaignId: event.campaignId,
+                campaignTitle: event.campaignTitle,
+                organizationName: event.organizationName,
+                fundraiserName: event.fundraiserName,
+                acceptedAt: new Date().toISOString(),
+                note: event.note,
+            },
+            timestamp: new Date().toISOString(),
+        })
+    }
+
+    @OnEvent("campaign.reassignment.rejected.admin")
+    async handleReassignmentRejectedAdmin(
+        event: CampaignReassignmentRejectedAdminEvent,
+    ) {
+        const adminCognitoIds = await this.getAdminCognitoIds()
+
+        if (adminCognitoIds.length === 0) {
+            return
+        }
+
+        await this.notificationQueue.addGroupedNotificationJob({
+            eventIds: [`reassignment-rejected-admin-${event.reassignmentId}`],
+            priority: NotificationPriority.HIGH,
+            type: NotificationType.CAMPAIGN_REASSIGNMENT_REJECTED_ADMIN,
+            userIds: adminCognitoIds,
+            actorId: event.fundraiserId,
+            entityType: EntityType.CAMPAIGN,
+            entityId: event.campaignId,
+            data: {
+                reassignmentId: event.reassignmentId,
+                campaignId: event.campaignId,
+                campaignTitle: event.campaignTitle,
+                organizationName: event.organizationName,
+                fundraiserName: event.fundraiserName,
+                rejectedAt: new Date().toISOString(),
+                note: event.note,
+            },
+            timestamp: new Date().toISOString(),
+        })
+    }
+
+    @OnEvent("campaign.extended")
+    async handleCampaignExtended(event: CampaignExtendedEvent) {
+        await this.notificationQueue.addGroupedNotificationJob({
+            eventIds: [`campaign-extended-${event.campaignId}`],
+            priority: NotificationPriority.MEDIUM,
+            type: NotificationType.CAMPAIGN_EXTENDED,
+            userIds: event.followerIds,
+            actorId: event.fundraiserId,
+            entityType: EntityType.CAMPAIGN,
+            entityId: event.campaignId,
+            data: {
+                campaignId: event.campaignId,
+                campaignTitle: event.campaignTitle,
+                extensionDays: event.extensionDays,
+                newEndDate: event.newEndDate,
+                oldEndDate: event.oldEndDate,
+            },
+            timestamp: new Date().toISOString(),
+        })
+    }
+
+    @OnEvent("campaign.phase.status.updated")
+    async handlePhaseStatusUpdated(event: CampaignPhaseStatusUpdatedEvent) {
+        await this.notificationQueue.addGroupedNotificationJob({
+            eventIds: [`phase-status-updated-${event.phaseId}-${Date.now()}`],
+            priority: NotificationPriority.MEDIUM,
+            type: NotificationType.CAMPAIGN_PHASE_STATUS_UPDATED,
+            userIds: event.followerIds,
+            actorId: event.fundraiserId,
+            entityType: EntityType.CAMPAIGN,
+            entityId: event.campaignId,
+            data: {
+                campaignId: event.campaignId,
+                campaignTitle: event.campaignTitle,
+                phaseId: event.phaseId,
+                phaseName: event.phaseName,
+                oldStatus: event.oldStatus,
+                newStatus: event.newStatus,
+            },
+            timestamp: new Date().toISOString(),
+        })
+    }
+
+    private async getAdminCognitoIds(): Promise<string[]> {
+        return this.userClientService.getAdminCognitoIds()
     }
 }

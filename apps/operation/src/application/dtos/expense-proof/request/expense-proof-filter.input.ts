@@ -1,4 +1,5 @@
 import { ExpenseProofStatus } from "@app/operation/src/domain/enums"
+import { ExpenseProofSortOrder } from "@app/operation/src/domain/enums/expense-proof"
 import { Field, InputType } from "@nestjs/graphql"
 import { IsEnum, IsOptional, IsString } from "class-validator"
 
@@ -35,4 +36,13 @@ export class ExpenseProofFilterInput {
     @IsOptional()
     @IsString()
         campaignId?: string
+
+    @Field(() => ExpenseProofSortOrder, {
+        nullable: true,
+        defaultValue: ExpenseProofSortOrder.NEWEST_FIRST,
+        description: "Sort order for expense proofs",
+    })
+    @IsOptional()
+    @IsEnum(ExpenseProofSortOrder)
+        sortBy?: ExpenseProofSortOrder
 }
