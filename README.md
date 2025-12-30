@@ -98,6 +98,7 @@
 - **Container Orchestration**: Kubernetes
 - **Message Brokers**: Kafka, BullMQ
 - **Seach Engine**: Open Search
+- **Change Data Capture**: Debezium
 - **Cloud Storage**: S3 Storage
 - **Payment Processing**: PayOS, SePay
 - **Observability**: Datadog, Sentry
